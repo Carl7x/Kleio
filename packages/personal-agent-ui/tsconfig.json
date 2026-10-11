@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler", "jsx": "react-jsx",
+    "strict": true, "skipLibCheck": true, "noEmit": true, "allowJs": true, "checkJs": false,
+    "lib": ["ES2023", "DOM"],
+    "paths": {
+      "react": ["../../apps/web/node_modules/@types/react"],
+      "react/*": ["../../apps/web/node_modules/@types/react/*"],
+      "@deepseek-ai/cordis": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/cordis"],
+      "@deepseek-ai/dsh-client-ui-primitives": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/dsh-client-ui-primitives"],
+      "@deepseek-ai/dsh-client-store": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/dsh-client-store"],
+      "@deepseek-ai/dsh-util-workspace-path": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/dsh-util-workspace-path"],
+      "@deepseek-ai/dsh-client-locale/client": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/dsh-client-locale/lib/types/client/index.d.ts"],
+      "@deepseek-ai/dsh-client-ui-renderer/client": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/dsh-client-ui-renderer/lib/types/client/index.d.ts"],
+      "@deepseek-ai/dsh-client-ui-layout/client": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/dsh-client-ui-layout/lib/types/client/index.d.ts"],
+      "@deepseek-ai/dsh-client-ui-workspace/client": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/dsh-client-ui-workspace/lib/types/client/index.d.ts"],
+      "@deepseek-ai/dsh-client-ui-sidebar-right/client": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/dsh-client-ui-sidebar-right/lib/types/client/index.d.ts"],
+      "@deepseek-ai/dsh-client-ui-sidebar/client": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/dsh-client-ui-sidebar/lib/types/client/index.d.ts"],
+      "@deepseek-ai/dsh-client-ui-slots": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/dsh-client-ui-slots"],
+      "@deepseek-ai/dsh-session/types": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/dsh-session/lib/types/types.d.ts"]
+    }
+  },
+  "include": ["*.ts", "*.tsx", "api.mjs"], "exclude": ["dist"]
+}

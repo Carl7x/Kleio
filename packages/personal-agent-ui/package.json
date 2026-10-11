@@ -1,0 +1,25 @@
+{
+  "name": "@kleio/personal-agent-ui",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "description": "Personal memory, delegated tasks, results and profile within the native DSH Web client",
+  "license": "Apache-2.0",
+  "main": "host.mjs",
+  "exports": { ".": "./host.mjs", "./client": "./dist/client.js", "./package.json": "./package.json" },
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ]
+    }
+  },
+  "scripts": { "build": "node build.mjs", "test": "node --test api.test.mjs" },
+  "devDependencies": { "esbuild": "0.25.12" }
+}

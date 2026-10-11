@@ -1,0 +1,5 @@
+# Kleio owns this final ACP composition layer. Model routing is a separate,
+# generated JSON/YAML overlay; credentials are environment references only.
+- insert:
+    - id: kleio-present
+      name: '@deepseek-ai/dsh-tool-present'

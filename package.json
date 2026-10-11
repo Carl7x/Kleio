@@ -1,0 +1,53 @@
+{
+  "name": "kleio",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=24.19.0 <25"
+  },
+  "scripts": {
+    "dev": "node scripts/native-web.mjs",
+    "legacy:dev": "node scripts/dev.mjs",
+    "legacy:dev:server": "node --env-file-if-exists=.env --import tsx apps/server/index.ts",
+    "legacy:dev:web": "pnpm --filter @kleio/web dev",
+    "build": "node packages/personal-agent-ui/build.mjs && node scripts/verify-native.mjs --quick",
+    "legacy:build": "pnpm --filter @kleio/web build",
+    "setup:dsh": "npm install --prefix packages/harness-dsh/.runtime --ignore-scripts --save-exact @deepseek-ai/dsh@0.2.1-alpha.2",
+    "setup:native": "pnpm setup:dsh",
+    "start": "node scripts/native-web.mjs",
+    "cloud:start": "node scripts/cloud-web.mjs",
+    "stop": "node scripts/native-stop.mjs",
+    "legacy:start": "node --env-file-if-exists=.env --import tsx apps/server/index.ts",
+    "legacy:typecheck": "tsc --noEmit && pnpm --filter @kleio/web typecheck",
+    "legacy:test": "node --import tsx --test packages/core/test/*.test.ts packages/harness-dsh/test/*.test.ts",
+    "legacy:test:core": "node --import tsx --test packages/core/test/*.test.ts",
+    "test": "node scripts/verify-native.mjs",
+    "native:verify": "node scripts/verify-native.mjs",
+    "test:memory": "node --test packages/personal-memory/store.test.mjs packages/personal-memory/files.test.mjs packages/personal-memory/application.test.mjs packages/personal-memory/capture.test.mjs",
+    "test:ui": "node --test packages/personal-agent-ui/api.test.mjs",
+    "typecheck": "tsc -p packages/personal-agent-ui/tsconfig.json --noEmit",
+    "verify:application": "node scripts/verify-personal-application.mjs",
+    "verify:capture": "node --env-file-if-exists=.env scripts/verify-memory-capture-provider.mjs",
+    "verify:plugin": "node scripts/verify-personal-agent-plugin.mjs",
+    "test:tasks": "node scripts/verify-personal-tasks.mjs",
+    "verify:tasks": "node scripts/verify-personal-tasks-native.mjs",
+    "verify:provider": "node scripts/verify-deepseek.mjs",
+    "verify:memory-provider": "node scripts/verify-memory-provider.mjs",
+    "verify": "pnpm native:verify"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.4",
+    "hono": "4.13.13",
+    "proper-lockfile": "4.1.2",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.0.0",
+    "@types/proper-lockfile": "4.1.4",
+    "tsx": "4.20.0",
+    "typescript": "5.9.2"
+  }
+}

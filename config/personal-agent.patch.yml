@@ -1,0 +1,12 @@
+# Application-owned service, loaded through official Harness plugin composition.
+# This patch is not applied to the running instance until the launcher selects it.
+- insert:
+    - id: kleio-personal-agent
+      name: '__KLEIO_PERSONAL_AGENT_PLUGIN__'
+      config:
+        databasePath: !!js process.getBuiltinModule('node:path').resolve(process.env.DSH_HOME || '.data/dsh-native', process.env.KLEIO_STORAGE_SUBDIR || 'kleio', 'memory.sqlite')
+        instructionsPath: !!js process.getBuiltinModule('node:path').resolve(process.env.KLEIO_PROJECT_ROOT || process.cwd(), 'config/assistant.md')
+        applicationPath: !!js process.getBuiltinModule('node:path').resolve(process.env.DSH_HOME || '.data/dsh-native', process.env.KLEIO_STORAGE_SUBDIR || 'kleio', 'application.sqlite')
+        workspace: !!js process.env.KLEIO_TASK_WORKSPACE || process.env.KLEIO_WORKSPACE || process.getBuiltinModule('node:path').resolve(process.env.KLEIO_PROJECT_ROOT || process.cwd(), '..', 'Kleio Workspace')
+    - id: kleio-personal-agent-ui
+      name: '__KLEIO_PERSONAL_AGENT_UI_PLUGIN__'

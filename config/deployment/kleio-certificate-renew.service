@@ -1,0 +1,9 @@
+[Unit]
+Description=Renew Kleio public IP HTTPS certificate
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/bin/sh /opt/kleio-acme/acme.sh-3.1.6/acme.sh --cron --home /etc/kleio-acme --cert-home /var/lib/kleio-acme/certs

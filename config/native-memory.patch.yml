@@ -1,0 +1,16 @@
+# Official DSH MCP interoperability example, pinned to the MCP project's reference server.
+# Install with: npm install --prefix packages/native-memory/.runtime --ignore-scripts --save-exact @modelcontextprotocol/server-memory@2026.7.4
+# The launcher sets KLEIO_PROJECT_ROOT and DSH_HOME. No API key is passed to this process.
+- insert:
+    - id: memory-mcp-reference
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: reference_memory
+        transport: stdio
+        command: !!js process.execPath
+        args:
+          - !!js process.getBuiltinModule('node:path').resolve(process.env.KLEIO_PROJECT_ROOT || process.cwd(), 'packages/native-memory/.runtime/node_modules/@modelcontextprotocol/server-memory/dist/index.js')
+        cwd: !!js process.env.KLEIO_PROJECT_ROOT || process.cwd()
+        env:
+          MEMORY_FILE_PATH: !!js process.env.MEMORY_FILE_PATH || process.getBuiltinModule('node:path').resolve(process.env.DSH_HOME || '.data/dsh-native', 'memory.jsonl')
+        failOnStartupError: true

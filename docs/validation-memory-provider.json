@@ -1,0 +1,92 @@
+{
+  "verifiedAt": "2026-10-11T11:52:38.973Z",
+  "model": "deepseek-flash",
+  "provider": "https://api.deepseek.com",
+  "dsh": "0.2.1-alpha.2",
+  "isolatedData": true,
+  "checks": [
+    {
+      "label": "screenshot-topic",
+      "completed": true,
+      "firstTool": "memory_search",
+      "queryCount": 3,
+      "tools": [
+        "memory_search",
+        "skill"
+      ]
+    },
+    {
+      "label": "travel-holdout",
+      "completed": true,
+      "firstTool": "memory_search",
+      "queryCount": 3,
+      "tools": [
+        "memory_search"
+      ]
+    },
+    {
+      "label": "cooking-holdout",
+      "completed": true,
+      "firstTool": "memory_search",
+      "queryCount": 3,
+      "tools": [
+        "memory_search"
+      ]
+    },
+    {
+      "label": "history-source",
+      "completed": true,
+      "firstTool": "memory_search",
+      "queryCount": 3,
+      "tools": [
+        "memory_search"
+      ]
+    },
+    {
+      "label": "history-recall",
+      "completed": true,
+      "firstTool": "memory_search",
+      "queryCount": 3,
+      "tools": [
+        "memory_search"
+      ]
+    },
+    {
+      "label": "explicit-save",
+      "completed": true,
+      "firstTool": "memory_search",
+      "queryCount": 3,
+      "tools": [
+        "memory_search",
+        "personal_memory_remember"
+      ]
+    },
+    {
+      "label": "explicit-correction",
+      "completed": true,
+      "firstTool": "memory_search",
+      "queryCount": 2,
+      "tools": [
+        "memory_search",
+        "personal_memory_correct"
+      ]
+    },
+    {
+      "label": "latest-fact",
+      "completed": true,
+      "firstTool": "memory_search",
+      "queryCount": 3,
+      "tools": [
+        "memory_search"
+      ]
+    }
+  ],
+  "persistedFactVersions": 2,
+  "correctedFactReadFromDatabase": true,
+  "limitations": [
+    "Finite holdouts, not a general guarantee of model adherence.",
+    "Literal retrieval only; no embeddings.",
+    "Synthetic evaluation content, never written to the owner database.",
+    "The disposable verification profile explicitly permits test-role CRUD; production does not treat synthetic data as real user facts."
+  ]
+}
