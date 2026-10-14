@@ -17,3 +17,8 @@ coverage/
 /SOUL.md
 docs/*evidence*/
 docs/*evidence*.json
+
+docs/research/
+docs/validation-*.json
+*.local.json
+*.local.md

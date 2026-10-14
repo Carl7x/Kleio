@@ -1,6 +1,70 @@
 # DSH ACP adapter
 
-This ESM TypeScript package owns a DSH subprocess and speaks its automation-only ACP v1 stdio protocol. It has no runtime dependency. The product owns conversation IDs, tasks, approvals, memory and artifact storage; ACP is confined to this package and the server's engine wrapper.
+This ESM TypeScript package owns a DSH subprocess and speaks its automation-only ACP v1 stdio protocol. Its ACP transport uses Node built-ins; the headless composition uses the pinned DSH runtime. The product owns conversation IDs, tasks, approvals, memory and artifact storage; ACP is confined to this package and the engine wrapper.
+
+## Product-owned headless execution
+
+The standalone engine is `packages/engines/dsh.ts`. It implements the product
+`Engine` contract and uses `src/headless.ts`, `src/product-mcp.ts` and
+`src/product-guard.mjs`. The legacy setup below remains a separate integration.
+
+```ts
+const engine = createDshEngine({
+  dataDirectory: privateDataDirectory,
+  model: { baseURL: modelEndpoint, id: modelId, apiKey: selectedCredential },
+});
+```
+
+Options also accept `runtimeBin`, `nodeExecutable`, `promptTimeoutMs`,
+`cancelTimeoutMs`, model `contextWindow` and `maxTokens`. The runtime manifest
+must identify `@deepseek-ai/dsh@0.2.1-alpha.2`. The current route uses the pinned
+pi-ai `openai-completions` adapter; an arbitrary provider protocol is not implied.
+Credentials enter only the selected child environment. Do not log the factory
+options or serialize them into product API responses.
+
+Every execution creates a fresh private home, profile, workspace, process and
+ACP session. It supplies the entire product context and role-labelled history
+as background data in the prompt, followed by the current request. This is not
+native role-by-role history import, resume, or cross-execution KV cache reuse.
+Temporary execution files are removed after settlement; the product must persist
+its own messages, tool receipts, execution events and engine session mapping.
+
+Only the execution's product tools are mounted through an authenticated loopback
+HTTP MCP server. Names use `mcp__kleio__<productName>`; names must be 1–50 ASCII
+letters/digits/underscores/hyphens, starting with a letter. The bridge rejects
+other tools, invalid arguments, browser Origins, revoked tokens and conflicting
+request IDs. Repeated MCP request IDs replay the existing receipt. At most 256
+distinct bridge tool calls are admitted per execution. The product callback
+still owns authorization, durable action receipts, cancellation and tool effects.
+
+The pinned tool registry enforces a JSON Schema subset: scalar `type`, object
+`properties`/`required`/boolean `additionalProperties`, array `items`, scalar
+`enum`/`const` and exact-one `oneOf`, plus `description`/`title`/`default`/`examples`
+annotations. Product tool inputs require an object root. Keywords such as
+`minimum`, `minItems`, `maxItems`, `$ref` and `anyOf` reject before a model request;
+the adapter does not silently remove constraints. Expose compatible schemas and
+describe bounds to the model, while validating complete business constraints in
+the product callback before effects occur.
+
+Shipped shell/filesystem/web/skill/goal/subagent/PTC tool producers are disabled.
+An agent-local restriction hides all inherited tools, a guard rejects any name
+outside the execution whitelist, and creation fails unless the final catalog
+matches exactly. No user profile, arbitrary MCP server, or tool plugin is loaded.
+This limited capability surface is not a claim that the DSH default sandbox
+isolates arbitrary JavaScript plugins or provides a complete OS/network sandbox.
+
+Events include `engine.session`, `engine.tool` and fixed-field `engine.error`
+diagnostics. Raw provider errors and stderr are not returned. `ENGINE_CANCELLED`
+means no dispatch occurred or ACP confirmed prompt settlement after cancellation with product calls
+settled. `ENGINE_OUTCOME_UNKNOWN` means settlement was not confirmed or a product
+call is still settling: inspect recorded effects before retrying. Cancellation
+never reverses completed effects. `close()` stops admission and drains executions.
+
+`test/headless.test.ts` is a keyless local protocol check using the real pinned
+process: whitelist-only tool schemas, genuine product tool dispatch, a rejected
+foreign tool, fresh contexts, tool-free execution, cancellation, timeout,
+authentication, argument validation, receipt replay and token revocation. It
+needs permission to bind loopback servers. It does not validate a paid provider.
 
 ## Kleio runtime setup
 

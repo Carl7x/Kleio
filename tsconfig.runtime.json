@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "lib": ["ES2023", "DOM", "DOM.Iterable", "DOM.AsyncIterable"] },
+  "include": ["apps/runtime/**/*.ts", "apps/cli/**/*.ts", "packages/runtime/**/*.ts", "packages/engines/**/*.ts", "packages/connectors/**/*.ts", "packages/personal-memory/runtime*.ts", "packages/personal-tasks/runtime*.ts", "packages/harness-dsh/src/**/*.ts", "packages/core/ownership.ts"],
+  "exclude": ["**/node_modules", "**/.runtime"]
+}
