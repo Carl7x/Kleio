@@ -9,7 +9,7 @@ import {
 } from "react";
 
 interface ComputerDrafts {
-  tab: "Browser" | "Terminal" | "Files" | "Desktop";
+  tab: "浏览器" | "终端" | "文件" | "桌面";
   command: string;
   cwd: string;
   path: string;
@@ -23,7 +23,7 @@ const DraftContext = createContext<{
 /** Keep unsent work when another sheet replaces the computer; never persist it to disk. */
 export function ComputerDraftProvider({ children }: { children: ReactNode }) {
   const [drafts, setDrafts] = useState<ComputerDrafts>({
-    tab: "Browser",
+    tab: "浏览器",
     command: "",
     cwd: "/workspace",
     path: "/workspace",
@@ -33,7 +33,7 @@ export function ComputerDraftProvider({ children }: { children: ReactNode }) {
 }
 export function useComputerDraft<K extends keyof ComputerDrafts>(key: K) {
   const context = useContext(DraftContext);
-  if (!context) throw new Error("Computer drafts are unavailable");
+  if (!context) throw new Error("电脑草稿不可用");
   const { setDrafts } = context;
   const set = useCallback(
     (value: SetStateAction<ComputerDrafts[K]>) => {

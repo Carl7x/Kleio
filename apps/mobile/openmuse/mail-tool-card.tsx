@@ -50,7 +50,7 @@ export function MailToolCard({
           <Mail size={16} color={colors.muted} />
         )}
         <Text style={s.muted}>
-          {!active ? "Mail reading paused" : search ? "Checking your inbox…" : "Reading the email…"}
+          {!active ? "邮件阅读已暂停" : search ? "正在查看收件箱…" : "正在阅读邮件…"}
         </Text>
       </View>
     );
@@ -59,7 +59,7 @@ export function MailToolCard({
       .object({ matches: z.array(z.object({ id: z.string() })), truncated: z.boolean() })
       .safeParse(value);
     if (!parsed.success)
-      return <ErrorNotice error="The mailbox did not return readable results." />;
+      return <ErrorNotice error="邮箱未返回可读结果。" />;
     const count = parsed.data.matches.length;
     return (
       <View style={[s.row, { gap: 9, padding: 12 }]}>
@@ -67,7 +67,7 @@ export function MailToolCard({
         <Text style={s.muted}>
           {count
             ? `Found ${parsed.data.truncated ? "at least " : ""}${count} ${count === 1 ? "email" : "emails"}`
-            : "No matching emails"}
+            : "没有匹配的邮件"}
         </Text>
       </View>
     );
@@ -75,9 +75,9 @@ export function MailToolCard({
   const parsed = z
     .object({ messages: z.array(messageSchema), truncated: z.boolean() })
     .safeParse(value);
-  if (!parsed.success) return <ErrorNotice error="The email could not be displayed." />;
+  if (!parsed.success) return <ErrorNotice error="无法显示该邮件。" />;
   const message = parsed.data.messages.at(-1);
-  if (!message) return <Text style={s.muted}>No messages in this thread.</Text>;
+  if (!message) return <Text style={s.muted}>此会话中没有消息。</Text>;
   return (
     <Card
       style={{ padding: 18, gap: 14, backgroundColor: "#F0EFF2", maxWidth: 440, width: "100%" }}
@@ -91,7 +91,7 @@ export function MailToolCard({
           <Text style={s.small}>
             Email ·{" "}
             {parsed.data.messages.length === 1
-              ? "1 message"
+              ? "1 封邮件"
               : `${parsed.data.messages.length} messages`}
           </Text>
         </View>
@@ -100,9 +100,9 @@ export function MailToolCard({
       <Text style={s.muted} numberOfLines={3}>
         {message.body}
       </Text>
-      {parsed.data.truncated && <Text style={s.small}>Showing an excerpt of this thread.</Text>}
+      {parsed.data.truncated && <Text style={s.small}>显示此会话的摘录。</Text>}
       <Button small icon={Mail} onPress={() => open({ type: "mail", mail: message })}>
-        Open email
+        打开邮件
       </Button>
     </Card>
   );

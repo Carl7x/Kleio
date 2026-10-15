@@ -28,7 +28,7 @@ export function SearchToolCard({ result, loading }: { result: unknown; loading: 
   const failure = error.success
     ? error.data.error
     : !loading && !parsed.success
-      ? "Search did not return readable results."
+      ? "搜索未返回可读结果。"
       : "";
   const sources = parsed.success
     ? [...new Map(parsed.data.results.map((source) => [source.url, source])).values()]
@@ -46,14 +46,14 @@ export function SearchToolCard({ result, loading }: { result: unknown; loading: 
         )}
         <Text style={s.text}>
           {failure
-            ? "Search failed"
+            ? "搜索失败"
             : working
-              ? "Searching the web…"
+              ? "正在搜索网页…"
               : loading
-                ? "Search stopped"
+                ? "搜索已停止"
                 : count
-                  ? `Found ${count} ${count === 1 ? "source" : "sources"}`
-                  : "No sources found"}
+                  ? `找到 ${count} 个来源`
+                  : "未找到来源"}
         </Text>
       </View>
       {!loading && parsed.success && (
@@ -66,7 +66,7 @@ export function SearchToolCard({ result, loading }: { result: unknown; loading: 
               onPress={() => {
                 setLinkError("");
                 void Linking.openURL(source.url).catch(() =>
-                  setLinkError("Could not open this source."),
+                  setLinkError("无法打开该来源。"),
                 );
               }}
             >
@@ -74,7 +74,7 @@ export function SearchToolCard({ result, loading }: { result: unknown; loading: 
             </Text>
           ))}
           {parsed.data.truncated && (
-            <Text style={s.small}>Some search results or excerpts were omitted.</Text>
+            <Text style={s.small}>部分搜索结果或摘录已省略。</Text>
           )}
           {[...new Set(parsed.data.warnings)].map((warning) => (
             <Text key={warning} style={s.small}>

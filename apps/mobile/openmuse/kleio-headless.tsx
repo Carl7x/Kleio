@@ -36,11 +36,11 @@ async function request<T>(path: string, value?: unknown, method?: string): Promi
           ...(value === undefined ? {} : { body: JSON.stringify(value) }),
         });
         const payload = await response.json();
-        if (!response.ok) throw Object.assign(new Error(typeof payload?.error === "string" ? payload.error : "Could not load the saved workspace."), { code: payload?.code });
+        if (!response.ok) throw Object.assign(new Error(typeof payload?.error === "string" ? payload.error : "无法加载已保存的工作台。"), { code: payload?.code });
         return payload as T;
       })(),
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => { reject(new Error("The local workspace did not respond. Retry loading the conversation.")); controller.abort(); }, 15_000);
+        timer = setTimeout(() => { reject(new Error("本地工作台无响应。请重试加载对话。")); controller.abort(); }, 15_000);
       }),
     ]);
   } finally { clearTimeout(timer); }
@@ -78,7 +78,7 @@ export function executionMessages(execution: Execution, events: readonly Product
         current!.toolCalls = [...(current!.toolCalls ?? []), call];
         tools.set(call.id, call);
       }
-      const result = event.type === "tool.failed" ? { error: typeof data.error === "string" ? data.error : "The tool did not complete." } : data.result ?? {};
+      const result = event.type === "tool.failed" ? { error: typeof data.error === "string" ? data.error : "工具未完成。" } : data.result ?? {};
       messages.push({ id: `${execution.id}:tool:${data.callId}`, role: "tool", toolCallId: data.callId, content: typeof result === "string" ? result : JSON.stringify(result) });
       afterTool = true;
     }
@@ -206,7 +206,7 @@ class LocalAgent {
       try { await this.hydrate(); }
       catch (error) { this.runtime.emitError({ error, context: { agentId: this.id } }); }
       this.runtime.threadsChanged();
-      if (["failed", "unknown", "interrupted"].includes(terminal.status)) this.runtime.emitError({ error: new Error(terminal.error || "The response did not complete."), code: replay ? replayedRunError : "agent_run_failed", context: { agentId: this.id } });
+      if (["failed", "unknown", "interrupted"].includes(terminal.status)) this.runtime.emitError({ error: new Error(terminal.error || "回复未完成。"), code: replay ? replayedRunError : "agent_run_failed", context: { agentId: this.id } });
       return terminal;
     }).finally(() => { if (this.subscriptions.get(execution.id)?.controller === controller) this.subscriptions.delete(execution.id); });
     this.subscriptions.set(execution.id, { controller, promise });
@@ -218,14 +218,14 @@ class LocalAgent {
   }
   async run() {
     if (this.isRunning) {
-      this.runtime.emitError({ error: new Error("The conversation is already replying."), code: threadLocked, context: { agentId: this.id } });
+      this.runtime.emitError({ error: new Error("对话正在回复中。"), code: threadLocked, context: { agentId: this.id } });
       return;
     }
     const user = this.pendingUser ?? [...this.messages].reverse().find((item): item is Extract<Message, { role: "user" }> => item.role === "user");
-    if (!user) throw new Error("There is no message to send.");
+    if (!user) throw new Error("没有可发送的消息。");
     const retryOf = this.pendingUser ? undefined : this.failedTurn();
-    if (!this.pendingUser && !retryOf) throw new Error("This saved response cannot be run again. Send a new message to continue.");
-    if (this.pendingUser && !this.canRetry) throw new Error("This saved response cannot be run again. Send a new message to continue.");
+    if (!this.pendingUser && !retryOf) throw new Error("这条已保存的回复无法再运行。发送新消息继续。");
+    if (this.pendingUser && !this.canRetry) throw new Error("这条已保存的回复无法再运行。发送新消息继续。");
     this.stopRequested = false;
     this.isRunning = true; this.notify();
     try {
@@ -243,7 +243,7 @@ class LocalAgent {
         await following;
       } else {
         await this.hydrate();
-        if (["failed", "unknown", "interrupted"].includes(execution.status)) this.runtime.emitError({ error: new Error(execution.error || "The response did not complete."), code: "agent_run_failed", context: { agentId: this.id } });
+        if (["failed", "unknown", "interrupted"].includes(execution.status)) this.runtime.emitError({ error: new Error(execution.error || "回复未完成。"), code: "agent_run_failed", context: { agentId: this.id } });
       }
     } catch (error) {
       const code = error && typeof error === "object" && "code" in error ? String(error.code) : undefined;
@@ -294,7 +294,7 @@ export function KleioHeadlessProvider({ children }: { children: ReactNode }) {
 }
 function useRuntime() {
   const runtime = useContext(RuntimeContext);
-  if (!runtime) throw new Error("The local chat runtime is unavailable.");
+  if (!runtime) throw new Error("本地对话运行时不可用。");
   return runtime;
 }
 export function useAgent({ agentId, threadId }: { agentId: string; runtimeAgentId: string; threadId: string }) {
@@ -341,7 +341,7 @@ export function useThreads({ enabled, includeArchived, limit }: { agentId: strin
       const value = await request<ThreadRecord[] | { threads: ThreadRecord[] }>("/api/threads?includeArchived=true");
       if (!alive.current || current !== generation.current) return;
       const records = Array.isArray(value) ? value : value.threads;
-      setAll(records.filter(item => includeArchived || !item.archived).map(item => ({ id: item.id, name: item.name ?? (item.title === "New conversation" ? "" : item.title) ?? "", archived: item.archived === true })));
+      setAll(records.filter(item => includeArchived || !item.archived).map(item => ({ id: item.id, name: item.name ?? (item.title === "新对话" ? "" : item.title) ?? "", archived: item.archived === true })));
       setError(undefined);
     } catch (failure) { if (alive.current && current === generation.current) setError(new Error(message(failure))); }
     finally { if (alive.current && current === generation.current) setLoading(false); }

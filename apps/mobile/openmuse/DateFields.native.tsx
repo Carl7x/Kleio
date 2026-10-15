@@ -15,7 +15,7 @@ export default function DateFields({ label, date, time, allDay, onChange }: Date
           label={`${label} date`}
           value={date}
           onChangeText={(value) => onChange(value, time)}
-          placeholder="YYYY-MM-DD"
+          placeholder="年-月-日"
           keyboardType="numbers-and-punctuation"
         />
       </View>
@@ -25,7 +25,7 @@ export default function DateFields({ label, date, time, allDay, onChange }: Date
             label={`${label} time`}
             value={time}
             onChangeText={(value) => onChange(date, value)}
-            placeholder="HH:MM (24-hour)"
+            placeholder="时:分（24 小时）"
             keyboardType="numbers-and-punctuation"
           />
         </View>

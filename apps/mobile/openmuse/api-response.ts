@@ -15,10 +15,10 @@ export async function readApiPayload<T>(response: Response, fallback?: string): 
     const error =
       payload && typeof payload === "object" ? (payload as { error?: unknown }).error : undefined;
     throw new Error(
-      typeof error === "string" ? error : (fallback ?? `Request failed (${response.status})`),
+      typeof error === "string" ? error : (fallback ?? `请求失败（${response.status}）`),
     );
   }
   if (payload === undefined)
-    throw new Error(`The server returned an unreadable response (${response.status}).`);
+    throw new Error(`服务器返回了无法解析的响应（${response.status}）。`);
   return payload as T;
 }

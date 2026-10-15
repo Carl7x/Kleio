@@ -94,7 +94,7 @@ export const DesktopStream = memo(function DesktopStream({
       <ErrorNotice error={error} />
       {embedded && !url && !error && <ActivityIndicator color={colors.blueDark} />}
       {!!url && embed && Platform.OS === "web" && (
-        <BrowserConsole url={url} title="Computer desktop" sandboxed />
+        <BrowserConsole url={url} title="电脑桌面" sandboxed />
       )}
       {running && (!embedded || !!url) && (
         <Button
@@ -103,7 +103,7 @@ export const DesktopStream = memo(function DesktopStream({
           disabled={opening}
           onPress={() => void open()}
         >
-          {opening ? "Opening…" : "Open desktop"}
+          {opening ? "打开中…" : "打开桌面"}
         </Button>
       )}
     </View>

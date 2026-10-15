@@ -24,7 +24,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       clientFetch(path, { ...init, signal: controller.signal }).then(response => readApiPayload<T>(response)),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
-          reject(new Error("The workspace did not respond. Check that the server is reachable, then try again."));
+          reject(new Error("工作台无响应。请确认服务器可达后再试。"));
           controller.abort();
         }, 15_000);
       }),
@@ -84,7 +84,7 @@ export async function createSession(accessKey?: string): Promise<{ token: string
       try {
         const issued = await request<{ code: string }>("/api/device-pairing", json({}));
         const paired = await request<{ token: string }>("/api/devices/pair", json({ code: issued.code, name: "iPhone", client: "native" }));
-        if (!paired.token) throw new Error("The workspace did not grant a device session.");
+        if (!paired.token) throw new Error("工作台未授予设备会话。");
         deviceToken = paired.token;
         await SecureStore.setItemAsync(savedKey, JSON.stringify({ url: API_URL, token: deviceToken }), {
           keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,

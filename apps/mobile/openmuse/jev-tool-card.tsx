@@ -29,10 +29,10 @@ export const JevInteractionContext = createContext<JevInteraction>({
   canRetry: false,
   confirmedSelection: () => null,
   send: async () => {
-    throw new Error("Open an active conversation to choose an option.");
+    throw new Error("打开进行中的对话以选择选项。");
   },
   retry: async () => {
-    throw new Error("Open an active conversation to retry a choice.");
+    throw new Error("打开进行中的对话以重试选择。");
   },
 });
 
@@ -40,7 +40,7 @@ function SourceLink({ title, url }: { title: string; url: string }) {
   return (
     <Pressable
       accessibilityRole="link"
-      accessibilityLabel={`Source: ${title}`}
+      accessibilityLabel={`来源：${title}`}
       onPress={() => void Linking.openURL(url)}
       style={({ pressed }) => [s.row, { gap: 4, opacity: pressed ? 0.65 : 1 }]}
     >
@@ -70,7 +70,7 @@ function ChoiceButton({
   onChoose: (optionId: string) => void;
 }) {
   if (panel.type === "comparison") {
-    const caption = /exhibit/i.test(panel.title) ? "Choose this exhibit" : "Choose this option";
+    const caption = /exhibit/i.test(panel.title) ? "选择此展品" : "选择此选项";
     return (
       <Pressable
         accessibilityRole="button"
@@ -118,13 +118,13 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
     return (
       <View style={[s.row, { gap: 10, padding: 14 }]}>
         <ActivityIndicator size="small" color={colors.blueDark} />
-        <Text style={s.muted}>Preparing choices…</Text>
+        <Text style={s.muted}>正在准备选项…</Text>
       </View>
     );
   }
 
   const parsed = parseJevResult(result);
-  if (!parsed) return <ErrorNotice error="The choices could not be displayed. Please retry." />;
+  if (!parsed) return <ErrorNotice error="无法显示选项。请重试。" />;
   if (parsed.error) return <ErrorNotice error={parsed.error} />;
   const panel = parsed.panel;
   if (!panel) return null;
@@ -191,13 +191,13 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
     <Card style={{ width: "100%", maxWidth: 440, padding: 17, gap: 13 }}>
       <View style={{ gap: 5 }}>
         <Text style={s.heading}>{panel.title}</Text>
-        {panel.mode === "sample" && <Text style={s.small}>Sample · scripted decisions</Text>}
-        {panel.mode === "live" && <Text style={s.small}>Live Jev · model decisions</Text>}
+        {panel.mode === "sample" && <Text style={s.small}>示例 · 脚本化决策</Text>}
+        {panel.mode === "live" && <Text style={s.small}>实时 Jev · 模型决策</Text>}
         {preferredOption && !selectedId && (
           <Text style={s.small}>Previous preference: {preferredOption.label}</Text>
         )}
-        {stale && <Text style={s.small}>Earlier choices</Text>}
-        {selectedId && <Text style={s.small}>Choice submitted</Text>}
+        {stale && <Text style={s.small}>更早的选择</Text>}
+        {selectedId && <Text style={s.small}>已提交选择</Text>}
       </View>
       {panel.type === "clarification" ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -262,7 +262,7 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
           }
           onPress={() => void choose(failedOptionId, true)}
         >
-          Retry choice
+          重试选择
         </Button>
       )}
     </Card>

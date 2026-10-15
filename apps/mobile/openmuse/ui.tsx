@@ -297,7 +297,7 @@ export function Sheet({
               <Text style={s.title}>{title}</Text>
               {!!subtitle && <Text style={s.muted}>{subtitle}</Text>}
             </View>
-            <IconButton icon={X} label="Close details" onPress={onClose} />
+            <IconButton icon={X} label="关闭详情" onPress={onClose} />
           </View>
           <ScrollView
             keyboardShouldPersistTaps="handled"
@@ -413,7 +413,7 @@ export function Mascot({
     lilac: "#F1ECF9",
   }[variant];
   return (
-    <View accessibilityLabel="OpenMuse capybara" style={{ width: size, height: size }}>
+    <View accessibilityLabel="Kleio 卡皮巴拉" style={{ width: size, height: size }}>
       <View
         style={{
           position: "absolute",
@@ -450,6 +450,6 @@ export { relativeDate } from "./relative-date";
 
 export function resultSummary(value: string) {
   return /^Saved to (?:sample|local) sent mail(?: · .+)?$/.test(value)
-    ? "Reply saved in your local Sent mail."
+    ? "回复已保存到本地已发送。"
     : value;
 }

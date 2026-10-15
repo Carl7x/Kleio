@@ -13,7 +13,7 @@ export function FileThreadCard({ file }: { file: Artifact }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Open PDF: ${file.name}`}
+      accessibilityLabel={`打开 PDF：${file.name}`}
       onPress={() => open({ type: "file", file })}
       style={{ width: "100%", maxWidth: 440 }}
     >
@@ -106,7 +106,7 @@ export function TaskThreadCard({ task }: { task: AgentTask }) {
       <ErrorNotice error={error} />
       {!!error && (
         <Button small onPress={() => setAttempt((value) => value + 1)}>
-          Reload task results
+          重新加载任务结果
         </Button>
       )}
     </View>

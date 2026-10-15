@@ -93,7 +93,7 @@ export function ThreadsProvider({ children }: { children: ReactNode }) {
 }
 export function useMuseThread() {
   const context = useContext(ThreadContext);
-  if (!context) throw new Error("Threads provider is unavailable");
+  if (!context) throw new Error("对话列表暂不可用");
   return context;
 }
 export function ThreadsSheet({ onClose }: { onClose: () => void }) {
@@ -130,7 +130,7 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet
       title="OpenMuse"
-      subtitle={workspace.mode === "sample" ? "Your workspace" : workspace.profile.name}
+      subtitle={workspace.mode === "sample" ? "你的工作台" : workspace.profile.name}
       onClose={onClose}
     >
       <View style={{ gap: 14 }}>
@@ -138,7 +138,7 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
           <>
             <ErrorNotice error={mainError} />
             {mainError ? (
-              <Button onPress={retry}>Retry main chat</Button>
+              <Button onPress={retry}>重试主对话</Button>
             ) : (
               <ActivityIndicator color={colors.blueDark} />
             )}
@@ -147,8 +147,8 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
           <>
             <LinkRow
               icon={MessageCircle}
-              title="Main chat"
-              detail="Your ongoing conversation"
+              title="主对话"
+              detail="正在进行的对话"
               onPress={() => {
                 select({ id: mainId, existing: true });
                 onClose();
@@ -162,19 +162,19 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
                 onClose();
               }}
             >
-              New side chat
+              新建旁路对话
             </Button>
             <View style={[s.between, { marginTop: 12 }]}>
-              <Text style={s.heading}>Side chats</Text>
+              <Text style={s.heading}>旁路对话</Text>
               <Button small onPress={() => setArchived(!archived)}>
-                {archived ? "Show active" : "Archived"}
+                {archived ? "进行中" : "已归档"}
               </Button>
             </View>
             {threads.isLoading && <ActivityIndicator color={colors.blueDark} />}
             <ErrorNotice error={error || threads.error?.message} />
             {threads.error && (
               <Button small onPress={threads.refetchThreads}>
-                Retry conversations
+                重试对话列表
               </Button>
             )}
             {!archived &&
@@ -187,8 +187,8 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
                   <LinkRow
                     key={item.id}
                     icon={MessageCircle}
-                    title={`Side chat ${index + 1}`}
-                    detail="Open in this app"
+                    title={`旁路对话 ${index + 1}`}
+                    detail="在本应用中打开"
                     onPress={() => {
                       select(item);
                       onClose();
@@ -209,7 +209,7 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
                 >
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Open conversation: ${thread.name || "Untitled conversation"}`}
+                    accessibilityLabel={`打开对话：${thread.name || "未命名对话"}`}
                     accessibilityState={{ selected: selection.id === thread.id }}
                     onPress={() => {
                       select({ id: thread.id, existing: true });
@@ -219,11 +219,11 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
                   >
                     <MessageCircle size={19} color={colors.text} />
                     <Text style={[s.text, { flex: 1 }]}>
-                      {thread.name || "Untitled conversation"}
+                      {thread.name || "未命名对话"}
                     </Text>
                   </Pressable>
                   {editing === thread.id && (
-                    <Field label="Conversation name" value={name} onChangeText={setName} />
+                    <Field label="对话名称" value={name} onChangeText={setName} />
                   )}
                   <View style={[s.row, { gap: 8 }]}>
                     <Button
@@ -238,7 +238,7 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
                         }
                       }}
                     >
-                      {editing === thread.id ? "Save name" : "Rename"}
+                      {editing === thread.id ? "保存名称" : "重命名"}
                     </Button>
                     <Button
                       small
@@ -252,7 +252,7 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
                         )
                       }
                     >
-                      {thread.archived ? "Restore" : "Archive"}
+                      {thread.archived ? "恢复" : "归档"}
                     </Button>
                   </View>
                 </View>
@@ -264,41 +264,41 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
               ) && (
                 <Text style={s.muted}>
                   {archived
-                    ? "No archived conversations."
-                    : "Keep a separate topic here. Your main chat is always available."}
+                    ? "没有已归档的对话。"
+                    : "在此另开一个话题。主对话始终可用。"}
                 </Text>
               )}
             <ErrorNotice error={threads.fetchMoreError?.message} />
             {threads.hasMoreThreads && (
               <Button small busy={threads.isFetchingMoreThreads} onPress={threads.fetchMoreThreads}>
-                Load more conversations
+                加载更多对话
               </Button>
             )}
             <Text style={s.small}>
-              Side chats keep their own conversation context. Your agent’s saved memory is shared.
+              旁路对话有各自上下文。智能体已保存的记忆是共享的。
             </Text>
           </>
         ) : (
           <>
             <LinkRow
               icon={MessageCircle}
-              title="Main chat"
-              detail="Saved in this workspace"
+              title="主对话"
+              detail="保存在此工作台"
               onPress={() => {
                 navigate("chat");
                 onClose();
               }}
             />
             <Text style={s.muted}>
-              Your conversation is saved in this workspace. You can manage connections in Apps.
+              对话保存在此工作台。可在「应用」中管理连接。
             </Text>
           </>
         )}
         <View style={s.divider} />
         <LinkRow
           icon={Plus}
-          title="Delegate task"
-          detail="A plan, document, or spending summary"
+          title="委托任务"
+          detail="计划、文档或开支摘要"
           onPress={() => {
             onClose();
             open({ type: "delegate" });
@@ -306,18 +306,18 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
         />
         <LinkRow
           icon={Monitor}
-          title="Agent computer"
-          detail="Browser, sessions and documents"
+          title="智能体电脑"
+          detail="浏览器、会话与文档"
           onPress={() => {
             onClose();
             open({ type: "computer" });
           }}
         />
-        <LinkRow icon={CalendarDays} title="Calendar" onPress={() => go("calendar")} />
-        <LinkRow icon={FileText} title="Files" onPress={() => go("files")} />
-        <LinkRow icon={Settings2} title="Apps & settings" onPress={() => go("apps")} />
+        <LinkRow icon={CalendarDays} title="日历" onPress={() => go("calendar")} />
+        <LinkRow icon={FileText} title="文件" onPress={() => go("files")} />
+        <LinkRow icon={Settings2} title="应用与设置" onPress={() => go("apps")} />
         <Button small icon={RefreshCw} onPress={() => void mutate(refresh)}>
-          Refresh workspace
+          刷新工作台
         </Button>
       </View>
     </Sheet>

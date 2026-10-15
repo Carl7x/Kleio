@@ -97,13 +97,13 @@ export function DesktopToolCard({
           <Monitor size={21} color={colors.blueDark} />
         </View>
         <View style={{ flex: 1, gap: 1 }}>
-          <Text style={[s.text, { fontWeight: "600" }]}>Desktop</Text>
+          <Text style={[s.text, { fontWeight: "600" }]}>桌面</Text>
           <Text numberOfLines={1} style={[s.small, { fontSize: 12 }]}>
             {loading
-              ? "Using the desktop…"
+              ? "正在使用桌面…"
               : value?.error
-                ? "The desktop step failed"
-                : (value?.action ?? "Desktop step")}
+                ? "桌面步骤失败"
+                : (value?.action ?? "桌面步骤")}
           </Text>
         </View>
         {loading && <ActivityIndicator size="small" color={colors.blueDark} />}
@@ -112,10 +112,10 @@ export function DesktopToolCard({
       {latest && snapshot && !running ? (
         <View style={{ backgroundColor: "#FAFAFB", borderRadius: 12, padding: 16, gap: 10 }}>
           <Text style={s.small}>
-            The computer is offline. Start it to see the desktop; apps that were open are closed.
+            电脑离线。启动后可查看桌面；之前打开的应用已关闭。
           </Text>
           <Button small icon={Play} disabled={starting} onPress={() => void start()}>
-            {starting ? "Starting…" : "Start computer"}
+            {starting ? "启动中…" : "启动电脑"}
           </Button>
         </View>
       ) : latest && running ? (
@@ -125,7 +125,7 @@ export function DesktopToolCard({
           <>
             {!!value?.receiptId && (
               <Image
-                accessibilityLabel="Latest desktop screenshot"
+                accessibilityLabel="最新桌面截图"
                 source={{
                   uri: api.url(`/api/computer/desktop/screenshot?receipt=${value.receiptId}`),
                   headers: { Authorization: `Bearer ${api.token}` },
@@ -142,11 +142,11 @@ export function DesktopToolCard({
         small
         icon={Monitor}
         onPress={() => {
-          setTab("Desktop");
+          setTab("桌面");
           open({ type: "computer" });
         }}
       >
-        Open in Desktop tab
+        在「桌面」页打开
       </Button>
     </Card>
   );

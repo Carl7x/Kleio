@@ -43,28 +43,28 @@ import { Button, Card, colors, ErrorNotice, Field, IconButton, Mascot, s } from 
 import { type Detail, useWorkspace, WorkspaceContext } from "./workspace";
 
 const nav: { id: Section; label: string; icon: LucideIcon }[] = [
-  { id: "chat", label: "Chat", icon: MessageCircle },
-  { id: "activity", label: "Activity", icon: PanelsTopLeft },
-  { id: "ideas", label: "Ideas", icon: Lightbulb },
-  { id: "goals", label: "Goals", icon: SquareCheck },
-  { id: "apps", label: "Apps", icon: Shapes },
+  { id: "chat", label: "对话", icon: MessageCircle },
+  { id: "activity", label: "动态", icon: PanelsTopLeft },
+  { id: "ideas", label: "灵感", icon: Lightbulb },
+  { id: "goals", label: "目标", icon: SquareCheck },
+  { id: "apps", label: "应用", icon: Shapes },
 ];
 const titles: Partial<Record<Section, { title: string; subtitle: string }>> = {
-  activity: { title: "Activity", subtitle: "Plans, progress, decisions and results." },
-  ideas: { title: "Ideas", subtitle: "Useful next steps, grounded in your world." },
+  activity: { title: "动态", subtitle: "计划、进展、决策与结果。" },
+  ideas: { title: "灵感", subtitle: "贴合你现状的下一步。" },
   goals: {
-    title: "Goals",
-    subtitle: "Longer-term goals and things to keep an eye on.",
+    title: "目标",
+    subtitle: "长期目标，以及需要盯着的事。",
   },
   apps: {
-    title: "Apps",
-    subtitle: "Connections, capabilities and what your agent remembers.",
+    title: "应用",
+    subtitle: "连接、能力，以及智能体记住的事。",
   },
-  connections: { title: "Apps", subtitle: "Connections and capabilities." },
-  mail: { title: "Mail", subtitle: "The conversations behind your work." },
-  calendar: { title: "Calendar", subtitle: "Time for what matters." },
-  browser: { title: "Browser", subtitle: "Your connected browsing sessions." },
-  files: { title: "Files", subtitle: "Documents, forms and filled copies." },
+  connections: { title: "应用", subtitle: "连接与能力。" },
+  mail: { title: "邮件", subtitle: "工作背后的往来邮件。" },
+  calendar: { title: "日历", subtitle: "留给真正重要的时间。" },
+  browser: { title: "浏览器", subtitle: "已连接的浏览会话。" },
+  files: { title: "文件", subtitle: "文档、表单与已填写副本。" },
 };
 export default function App() {
   const [token, setToken] = useState("");
@@ -108,27 +108,26 @@ export default function App() {
             <Text
               style={{ fontSize: 32, color: colors.text, letterSpacing: -1, fontWeight: "500" }}
             >
-              Welcome to Kleio.
+              欢迎使用 Kleio。
             </Text>
-            <Text style={[s.muted, { textAlign: "center" }]}>Your personal agent workspace.</Text>
+            <Text style={[s.muted, { textAlign: "center" }]}>你的个人智能体工作台。</Text>
             {busy ? (
               <ActivityIndicator color={colors.blueDark} />
             ) : (
               <Card style={{ width: "100%" }}>
                 <ErrorNotice error={error} />
                 <Field
-                  label="Kleio access token"
+                  label="Kleio 访问令牌"
                   value={accessKey}
                   onChangeText={setAccessKey}
                   secureTextEntry
-                  placeholder="Server KLEIO_TOKEN"
+                  placeholder="服务器 KLEIO_TOKEN"
                 />
                 <Button primary onPress={() => void connect(accessKey || undefined)}>
-                  Open workspace
+                  打开工作台
                 </Button>
                 <Text style={[s.small, { marginTop: 15 }]}>
-                  Local loopback opens with pnpm web. On this public workspace, paste the Kleio access
-                  token once to create a secure browser session at {API_URL}.
+                  本机可用 pnpm web 直接打开。在此公网工作台，粘贴一次 Kleio 访问令牌即可建立安全浏览器会话：{API_URL}。
                 </Text>
               </Card>
             )}
@@ -193,13 +192,13 @@ function WorkspaceApp({ token }: { token: string }) {
           <>
             <ErrorNotice error={error} />
             <Button onPress={() => void refresh().catch((e) => setError(String(e)))}>
-              Try again
+              再试一次
             </Button>
           </>
         ) : (
           <>
             <ActivityIndicator color={colors.blueDark} />
-            <Text style={s.muted}>Opening your workspace…</Text>
+            <Text style={s.muted}>正在打开工作台…</Text>
           </>
         )}
       </SafeAreaView>
@@ -261,13 +260,13 @@ function WorkspaceShell({
   const agentName = data?.identity.name || "Kleio";
   const status = activeTask
     ? activeTask.status === "waiting_approval"
-      ? `Ready to review · ${activeTask.title}`
+      ? `待你审阅 · ${activeTask.title}`
       : activeTask.status === "waiting_input"
-        ? `Needs your input · ${activeTask.title}`
+        ? `需要你补充 · ${activeTask.title}`
         : activeTask.plan.find((step) => step.status === "running")?.title || activeTask.title
     : data?.tasks.some((task) => task.status === "queued")
-      ? "Picking up your next task…"
-      : "Here when you need me";
+      ? "正在接下一项任务…"
+      : "有需要时我就在";
   const title = titles[section] || titles.apps;
   const Screen =
     section === "mail"
@@ -301,14 +300,14 @@ function WorkspaceShell({
             <View style={{ position: "absolute", left: 0, top: 16 }}>
               <IconButton
                 icon={Menu}
-                label="Open conversations and menu"
+                label="打开对话与菜单"
                 onPress={() => setThreadsOpen(true)}
               />
             </View>
             <View pointerEvents="box-none" style={{ alignItems: "center", gap: 1 }}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Open ${agentName} activity and approvals`}
+                accessibilityLabel={`打开 ${agentName} 动态与审批`}
                 onPress={() => navigate("activity")}
                 style={({ pressed }) => ({
                   alignItems: "center",
@@ -339,7 +338,7 @@ function WorkspaceShell({
             <View style={{ position: "absolute", right: 0, top: 16 }}>
               <IconButton
                 icon={Bell}
-                label={`Notifications, ${pending} unread or pending`}
+                label={`通知，${pending} 条未读或待处理`}
                 onPress={() => open({ type: "notifications" })}
               />
               {pending > 0 && (
@@ -372,7 +371,7 @@ function WorkspaceShell({
                     style={{ alignSelf: "flex-start", marginBottom: 18 }}
                     onPress={() => navigate("apps")}
                   >
-                    Back to Apps
+                    返回应用
                   </Button>
                 )}
                 <Text style={[s.title, { fontSize: 25, marginBottom: 22 }]}>{title?.title}</Text>
@@ -392,13 +391,13 @@ function WorkspaceShell({
                 <>
                   <ErrorNotice error={threadsError} />
                   {threadsError ? (
-                    <Button onPress={retryThreads}>Retry main chat</Button>
+                    <Button onPress={retryThreads}>重试主对话</Button>
                   ) : threadsLoading ? (
                     <ActivityIndicator color={colors.blueDark} />
                   ) : null}
                   {!threadsLoading && selection.id !== mainId && (
                     <Text style={[s.small, { textAlign: "center", marginBottom: 8 }]}>
-                      Side chat
+                      旁路对话
                     </Text>
                   )}
                   {visited.map((thread) => (
@@ -490,7 +489,7 @@ function WorkspaceShell({
               <Text style={{ color: "#FFF", fontSize: 13, flexShrink: 1 }}>{toast}</Text>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Dismiss notification"
+                accessibilityLabel="关闭通知"
                 onPress={clearToast}
               >
                 <X size={16} color="#FFF" />
