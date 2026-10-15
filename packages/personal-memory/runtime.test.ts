@@ -51,6 +51,25 @@ test('recall keeps a lexical bound and drops one accidental overlap', () => {
   assert.equal(renderRecall([]), null);
 });
 
+test('English subject aliases user/me/owner map to 用户 for remember', t => {
+  const { memory } = open(t);
+  for (const [subject, key] of [['user', 'tea-en'], ['User', 'tea-title'], ['me', 'tea-me'], ['owner', 'tea-owner']] as const) {
+    const saved = memory.remember({
+      subject,
+      key,
+      text: '我喜欢桂花乌龙',
+      kind: 'preference',
+      source: source('请记住我喜欢桂花乌龙', `m-${key}`),
+    });
+    assert.equal(saved.subject, '用户');
+  }
+  assert.equal(memory.list().length, 4);
+  assert.throws(
+    () => memory.remember({ subject: '张三', key: 'tea', text: '我喜欢桂花乌龙', kind: 'preference', source: source('请记住我喜欢桂花乌龙', 'm-z') }),
+    (error: unknown) => error instanceof MemoryRuntimeError && error.code === 'INVALID_EVIDENCE',
+  );
+});
+
 test('explicit remember writes immediately and idle extraction does not replace it', async t => {
   const { memory } = open(t);
   assert.equal(memory.list().length, 0);

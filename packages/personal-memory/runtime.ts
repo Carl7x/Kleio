@@ -51,6 +51,11 @@ function text(value: unknown, field: string, max = 4000): string {
   if (typeof value !== 'string' || !value.trim() || value.length > max) throw new MemoryRuntimeError('INVALID_INPUT', `Invalid ${field}.`);
   return value.trim();
 }
+/** Models often pass English "user"/"me"; only 「用户」 is the owner entity key. */
+export function ownerSubject(name: string): string {
+  const trimmed = name.trim();
+  return /^(?:user|me|owner|用户)$/iu.test(trimmed) ? '用户' : trimmed;
+}
 function object(value: unknown): ObjectValue {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new MemoryRuntimeError('INVALID_EXTRACTION', 'Expected a JSON object.');
   return value as ObjectValue;
@@ -296,11 +301,12 @@ export class MemoryRuntime {
     });
   }
   private entity(name: string, evidence: MemoryEvidence[], conversationId: string): MemoryPerson {
-    if (name !== '用户' && !evidence.some(e => norm(e.quote).includes(norm(name)))) throw new MemoryRuntimeError('INVALID_EVIDENCE', 'A named subject must occur in its user evidence.');
-    const identityKey = name === '用户' ? 'owner' : JSON.stringify([conversationId, norm(name)]);
+    const subject = ownerSubject(name);
+    if (subject !== '用户' && !evidence.some(e => norm(e.quote).includes(norm(subject)))) throw new MemoryRuntimeError('INVALID_EVIDENCE', 'A named subject must occur in its user evidence.');
+    const identityKey = subject === '用户' ? 'owner' : JSON.stringify([conversationId, norm(subject)]);
     const existing = decode<MemoryPerson>(this.db.prepare('SELECT record FROM km_people WHERE identity_key=?').get(identityKey));
     if (existing) return existing;
-    const person: MemoryPerson = { id: randomUUID(), name, conversationId, kind: name === '用户' ? 'owner' : 'person', evidence };
+    const person: MemoryPerson = { id: randomUUID(), name: subject, conversationId, kind: subject === '用户' ? 'owner' : 'person', evidence };
     this.db.prepare('INSERT INTO km_people(id,identity_key,record) VALUES(?,?,?)').run(person.id, identityKey, JSON.stringify(person));
     return person;
   }
@@ -502,7 +508,7 @@ export class MemoryRuntime {
   }
   /** Immediate user command. Idle extraction does not replace it with older evidence. */
   remember(input: { subject?: string; key: string; text: string; kind?: MemoryKind; scope?: string; source: { messageId: string; conversationId: string; createdAt: string; quote: string; label?: string } }): MemoryClaim {
-    const subject = text(input.subject ?? '用户', 'subject', 120), key = text(input.key, 'key', 120), content = text(input.text, 'text', 1600);
+    const subject = ownerSubject(text(input.subject ?? '用户', 'subject', 120)), key = text(input.key, 'key', 120), content = text(input.text, 'text', 1600);
     const quote = text(input.source.quote, 'quote', 2000);
     if (!quote.includes(content)) throw new MemoryRuntimeError('INVALID_EVIDENCE', 'Remembered text must be an exact quote from the user.');
     if (secret(`${subject} ${key} ${content} ${quote}`) || hypothetical(quote) || /<\/?(?:system|assistant|tool)\b/iu.test(quote)) throw new MemoryRuntimeError('SECRET_NOT_ALLOWED', 'Credentials and hypothetical text cannot be stored.');
