@@ -24,9 +24,18 @@ export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono 
     c.header('X-Frame-Options', 'DENY');
     c.header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     const allowedHosts = ['127.0.0.1', 'localhost', ...(deviceAccess ? localAddresses() : [])];
+    let publicOrigin: string | undefined;
+    try {
+      if (process.env.KLEIO_PUBLIC_URL) {
+        const pub = new URL(process.env.KLEIO_PUBLIC_URL);
+        if (pub.hostname) allowedHosts.push(pub.hostname);
+        publicOrigin = pub.origin;
+      }
+    } catch { /* ignore invalid KLEIO_PUBLIC_URL */ }
     // Hono app.request often omits the port; require a match only when the request carries one.
     const portOk = !url.port || Number(url.port) === host.config.port;
-    if (!allowedHosts.includes(url.hostname) || !portOk || (origin && origin !== url.origin) || c.req.header('sec-fetch-site') === 'cross-site') return c.json({ error: 'Local origin required' }, 403);
+    const originOk = !origin || origin === url.origin || (!!publicOrigin && origin === publicOrigin);
+    if (!allowedHosts.includes(url.hostname) || !portOk || !originOk || c.req.header('sec-fetch-site') === 'cross-site') return c.json({ error: 'Local origin required' }, 403);
     if (c.req.path === '/health' && c.req.method === 'GET') return c.json({ ok: true, product: 'Kleio' });
     if (c.req.method === 'GET' && (c.req.path === '/' || c.req.path.startsWith('/assets/') || c.req.path.startsWith('/_expo/static/') || ['/favicon.svg', '/favicon.ico', '/manifest.webmanifest'].includes(c.req.path))) { await next(); return; }
     if (c.req.method === 'POST' && c.req.path === '/api/devices/pair') {

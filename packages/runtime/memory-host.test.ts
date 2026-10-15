@@ -93,26 +93,41 @@ test('explicit remember writes before a success claim, and forget leaves unrelat
   assert.match(JSON.stringify(await messages.json()), /请记住我喜欢桂花乌龙/);
 });
 
-test('a remember tool call without an explicit request does not write', async t => {
+test('clear durable preference without remember verbs writes; negation still blocks', async t => {
+  const results: unknown[] = [];
+  let sawModelJudgedRemember = false;
   const engine: Engine = {
     id: 'fake',
     async execute(input, ctx) {
-      if (input.prompt.includes('不要记住')) await ctx.callTool('memory_remember', { key: '饮品偏好', text: '我喜欢桂花乌龙', kind: 'preference', authorizationQuote: '不要记住我喜欢桂花乌龙' });
-      else await ctx.callTool('memory_remember', { key: '天气', text: '今天天气不错', authorizationQuote: '今天天气不错' });
-      return { text: '已记住' };
+      if (input.prompt.includes('不要记住')) {
+        await assert.rejects(
+          () => ctx.callTool('memory_remember', { key: '饮品偏好', text: '我喜欢桂花乌龙', kind: 'preference', authorizationQuote: '不要记住我喜欢桂花乌龙' }),
+          (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'authorization_required',
+        );
+        return { text: '不会保存' };
+      }
+      if (input.prompt.includes('以后都用中文')) {
+        sawModelJudgedRemember = input.tools.some(tool => tool.name === 'memory_remember' && !/记住|记下|记一下|帮我记|别忘了/.test(tool.description));
+        const saved = await ctx.callTool('memory_remember', { key: '沟通语言', text: '以后都用中文跟我说', kind: 'preference', authorizationQuote: '以后都用中文跟我说' }) as { saved?: boolean; memory?: { text: string } };
+        results.push(saved);
+        return { text: saved.saved === true ? '好的，以后用中文' : '未写入' };
+      }
+      return { text: '好的' };
     },
     async close() {},
   };
   const { host, store, directory } = hostFor(engine);
   t.after(async () => { await host.close(); store.close(); rmSync(directory, { recursive: true, force: true }); });
-  const conversation = store.createConversation('拒绝');
-  const execution = await settle(host, host.submit(conversation.id, '今天天气不错', 'weather').id);
-  assert.equal(execution.status, 'failed');
-  assert.equal(host.memory.list().length, 0);
-  assert.equal(store.messages(conversation.id).find(message => message.role === 'assistant')?.content ?? '', '');
+  const conversation = store.createConversation('偏好授权');
+  const language = await settle(host, host.submit(conversation.id, '以后都用中文跟我说', 'lang').id);
+  assert.equal(language.status, 'completed');
+  assert.equal(sawModelJudgedRemember, true);
+  assert.equal((results[0] as { saved?: boolean }).saved, true);
+  assert.equal(host.memory.list()[0]?.text, '以后都用中文跟我说');
+  assert.match(store.messages(conversation.id).find(message => message.role === 'assistant')?.content ?? '', /以后用中文/);
   const refused = await settle(host, host.submit(conversation.id, '不要记住我喜欢桂花乌龙', 'negated').id);
-  assert.equal(refused.status, 'failed');
-  assert.equal(host.memory.list().length, 0);
+  assert.equal(refused.status, 'completed');
+  assert.equal(host.memory.list().length, 1);
 });
 
 test('forgotten wording is removed from the next research and review injection', async t => {

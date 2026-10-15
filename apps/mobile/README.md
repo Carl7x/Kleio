@@ -17,8 +17,9 @@ local-network connections. `mobile:dev` serves the native Expo bundle.
 Use Expo Go for SDK 57 or a compatible development build. The server address
 comes from the Expo development host or deployment configuration
 (`EXPO_PUBLIC_API_URL`); it is not an end-user form. Existing device credentials
-are reused. A new device uses the original workspace access-key gate; its
-adapter exchanges the key for a limited device credential automatically.
+are reused. A new public or remote client uses the Kleio access-token gate
+(`KLEIO_TOKEN`); web exchanges it for an HttpOnly cookie session, and native
+exchanges it for a limited device credential automatically.
 
 `pnpm mobile:build:ios` exports JavaScript/Hermes assets. It is not a signed iOS
 application. `pnpm mobile:ios` requires Xcode and the relevant signing setup.

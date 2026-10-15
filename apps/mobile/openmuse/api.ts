@@ -70,7 +70,7 @@ export class MuseApi {
   }
 }
 
-/** Preserve the upstream workspace access gate; connection details come from deployment configuration. */
+/** Public/remote web uses the Kleio access token (KLEIO_TOKEN) once to mint an HttpOnly browser session. */
 export async function createSession(accessKey?: string): Promise<{ token: string; mode: "live" }> {
   await (bootstrapped ??= bootstrap()).catch(error => { bootstrapped = undefined; throw error; });
   if (accessKey?.trim()) {
