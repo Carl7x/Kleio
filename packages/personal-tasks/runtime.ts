@@ -1,14 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
+import { coalesceCronOccurrence, nextScheduledInstant, normalizeCronSchedule, type RoutineCronSchedule } from './runtime-schedule.ts';
 
 export type WorkKind = 'research' | 'reminder';
 export type WorkStatus = 'active' | 'paused' | 'completed' | 'cancelled' | 'failed' | 'unknown';
 export type WorkRunStatus = 'running' | 'review_pending' | 'reviewing' | 'completed' | 'cancelled' | 'failed' | 'unknown';
-/** User-facing progress for one one-shot research. Reading is not one of these. */
-export type WorkProgress = 'queued' | 'running' | 'review' | 'written' | 'stopped' | 'failed' | 'unknown';
+/** User-facing progress. `checked` is a finished periodic check with no conversation write. Reading is separate. */
+export type WorkProgress = 'queued' | 'running' | 'review' | 'checked' | 'written' | 'stopped' | 'failed' | 'unknown';
 export const workProgressLabels: Record<WorkProgress, string> = {
-  queued: '排队', running: '进行中', review: '复核', written: '已写入', stopped: '已停止', failed: '失败', unknown: '结果未知',
+  queued: '排队', running: '进行中', review: '复核', checked: '已检查', written: '已写入', stopped: '已停止', failed: '失败', unknown: '结果未知',
 };
+export type WorkSchedule = RoutineCronSchedule;
+/** Latest periodic check. `silent` finished with no conversation write. */
+export type FollowCheck = 'silent' | 'written' | 'failed' | 'unknown';
 
 /** Supplied by the authenticated product command layer, never parsed from task text. */
 export interface WorkSource {
@@ -23,8 +27,17 @@ export interface CreateWork {
   kind: WorkKind;
   at?: string;
   intervalMs?: number;
+  /** Local cycle for a research follow-up. Croner calculates the next instant; Kleio stores it. */
+  schedule?: { expression: string; timeZone: string };
   conversationId?: string;
 }
+export interface FollowField { key: string; value: string; label?: string; }
+export interface FollowObservation {
+  judgment?: 'unchanged' | 'changed' | 'unknown';
+  fields?: FollowField[];
+  note?: string;
+}
+export interface FollowChange { key: string; label: string; previous: string; next: string; }
 export interface WorkTask {
   id: string;
   requestId: string;
@@ -38,6 +51,13 @@ export interface WorkTask {
   at: string;
   requestedAt: string | null;
   intervalMs: number | null;
+  /** Set for a periodic follow-up. Null for one-shot research and reminders. */
+  schedule: WorkSchedule | null;
+  /** Verifiable fields from the last comparable check of the current agreement. */
+  baseline: FollowField[] | null;
+  baselineConstraintVersion: number | null;
+  lastCheckedAt: string | null;
+  lastCheck: FollowCheck | null;
   nextAt: string | null;
   lastRunId: string | null;
   /** Agreement version. A new prompt, title, or time appends a constraint; pause and stop do not. */
@@ -51,6 +71,7 @@ export interface WorkConstraint {
   title: string;
   prompt: string;
   at: string;
+  schedule: WorkSchedule | null;
   source: WorkSource;
   createdAt: string;
 }
@@ -71,7 +92,7 @@ export interface WorkRun {
   updatedAt: string;
 }
 export interface WorkEvidence { kind: 'url' | 'file' | 'note'; reference: string; title?: string; }
-export interface ResearchResult { text: string; sessionId?: string; evidence?: WorkEvidence[]; }
+export interface ResearchResult { text: string; sessionId?: string; evidence?: WorkEvidence[]; follow?: FollowObservation; }
 export interface StoredResearchResult extends ResearchResult { id: string; runId: string; taskId: string; createdAt: string; }
 export interface WorkDelivery {
   id: string;
@@ -103,8 +124,16 @@ export interface ResearchSnapshot {
   read: boolean;
   errorCode: string | null;
   delivery: WorkDelivery | null;
+  nextAt: string | null;
+  lastCheckedAt: string | null;
+  lastCheck: FollowCheck | null;
+  /** Periodic follow-up writes only when a verifiable field changes. */
+  onlyOnChange: boolean;
+  watch: 'once' | 'periodic-search';
+  /** Present when the matter is a periodic search rather than a live watch. */
+  watchNote: string | null;
 }
-export interface ReviseWork { title?: string; prompt?: string; at?: string; }
+export interface ReviseWork { title?: string; prompt?: string; at?: string; schedule?: { expression: string; timeZone: string }; }
 export interface WorkReview { decision: 'silent' | 'notify'; text: string; }
 export interface StoredWorkReview extends WorkReview { id: string; resultId: string; runId: string; taskId: string; createdAt: string; }
 export interface WorkNotification {
@@ -157,7 +186,10 @@ function row<T>(value: unknown): T | undefined {
   return value ? JSON.parse((value as { record: string }).record) as T : undefined;
 }
 function oneShotResearch(task: WorkTask): boolean {
-  return task.kind === 'research' && task.intervalMs === null;
+  return task.kind === 'research' && task.intervalMs === null && !task.schedule;
+}
+function periodicFollowup(task: WorkTask): boolean {
+  return task.kind === 'research' && task.intervalMs === null && task.schedule != null;
 }
 function sourceUrl(value: unknown): string {
   const reference = text(value, 'evidence.reference', 4000);
@@ -178,10 +210,132 @@ export function formatResearchDelivery(text: string, evidence: WorkEvidence[]): 
   return `${body || '研究结论见下列来源。'}\n\n来源\n${lines.join('\n')}`;
 }
 
+const WATCH_NOTE = '按周期检索，不是实时盯着。';
+
+export function canonicalFieldKey(value: string): string {
+  return value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+/** Prices, versions, and short terms. Wording around the same value does not count. */
+export function canonicalFieldValue(value: string): string {
+  const folded = value.normalize('NFKC').trim().replace(/\s+/g, ' ');
+  const compact = folded.replace(/[¥$€£￥,\s]/g, '').replace(/(人民币|美元|美金|元)$/u, '');
+  if (/^\d+(?:\.\d+)?$/.test(compact)) return compact.replace(/(\.\d*?)0+$/u, '$1').replace(/\.$/u, '');
+  const version = folded.replace(/^version\s*/iu, '').replace(/^v(?=\d)/iu, '');
+  if (/^\d+(?:\.\d+)+$/.test(version)) return version.replace(/(?:\.0)+$/u, '');
+  return folded;
+}
+
+function storedFields(fields: FollowField[] | undefined): FollowField[] {
+  const map = new Map<string, FollowField>();
+  for (const field of fields ?? []) {
+    if (!field || typeof field.key !== 'string' || typeof field.value !== 'string') continue;
+    const key = canonicalFieldKey(field.key);
+    const value = field.value.normalize('NFKC').trim().replace(/\s+/g, ' ');
+    if (!key || key.length > 40 || !value || value.length > 80) continue;
+    const labelSource = typeof field.label === 'string' && field.label.trim() ? field.label : field.key;
+    const label = labelSource.normalize('NFKC').trim().replace(/\s+/g, ' ').slice(0, 40);
+    map.set(key, { key, value, label });
+  }
+  return [...map.values()];
+}
+
+export type FollowVerdict =
+  | { outcome: 'quiet'; reason: 'baseline' | 'unchanged'; fields: FollowField[] }
+  | { outcome: 'changed'; fields: FollowField[]; changes: FollowChange[] }
+  | { outcome: 'explain'; note: string };
+
+/** Field values decide. A model "changed" flag does not override an equal price, term, or version. */
+export function decideFollowup(baseline: FollowField[] | null, observation: FollowObservation | undefined, evidence: WorkEvidence[]): FollowVerdict {
+  const urls = evidence.some(item => item.kind === 'url');
+  const next = storedFields(observation?.fields);
+  const note = observation?.note?.trim().slice(0, 500) || '';
+  if (!observation || observation.judgment === 'unknown' || next.length === 0) {
+    return { outcome: 'explain', note: note || '这次检查没有给出可核验字段，无法判断有无变化。' };
+  }
+  if (!urls) return { outcome: 'explain', note: note || '这次检查没有可打开的来源，无法判断有无变化。' };
+  if (!baseline?.length) return { outcome: 'quiet', reason: 'baseline', fields: next };
+  const previous = new Map(baseline.map(field => [canonicalFieldKey(field.key), field]));
+  if ([...previous.keys()].some(key => !next.some(field => field.key === key))) {
+    return { outcome: 'explain', note: note || '这次没有核对到上次的全部可核验字段，无法判断有无变化。' };
+  }
+  const changes: FollowChange[] = [];
+  const updated: FollowField[] = [];
+  for (const field of next) {
+    const prior = previous.get(field.key);
+    if (!prior) continue;
+    updated.push({ key: field.key, value: field.value, label: field.label || prior.label || field.key });
+    if (canonicalFieldValue(prior.value) !== canonicalFieldValue(field.value)) {
+      changes.push({ key: field.key, label: field.label || prior.label || field.key, previous: prior.value, next: field.value });
+    }
+  }
+  if (!changes.length) return { outcome: 'quiet', reason: 'unchanged', fields: baseline };
+  return { outcome: 'changed', fields: updated, changes };
+}
+
+export function formatFollowupChange(changes: FollowChange[], evidence: WorkEvidence[]): string {
+  const lines = changes.map(change => `- ${change.label}：${change.previous} → ${change.next}`);
+  return `${formatResearchDelivery(`有变化\n\n${lines.join('\n')}`, evidence)}\n\n${WATCH_NOTE}`;
+}
+
+export function formatFollowupExplanation(note: string, evidence: WorkEvidence[] = []): string {
+  const allowed = new Set(evidence.filter(item => item.kind === 'url').map(item => item.reference));
+  const cleaned = note.replace(/https?:\/\/[^\s)>\]]+/gu, url => allowed.has(url) ? url : '').replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+\n/g, '\n').trim();
+  const body = `无法判断有无变化\n\n${cleaned || '这次检查无法判断有无变化。'}`;
+  const withSources = allowed.size ? formatResearchDelivery(body, evidence) : body;
+  return `${withSources}\n\n${WATCH_NOTE}`;
+}
+
+export function parseFollowObservation(text: string): FollowObservation {
+  const unknown: FollowObservation = { judgment: 'unknown', note: '这次检查没有给出可核验字段，无法判断有无变化。' };
+  const trimmed = text.trim().replace(/^```(?:json)?\s*|\s*```$/gu, '');
+  const parsed = jsonObject(trimmed) ?? jsonObject(sliceJsonObject(trimmed));
+  if (!parsed) return unknown;
+  const judgment = parsed.judgment === 'unchanged' || parsed.judgment === 'changed' || parsed.judgment === 'unknown' ? parsed.judgment : undefined;
+  const note = typeof parsed.note === 'string' ? parsed.note.trim().slice(0, 500) : undefined;
+  const fields = Array.isArray(parsed.fields) ? parsed.fields.slice(0, 12).flatMap(item => {
+    if (!item || typeof item !== 'object') return [];
+    const record = item as Record<string, unknown>;
+    if (typeof record.key !== 'string' || typeof record.value !== 'string') return [];
+    const label = typeof record.label === 'string' ? record.label : undefined;
+    return [{ key: record.key, value: record.value, ...(label ? { label } : {}) }];
+  }) : undefined;
+  return { ...(judgment ? { judgment } : {}), ...(note ? { note } : {}), ...(fields?.length ? { fields } : {}) };
+}
+
+function sliceJsonObject(value: string): string {
+  const start = value.indexOf('{');
+  const end = value.lastIndexOf('}');
+  return start >= 0 && end > start ? value.slice(start, end + 1) : '';
+}
+function jsonObject(value: string): Record<string, unknown> | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined;
+  } catch { return undefined; }
+}
+function explanationFor(code: string | null): string {
+  if (code === 'HOST_INTERRUPTED') return '这次周期检查在重启时中断，没有重跑这一次，无法判断有无变化。';
+  if (code === 'UNSOURCED_RESULT' || code === 'CANNOT_JUDGE') return '这次检查没有可核验的来源或字段，无法判断有无变化。';
+  if (code === 'RESEARCH_OUTCOME_UNKNOWN') return '这次周期检查结果未知，无法判断有无变化。';
+  return '这次周期检查失败，无法判断有无变化。';
+}
+function adoptSchedule(input: { expression: string; timeZone: string }): WorkSchedule {
+  try { return normalizeCronSchedule({ type: 'cron', expression: input.expression, timeZone: input.timeZone }); }
+  catch (error) { throw new WorkRuntimeError('INVALID_INPUT', error instanceof Error ? error.message : 'Invalid schedule.'); }
+}
+function scheduledIso(schedule: WorkSchedule, anchor: number, inclusive: boolean): string {
+  try { return new Date(nextScheduledInstant(schedule, anchor, inclusive)).toISOString(); }
+  catch (error) { throw new WorkRuntimeError('INVALID_INPUT', error instanceof Error ? error.message : 'Invalid schedule.'); }
+}
+
 /**
  * Product-owned durable work; the caller owns the shared database and process lease.
  * Construct once on startup. No database close, host timer, model loop or tool loop.
  * Interval catch-up coalesces missed occurrences and never overlaps a task's runs.
+ * A periodic follow-up stores the next cron instant here; Croner only calculates it.
+ * An occurrence row is claimed once and is not replayed after a restart.
  */
 export class WorkRuntime {
   private readonly active = new Map<string, AbortController>();
@@ -200,11 +354,32 @@ export class WorkRuntime {
       CREATE TABLE IF NOT EXISTS kw_results(id TEXT PRIMARY KEY, run_id TEXT NOT NULL UNIQUE REFERENCES kw_runs(id), task_id TEXT NOT NULL REFERENCES kw_tasks(id), record TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS kw_reviews(id TEXT PRIMARY KEY, result_id TEXT NOT NULL UNIQUE REFERENCES kw_results(id), run_id TEXT NOT NULL UNIQUE REFERENCES kw_runs(id), record TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS kw_notifications(id TEXT PRIMARY KEY, run_id TEXT NOT NULL UNIQUE REFERENCES kw_runs(id), task_id TEXT NOT NULL REFERENCES kw_tasks(id), read_at TEXT, record TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS kw_deliveries(id TEXT PRIMARY KEY, run_id TEXT NOT NULL UNIQUE REFERENCES kw_runs(id), task_id TEXT NOT NULL REFERENCES kw_tasks(id), constraint_version INTEGER NOT NULL, written_at TEXT, read_at TEXT, record TEXT NOT NULL, UNIQUE(task_id, constraint_version));
+      CREATE TABLE IF NOT EXISTS kw_deliveries(id TEXT PRIMARY KEY, run_id TEXT NOT NULL UNIQUE REFERENCES kw_runs(id), task_id TEXT NOT NULL REFERENCES kw_tasks(id), constraint_version INTEGER NOT NULL, written_at TEXT, read_at TEXT, record TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS kw_deliveries_agreement ON kw_deliveries(task_id, constraint_version);
       CREATE INDEX IF NOT EXISTS kw_tasks_due ON kw_tasks(status,next_at);
       CREATE INDEX IF NOT EXISTS kw_runs_task ON kw_runs(task_id,status);
     `);
+    this.relaxDeliveryUniqueness();
     if (options.recover !== false) this.recover();
+  }
+
+  /** One-shot uniqueness stays in code. A follow-up can write once per check, so the old agreement unique constraint has to go. */
+  private relaxDeliveryUniqueness(): void {
+    const ddl = this.db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='kw_deliveries'").get() as { sql?: string } | undefined;
+    const sql = ddl?.sql ?? '';
+    if (!sql.includes('UNIQUE(task_id, constraint_version)') && !sql.includes('UNIQUE(task_id,constraint_version)')) return;
+    this.db.exec('PRAGMA foreign_keys=OFF');
+    this.transaction(() => {
+      this.db.exec(`
+        CREATE TABLE kw_deliveries_next(id TEXT PRIMARY KEY, run_id TEXT NOT NULL UNIQUE REFERENCES kw_runs(id), task_id TEXT NOT NULL REFERENCES kw_tasks(id), constraint_version INTEGER NOT NULL, written_at TEXT, read_at TEXT, record TEXT NOT NULL);
+        INSERT INTO kw_deliveries_next(id,run_id,task_id,constraint_version,written_at,read_at,record)
+          SELECT id,run_id,task_id,constraint_version,written_at,read_at,record FROM kw_deliveries;
+        DROP TABLE kw_deliveries;
+        ALTER TABLE kw_deliveries_next RENAME TO kw_deliveries;
+        CREATE INDEX IF NOT EXISTS kw_deliveries_agreement ON kw_deliveries(task_id, constraint_version);
+      `);
+    });
+    this.db.exec('PRAGMA foreign_keys=ON');
   }
 
   private timestamp(): string {
@@ -227,12 +402,17 @@ export class WorkRuntime {
     return run;
   }
   private present(task: WorkTask): WorkTask {
+    const schedule = task.schedule ?? null;
     const constraintVersion = task.constraintVersion || 1;
-    const constraints = Array.isArray(task.constraints) && task.constraints.length
+    const raw = Array.isArray(task.constraints) && task.constraints.length
       ? task.constraints
-      : [{ version: constraintVersion, title: task.title, prompt: task.prompt, at: task.at, source: task.source, createdAt: task.createdAt }];
-    if (task.constraintVersion === constraintVersion && task.constraints === constraints) return task;
-    return { ...task, constraintVersion, constraints };
+      : [{ version: constraintVersion, title: task.title, prompt: task.prompt, at: task.at, schedule, source: task.source, createdAt: task.createdAt }];
+    const constraints = raw.map(item => ({ ...item, schedule: item.schedule ?? null }));
+    const baseline = Array.isArray(task.baseline) ? task.baseline : null;
+    const baselineConstraintVersion = task.baselineConstraintVersion ?? null;
+    const lastCheckedAt = task.lastCheckedAt ?? null;
+    const lastCheck = task.lastCheck ?? null;
+    return { ...task, schedule, constraintVersion, constraints, baseline, baselineConstraintVersion, lastCheckedAt, lastCheck };
   }
   private presentRun(run: WorkRun): WorkRun {
     return run.constraintVersion ? run : { ...run, constraintVersion: 1 };
@@ -260,15 +440,17 @@ export class WorkRuntime {
     if (!value) throw new WorkRuntimeError('NOT_FOUND', 'Work run not found.');
     return this.presentRun(value);
   }
-  private assertOneShot(task: WorkTask): void {
-    if (!oneShotResearch(task)) throw new WorkRuntimeError('ONE_SHOT_ONLY', 'Pause, resume, and new conditions apply only to one one-shot research task.');
+  private assertTracked(task: WorkTask): void {
+    if (task.kind !== 'research' || task.intervalMs !== null) throw new WorkRuntimeError('ONE_SHOT_ONLY', 'Pause, resume, and new conditions apply only to one research matter.');
   }
   private expectVersion(task: WorkTask, expectedVersion?: number): void {
     if (expectedVersion !== undefined && task.version !== expectedVersion) throw new WorkRuntimeError('STALE_VERSION', 'The task has changed.');
   }
   private supersedeRuns(taskId: string, timestamp: string, errorCode: string | null): void {
-    for (const value of this.db.prepare("SELECT record FROM kw_runs WHERE task_id=? AND status IN ('running','review_pending','reviewing')").all(taskId)) {
+    const task = this.get(taskId);
+    for (const value of this.db.prepare("SELECT record FROM kw_runs WHERE task_id=? AND status IN ('running','review_pending','reviewing','failed','unknown')").all(taskId)) {
       const run = this.presentRun(row<WorkRun>(value)!);
+      if ((run.status === 'failed' || run.status === 'unknown') && (!periodicFollowup(task) || this.deliveryForRun(run.id))) continue;
       this.saveRun({ ...run, status: 'cancelled', version: run.version + 1, claimToken: null, errorCode, updatedAt: timestamp });
     }
   }
@@ -276,7 +458,10 @@ export class WorkRuntime {
     for (const run of this.runs(taskId)) if (run.status === 'cancelled') this.active.get(run.id)?.abort('work superseded');
   }
   private deliveryForConstraint(taskId: string, constraintVersion: number): WorkDelivery | undefined {
-    return row<WorkDelivery>(this.db.prepare('SELECT record FROM kw_deliveries WHERE task_id=? AND constraint_version=?').get(taskId, constraintVersion));
+    return row<WorkDelivery>(this.db.prepare('SELECT record FROM kw_deliveries WHERE task_id=? AND constraint_version=? ORDER BY rowid DESC LIMIT 1').get(taskId, constraintVersion));
+  }
+  private deliveryForRun(runId: string): WorkDelivery | undefined {
+    return row<WorkDelivery>(this.db.prepare('SELECT record FROM kw_deliveries WHERE run_id=?').get(runId));
   }
   deliveries(taskId: string): WorkDelivery[] {
     this.get(taskId);
@@ -293,21 +478,27 @@ export class WorkRuntime {
     if (input.kind !== 'research' && input.kind !== 'reminder') throw new WorkRuntimeError('INVALID_INPUT', 'Invalid work kind.');
     const intervalMs = input.intervalMs ?? null;
     if (intervalMs !== null && (!Number.isSafeInteger(intervalMs) || intervalMs < 1000 || intervalMs > 365 * 86400000)) throw new WorkRuntimeError('INVALID_INPUT', 'intervalMs must be between one second and one year.');
+    if (input.schedule && input.kind !== 'research') throw new WorkRuntimeError('INVALID_INPUT', 'A reminder cannot use a follow-up schedule.');
+    if (input.schedule && intervalMs !== null) throw new WorkRuntimeError('INVALID_INPUT', 'A periodic follow-up uses a cron schedule, not intervalMs.');
+    const schedule = input.schedule ? adoptSchedule(input.schedule) : null;
     const conversationId = input.conversationId === undefined ? origin.conversationId : text(input.conversationId, 'conversationId', 192);
     const explicitAt = input.at === undefined ? undefined : iso(input.at);
     return this.transaction(() => {
       const existing = row<WorkTask>(this.db.prepare('SELECT record FROM kw_tasks WHERE request_id=?').get(requestId));
       if (existing) {
-        if (existing.title !== title || existing.prompt !== prompt || existing.kind !== input.kind || existing.intervalMs !== intervalMs || existing.conversationId !== conversationId || JSON.stringify(existing.source) !== JSON.stringify(origin) || existing.requestedAt !== (explicitAt ?? null)) {
+        if (existing.title !== title || existing.prompt !== prompt || existing.kind !== input.kind || existing.intervalMs !== intervalMs || JSON.stringify(existing.schedule ?? null) !== JSON.stringify(schedule) || existing.conversationId !== conversationId || JSON.stringify(existing.source) !== JSON.stringify(origin) || existing.requestedAt !== (explicitAt ?? null)) {
           throw new WorkRuntimeError('REQUEST_CONFLICT', 'The request identity belongs to different work.');
         }
         return this.present(existing);
       }
       const timestamp = this.timestamp();
-      const at = explicitAt ?? (intervalMs === null ? timestamp : new Date(Date.parse(timestamp) + intervalMs).toISOString());
-      const constraint: WorkConstraint = { version: 1, title, prompt, at, source: origin, createdAt: timestamp };
-      const task: WorkTask = { id: randomUUID(), requestId, title, prompt, kind: input.kind, source: origin, conversationId, status: 'active', version: 1, constraintVersion: 1, constraints: [constraint], at, requestedAt: explicitAt ?? null, intervalMs, nextAt: at, lastRunId: null, createdAt: timestamp, updatedAt: timestamp };
-      this.db.prepare('INSERT INTO kw_tasks(id,request_id,status,next_at,record) VALUES(?,?,?,?,?)').run(task.id, requestId, task.status, at, JSON.stringify(task));
+      const at = schedule
+        ? (explicitAt ?? scheduledIso(schedule, Date.parse(timestamp), false))
+        : explicitAt ?? (intervalMs === null ? timestamp : new Date(Date.parse(timestamp) + intervalMs).toISOString());
+      const nextAt = schedule ? scheduledIso(schedule, Date.parse(explicitAt ?? timestamp), explicitAt !== undefined) : at;
+      const constraint: WorkConstraint = { version: 1, title, prompt, at, schedule, source: origin, createdAt: timestamp };
+      const task: WorkTask = { id: randomUUID(), requestId, title, prompt, kind: input.kind, source: origin, conversationId, status: 'active', version: 1, constraintVersion: 1, constraints: [constraint], at, requestedAt: explicitAt ?? null, intervalMs, schedule, baseline: null, baselineConstraintVersion: null, lastCheckedAt: null, lastCheck: null, nextAt, lastRunId: null, createdAt: timestamp, updatedAt: timestamp };
+      this.db.prepare('INSERT INTO kw_tasks(id,request_id,status,next_at,record) VALUES(?,?,?,?,?)').run(task.id, requestId, task.status, nextAt, JSON.stringify(task));
       return task;
     });
   }
@@ -328,10 +519,10 @@ export class WorkRuntime {
   pause(id: string, expectedVersion?: number): WorkTask {
     const task = this.transaction(() => {
       const current = this.get(id);
-      this.assertOneShot(current);
+      this.assertTracked(current);
       this.expectVersion(current, expectedVersion);
       if (current.status === 'paused' || current.status === 'cancelled' || current.status === 'completed') return current;
-      if (current.status !== 'active') throw new WorkRuntimeError('INVALID_STATE', 'Only an active one-shot research can be paused.');
+      if (current.status !== 'active') throw new WorkRuntimeError('INVALID_STATE', 'Only an active research matter can be paused.');
       const timestamp = this.timestamp();
       this.supersedeRuns(id, timestamp, 'SUPERSEDED');
       return this.saveTask({ ...current, status: 'paused', version: current.version + 1, nextAt: null, updatedAt: timestamp });
@@ -343,13 +534,13 @@ export class WorkRuntime {
   resume(id: string, expectedVersion?: number): WorkTask {
     const task = this.transaction(() => {
       const current = this.get(id);
-      this.assertOneShot(current);
+      this.assertTracked(current);
       this.expectVersion(current, expectedVersion);
-      if (current.status !== 'paused') throw new WorkRuntimeError('INVALID_STATE', 'Only a paused one-shot research can be resumed.');
+      if (current.status !== 'paused') throw new WorkRuntimeError('INVALID_STATE', 'Only a paused research matter can be resumed.');
       const timestamp = this.timestamp();
       this.supersedeRuns(id, timestamp, 'SUPERSEDED');
-      const at = Date.parse(current.at) > Date.parse(timestamp) ? current.at : timestamp;
-      return this.saveTask({ ...current, status: 'active', version: current.version + 1, nextAt: at, updatedAt: timestamp });
+      const nextAt = current.schedule ? scheduledIso(current.schedule, Date.parse(timestamp), false) : (Date.parse(current.at) > Date.parse(timestamp) ? current.at : timestamp);
+      return this.saveTask({ ...current, status: 'active', version: current.version + 1, nextAt, updatedAt: timestamp });
     });
     this.abortSuperseded(id);
     return task;
@@ -361,20 +552,31 @@ export class WorkRuntime {
     const origin: WorkSource = { kind: 'user', conversationId: text(source.conversationId, 'source.conversationId', 192), messageId: text(source.messageId, 'source.messageId', 192) };
     const task = this.transaction(() => {
       const current = this.get(id);
-      this.assertOneShot(current);
+      this.assertTracked(current);
       this.expectVersion(current, expectedVersion);
       if (current.status === 'cancelled') throw new WorkRuntimeError('INVALID_STATE', 'Stopped research cannot take new conditions.');
       const title = input.title === undefined ? current.title : text(input.title, 'title', 120);
       const prompt = input.prompt === undefined ? current.prompt : text(input.prompt, 'prompt', 12000);
       const at = input.at === undefined ? current.at : iso(input.at);
-      if (title === current.title && prompt === current.prompt && at === current.at) return current;
+      const schedule = input.schedule ? adoptSchedule(input.schedule) : current.schedule;
+      if (schedule && current.intervalMs !== null) throw new WorkRuntimeError('INVALID_INPUT', 'A periodic follow-up uses a cron schedule, not intervalMs.');
+      if (title === current.title && prompt === current.prompt && at === current.at && JSON.stringify(schedule) === JSON.stringify(current.schedule)) return current;
       const timestamp = this.timestamp();
       this.supersedeRuns(id, timestamp, 'SUPERSEDED');
       const constraintVersion = current.constraintVersion + 1;
-      const constraint: WorkConstraint = { version: constraintVersion, title, prompt, at, source: origin, createdAt: timestamp };
+      const constraint: WorkConstraint = { version: constraintVersion, title, prompt, at, schedule, source: origin, createdAt: timestamp };
       const status: WorkStatus = current.status === 'paused' ? 'paused' : 'active';
-      const nextAt = status === 'paused' ? null : (Date.parse(at) > Date.parse(timestamp) ? at : timestamp);
-      return this.saveTask({ ...current, title, prompt, at, requestedAt: input.at === undefined ? current.requestedAt : at, status, version: current.version + 1, constraintVersion, constraints: [...current.constraints, constraint], nextAt, updatedAt: timestamp });
+      let nextAt: string | null = null;
+      if (status !== 'paused') {
+        if (schedule) {
+          const scheduleChanged = JSON.stringify(schedule) !== JSON.stringify(current.schedule);
+          if (input.at !== undefined) nextAt = scheduledIso(schedule, Date.parse(at), true);
+          else if (scheduleChanged || current.nextAt === null || Date.parse(current.nextAt) <= Date.parse(timestamp)) nextAt = scheduledIso(schedule, Date.parse(timestamp), false);
+          else nextAt = current.nextAt;
+        } else nextAt = Date.parse(at) > Date.parse(timestamp) ? at : timestamp;
+      }
+      const keptBaseline = current.baseline;
+      return this.saveTask({ ...current, title, prompt, at, schedule, requestedAt: input.at === undefined ? current.requestedAt : at, status, version: current.version + 1, constraintVersion, constraints: [...current.constraints, constraint], baseline: keptBaseline, baselineConstraintVersion: keptBaseline ? constraintVersion : null, nextAt, updatedAt: timestamp });
     });
     this.abortSuperseded(id);
     return task;
@@ -382,11 +584,21 @@ export class WorkRuntime {
 
   snapshot(id: string): ResearchSnapshot {
     const task = this.get(id);
-    this.assertOneShot(task);
+    this.assertTracked(task);
     const delivery = this.deliveryForConstraint(task.id, task.constraintVersion) ?? null;
-    const run = this.currentRun(task, this.runs(id));
+    const listed = this.runs(id);
+    const run = periodicFollowup(task)
+      ? listed.find(item => item.constraintVersion === task.constraintVersion && item.status !== 'cancelled')
+      : this.currentRun(task, listed);
     const progress = this.progressOf(task, run, delivery);
-    return { task, progress, progressLabel: workProgressLabels[progress], hold: task.status === 'paused' ? 'paused' : task.status === 'cancelled' ? 'cancelled' : null, delivered: delivery !== null, read: Boolean(delivery?.readAt), errorCode: run?.errorCode ?? null, delivery };
+    const follow = periodicFollowup(task);
+    return {
+      task, progress, progressLabel: workProgressLabels[progress],
+      hold: task.status === 'paused' ? 'paused' : task.status === 'cancelled' ? 'cancelled' : null,
+      delivered: delivery !== null, read: Boolean(delivery?.readAt), errorCode: run?.errorCode ?? null, delivery,
+      nextAt: task.nextAt, lastCheckedAt: task.lastCheckedAt, lastCheck: follow ? task.lastCheck : null,
+      onlyOnChange: follow, watch: follow ? 'periodic-search' : 'once', watchNote: follow ? WATCH_NOTE : null,
+    };
   }
   private currentRun(task: WorkTask, runs: WorkRun[]): WorkRun | undefined {
     const same = runs.filter(run => run.constraintVersion === task.constraintVersion && run.status !== 'cancelled');
@@ -396,11 +608,18 @@ export class WorkRuntime {
   }
   private progressOf(task: WorkTask, run: WorkRun | undefined, delivery: WorkDelivery | null): WorkProgress {
     if (task.status === 'cancelled' || task.status === 'paused') return 'stopped';
+    if (run?.status === 'reviewing' || run?.status === 'review_pending') return 'review';
+    if (run?.status === 'running') return 'running';
+    if (periodicFollowup(task)) {
+      if (task.lastCheck === 'failed') return 'failed';
+      if (task.lastCheck === 'unknown') return 'unknown';
+      if (task.lastCheck === 'written') return 'written';
+      if (task.lastCheck === 'silent') return 'checked';
+      return 'queued';
+    }
     if (delivery?.writtenAt && delivery.messageId) return 'written';
     if (task.status === 'failed' || run?.status === 'failed') return 'failed';
     if (task.status === 'unknown' || run?.status === 'unknown') return 'unknown';
-    if (run?.status === 'reviewing' || run?.status === 'review_pending') return 'review';
-    if (run?.status === 'running') return 'running';
     if (task.status === 'completed') return 'unknown';
     return 'queued';
   }
@@ -408,7 +627,7 @@ export class WorkRuntime {
   markRead(id: string): WorkDelivery {
     return this.transaction(() => {
       const task = this.get(id);
-      this.assertOneShot(task);
+      this.assertTracked(task);
       const delivery = this.deliveryForConstraint(task.id, task.constraintVersion);
       if (!delivery?.writtenAt || !delivery.messageId) throw new WorkRuntimeError('NOT_DELIVERED', 'Research is not delivered until it is written to the original conversation.');
       if (delivery.readAt !== null) return delivery;
@@ -429,7 +648,8 @@ export class WorkRuntime {
         const task = this.get(current.taskId);
         if (current.status === 'running') {
           this.saveRun({ ...current, status: 'unknown', version: current.version + 1, claimToken: null, errorCode: 'HOST_INTERRUPTED', updatedAt: timestamp });
-          this.saveTask({ ...task, status: 'unknown', version: task.version + 1, nextAt: null, updatedAt: timestamp });
+          if (periodicFollowup(task)) this.saveTask({ ...task, lastCheckedAt: timestamp, lastCheck: 'unknown', version: task.version + 1, updatedAt: timestamp });
+          else this.saveTask({ ...task, status: 'unknown', version: task.version + 1, nextAt: null, updatedAt: timestamp });
           unknown++;
         } else {
           this.saveRun({ ...current, status: task.status === 'active' ? 'review_pending' : 'cancelled', version: current.version + 1, claimToken: null, reviewAfter: timestamp, updatedAt: timestamp });
@@ -446,13 +666,26 @@ export class WorkRuntime {
       if (task.status !== 'active' || task.nextAt === null || task.nextAt > timestamp) return undefined;
       if (this.db.prepare("SELECT id FROM kw_runs WHERE task_id=? AND status IN ('running','review_pending','reviewing') LIMIT 1").get(id)) return undefined;
       const due = Date.parse(task.nextAt);
-      const occurrence = task.intervalMs === null ? due : due + Math.floor((Date.parse(timestamp) - due) / task.intervalMs) * task.intervalMs;
-      let occurrenceAt = new Date(occurrence).toISOString();
-      // A cancelled or completed one-shot still occupies this due instant. The replacement agreement needs its own run.
-      if (task.intervalMs === null && this.db.prepare('SELECT 1 FROM kw_runs WHERE task_id=? AND occurrence_at=?').get(id, occurrenceAt)) {
-        occurrenceAt = `${occurrenceAt}#${task.constraintVersion}.${task.version}`;
+      let occurrenceAt: string;
+      let nextAt: string | null;
+      if (task.schedule) {
+        const coalesced = coalesceCronOccurrence(task.schedule, due, Date.parse(timestamp));
+        occurrenceAt = new Date(coalesced.occurrence).toISOString();
+        const advanced = coalesced.following === undefined ? null : new Date(coalesced.following).toISOString();
+        if (this.db.prepare('SELECT 1 FROM kw_runs WHERE task_id=? AND occurrence_at=?').get(id, occurrenceAt)) {
+          if (task.nextAt !== advanced) this.saveTask({ ...task, nextAt: advanced, updatedAt: timestamp });
+          return undefined;
+        }
+        nextAt = advanced;
+      } else {
+        const occurrence = task.intervalMs === null ? due : due + Math.floor((Date.parse(timestamp) - due) / task.intervalMs) * task.intervalMs;
+        occurrenceAt = new Date(occurrence).toISOString();
+        // A cancelled or completed one-shot still occupies this due instant. The replacement agreement needs its own run.
+        if (task.intervalMs === null && this.db.prepare('SELECT 1 FROM kw_runs WHERE task_id=? AND occurrence_at=?').get(id, occurrenceAt)) {
+          occurrenceAt = `${occurrenceAt}#${task.constraintVersion}.${task.version}`;
+        }
+        nextAt = task.intervalMs === null ? null : new Date(occurrence + task.intervalMs).toISOString();
       }
-      const nextAt = task.intervalMs === null ? null : new Date(occurrence + task.intervalMs).toISOString();
       const run: WorkRun = { id: randomUUID(), taskId: id, occurrenceAt, status: 'running', version: 1, taskVersion: task.version, constraintVersion: task.constraintVersion, claimToken: randomUUID(), reviewAttempts: 0, reviewAfter: null, errorCode: null, createdAt: timestamp, updatedAt: timestamp };
       this.db.prepare('INSERT INTO kw_runs(id,task_id,occurrence_at,status,record) VALUES(?,?,?,?,?)').run(run.id, id, occurrenceAt, run.status, JSON.stringify(run));
       const next = this.saveTask({ ...task, nextAt, lastRunId: run.id, updatedAt: timestamp });
@@ -570,18 +803,109 @@ export class WorkRuntime {
     catch (error) { if (this.failed(work, 'review', error)) counts.failed++; else counts.stale++; }
     finally { this.active.delete(work.run.id); }
   }
+  private evidenceOf(output: ResearchResult): WorkEvidence[] {
+    if (output.evidence === undefined) return [];
+    if (!Array.isArray(output.evidence) || output.evidence.length > 100) throw new WorkRuntimeError('INVALID_RESULT', 'Invalid research evidence.');
+    return output.evidence.map(item => {
+      if (!item || (item.kind !== 'url' && item.kind !== 'file' && item.kind !== 'note')) throw new WorkRuntimeError('INVALID_RESULT', 'Invalid evidence kind.');
+      const reference = item.kind === 'url' ? sourceUrl(item.reference) : text(item.reference, 'evidence.reference', 4000);
+      const title = typeof item.title === 'string' && item.title.trim() ? text(item.title, 'evidence.title', 300) : undefined;
+      return { kind: item.kind, reference, ...(title === undefined ? {} : { title }) };
+    });
+  }
+  private insertDelivery(task: WorkTask, run: WorkRun, body: string, evidence: WorkEvidence[], timestamp: string, deliver: NonNullable<WorkCallbacks['deliver']>): void {
+    if (this.deliveryForRun(run.id)) return;
+    const written = deliver({ taskId: task.id, runId: run.id, conversationId: task.conversationId, constraintVersion: task.constraintVersion, text: body, evidence });
+    const messageId = text(written.messageId, 'delivery.messageId', 192);
+    const delivery: WorkDelivery = { id: randomUUID(), taskId: task.id, runId: run.id, constraintVersion: task.constraintVersion, conversationId: task.conversationId, messageId, writtenAt: timestamp, readAt: null, text: body, evidence };
+    this.db.prepare('INSERT INTO kw_deliveries(id,run_id,task_id,constraint_version,written_at,read_at,record) VALUES(?,?,?,?,?,?,?)').run(delivery.id, delivery.runId, delivery.taskId, delivery.constraintVersion, delivery.writtenAt, null, JSON.stringify(delivery));
+  }
+  /** Compares verifiable fields. Equal values stay quiet, including a reworded price or version. */
+  private finishFollowup(work: WorkExecution, output: ResearchResult, deliver: WorkCallbacks['deliver']): boolean {
+    if (this.stopping || work.signal.aborted) return false;
+    const resultText = text(output.text, 'result.text', 100000);
+    const sessionId = output.sessionId === undefined ? undefined : text(output.sessionId, 'result.sessionId', 192);
+    const evidence = this.evidenceOf(output);
+    const preview = this.get(work.task.id);
+    const baseline = preview.baselineConstraintVersion === preview.constraintVersion ? preview.baseline : null;
+    const verdict = decideFollowup(baseline, output.follow, evidence);
+    return this.transaction(() => {
+      if (!this.currentClaim(work, 'running')) return false;
+      const task = this.get(work.task.id);
+      if (!periodicFollowup(task)) return false;
+      if (verdict.outcome !== 'quiet' && !deliver) throw new WorkRuntimeError('MISSING_DELIVERY', 'Periodic follow-up has no conversation writer.');
+      const timestamp = this.timestamp();
+      const stored: StoredResearchResult = { id: randomUUID(), runId: work.run.id, taskId: work.task.id, text: resultText, ...(sessionId === undefined ? {} : { sessionId }), ...(evidence.length ? { evidence } : {}), createdAt: timestamp };
+      this.db.prepare('INSERT INTO kw_results(id,run_id,task_id,record) VALUES(?,?,?,?)').run(stored.id, stored.runId, stored.taskId, JSON.stringify(stored));
+      if (verdict.outcome === 'quiet') {
+        this.saveRun({ ...work.run, status: 'completed', version: work.run.version + 1, claimToken: null, errorCode: null, updatedAt: timestamp });
+        this.saveTask({ ...task, baseline: verdict.fields, baselineConstraintVersion: task.constraintVersion, lastCheckedAt: timestamp, lastCheck: 'silent', updatedAt: timestamp });
+        return true;
+      }
+      const urls = evidence.filter(item => item.kind === 'url');
+      const body = verdict.outcome === 'changed' ? formatFollowupChange(verdict.changes, urls) : formatFollowupExplanation(verdict.note, urls);
+      this.insertDelivery(task, work.run, body, urls, timestamp, deliver!);
+      const written = verdict.outcome === 'changed';
+      this.saveRun({ ...work.run, status: written ? 'completed' : 'unknown', version: work.run.version + 1, claimToken: null, errorCode: written ? null : 'CANNOT_JUDGE', updatedAt: timestamp });
+      this.saveTask({ ...task, baseline: written ? verdict.fields : task.baseline, baselineConstraintVersion: written ? task.constraintVersion : task.baselineConstraintVersion, lastCheckedAt: timestamp, lastCheck: written ? 'written' : 'unknown', updatedAt: timestamp });
+      return true;
+    });
+  }
+  private failFollowup(work: WorkExecution, error: unknown, deliver: WorkCallbacks['deliver']): boolean {
+    if (this.stopping || work.signal.aborted) return false;
+    const code = error !== null && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+    const uncertain = code !== 'UNSOURCED_RESULT' && /UNKNOWN|TRANSPORT|TIMEOUT|HOST_INTERRUPTED/iu.test(code);
+    const errorCode = code === 'UNSOURCED_RESULT' ? 'UNSOURCED_RESULT' : uncertain ? 'RESEARCH_OUTCOME_UNKNOWN' : 'RESEARCH_FAILED';
+    const status: WorkRunStatus = uncertain || code === 'UNSOURCED_RESULT' ? 'unknown' : 'failed';
+    const marked = this.transaction(() => {
+      if (!this.currentClaim(work, 'running')) return false;
+      const timestamp = this.timestamp();
+      this.saveRun({ ...work.run, status, version: work.run.version + 1, claimToken: null, errorCode, updatedAt: timestamp });
+      const task = this.get(work.task.id);
+      this.saveTask({ ...task, lastCheckedAt: timestamp, lastCheck: status === 'failed' ? 'failed' : 'unknown', updatedAt: timestamp });
+      return true;
+    });
+    if (marked && deliver) { try { this.explainRun(work.run.id, deliver); } catch { /* The next tick retries the explanation. */ } }
+    return marked;
+  }
+  private explainPending(deliver: WorkCallbacks['deliver']): void {
+    if (!deliver) return;
+    for (const value of this.db.prepare("SELECT id FROM kw_runs WHERE status IN ('failed','unknown')").all()) {
+      try { this.explainRun(String((value as { id: string }).id), deliver); }
+      catch { /* The next tick retries an explanation that did not commit. */ }
+    }
+  }
+  private explainRun(runId: string, deliver: NonNullable<WorkCallbacks['deliver']>): void {
+    this.transaction(() => {
+      const current = this.run(runId);
+      const task = this.get(current.taskId);
+      if (!periodicFollowup(task) || current.constraintVersion !== task.constraintVersion) return;
+      if (task.status === 'cancelled' || task.status === 'paused') return;
+      if (current.status !== 'failed' && current.status !== 'unknown') return;
+      if (this.deliveryForRun(current.id)) return;
+      const latest = this.runs(task.id).find(item => item.constraintVersion === task.constraintVersion && item.status !== 'cancelled');
+      if (!latest || latest.id !== current.id) return;
+      this.insertDelivery(task, current, formatFollowupExplanation(explanationFor(current.errorCode)), [], this.timestamp(), deliver);
+    });
+  }
   private async executeResearch(work: WorkExecution, callbacks: WorkCallbacks, counts: WorkTickResult): Promise<void> {
     if (this.stopping || work.signal.aborted) { counts.stale++; this.active.delete(work.run.id); return; }
     try {
       const output = await callbacks.runResearch(work);
-      if (this.storeResult(work, output)) {
+      if (periodicFollowup(work.task)) {
+        if (this.finishFollowup(work, output, callbacks.deliver)) counts.researched++;
+        else counts.stale++;
+      } else if (this.storeResult(work, output)) {
         counts.researched++;
         this.active.delete(work.run.id);
         const review = this.claimReview(work.run.id);
         if (review) await this.executeReview(review, callbacks, counts);
       }
       else counts.stale++;
-    } catch (error) { if (this.failed(work, 'research', error)) counts.failed++; else counts.stale++; }
+    } catch (error) {
+      const recorded = periodicFollowup(work.task) ? this.failFollowup(work, error, callbacks.deliver) : this.failed(work, 'research', error);
+      if (recorded) counts.failed++; else counts.stale++;
+    }
     finally { this.active.delete(work.run.id); }
   }
   private track(operation: Promise<void>): Promise<void> {
@@ -593,6 +917,7 @@ export class WorkRuntime {
   /** Called by the product host; each claimed research/review invokes its callback once. */
   async tick(callbacks: WorkCallbacks, options: { limit?: number } = {}): Promise<WorkTickResult> {
     if (this.stopping) throw new WorkRuntimeError('HOST_STOPPING', 'The work host is stopping.');
+    this.explainPending(callbacks.deliver);
     const count = limit(options.limit, 4), timestamp = this.timestamp();
     const counts: WorkTickResult = { reminders: 0, researched: 0, reviewed: 0, failed: 0, stale: 0 };
     const reviews: ReviewHandoff[] = [], research: WorkExecution[] = [];

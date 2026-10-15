@@ -26,7 +26,7 @@ export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono 
     return c.json({ code: 'internal_error', error: 'Request failed; inspect persisted status before retrying.' }, 500);
   });
   app.get('/api/status', c => c.json({ product: 'Kleio', mode: 'headless', engine: host.engine.id, model: host.config.model.id, modelConfigured: !!host.config.model.apiKey,
-    memory: { enabled: host.store.getSetting('memoryEnabled', true), ...host.memory.health(), watermarks: host.memory.watermarks() }, capabilities: ['conversation', 'memory', 'public-web-read', 'web-search', 'research', 'one-shot-research-delivery', 'one-shot-reminder', 'interval-work', 'inbox'] }));
+    memory: { enabled: host.store.getSetting('memoryEnabled', true), ...host.memory.health(), watermarks: host.memory.watermarks() }, capabilities: ['conversation', 'memory', 'public-web-read', 'web-search', 'research', 'one-shot-research-delivery', 'periodic-follow-up', 'one-shot-reminder', 'interval-work', 'inbox'] }));
   app.get('/api/conversations', c => c.json(host.store.conversations()));
   app.post('/api/conversations', async c => {
     const body = z.object({ title: z.string().trim().min(1).max(120).optional() }).parse(await c.req.json());
@@ -67,9 +67,10 @@ export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono 
   app.get('/api/people', c => c.json(host.memory.people()));
   app.get('/api/work', c => c.json(host.work.list()));
   app.post('/api/work', async c => {
-    const body = z.object({ requestId: z.string().min(1).max(200), title: z.string().min(1).max(120), prompt: z.string().min(1).max(12000), kind: z.enum(['research', 'reminder']), at: z.string().optional(), intervalMs: z.number().int().min(60000).optional(), conversationId: z.string().optional() }).parse(await c.req.json());
+    const body = z.object({ requestId: z.string().min(1).max(200), title: z.string().min(1).max(120), prompt: z.string().min(1).max(12000), kind: z.enum(['research', 'reminder']), at: z.string().optional(), intervalMs: z.number().int().min(60000).optional(), schedule: z.object({ expression: z.string().trim().min(1).max(256), timeZone: z.string().trim().min(1).max(128).optional() }).optional(), conversationId: z.string().optional() }).parse(await c.req.json());
+    const schedule = body.schedule ? { expression: body.schedule.expression, timeZone: body.schedule.timeZone || host.store.getSetting('timezone', Intl.DateTimeFormat().resolvedOptions().timeZone) } : undefined;
     return c.json(host.createWork({ requestId: body.requestId, title: body.title, prompt: body.prompt, kind: body.kind,
-      ...(body.at ? { at: body.at } : {}), ...(body.intervalMs !== undefined ? { intervalMs: body.intervalMs } : {}), ...(body.conversationId ? { conversationId: body.conversationId } : {}) }), 201);
+      ...(body.at ? { at: body.at } : {}), ...(body.intervalMs !== undefined ? { intervalMs: body.intervalMs } : {}), ...(schedule ? { schedule } : {}), ...(body.conversationId ? { conversationId: body.conversationId } : {}) }), 201);
   });
   app.get('/api/work/:id', c => {
     const task = host.work.get(c.req.param('id')); const runs = host.work.runs(task.id);

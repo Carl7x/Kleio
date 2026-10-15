@@ -5,10 +5,11 @@ import { RuntimeError } from '../../packages/runtime/contracts.ts';
 import type { RuntimeHost } from '../../packages/runtime/host.ts';
 
 /**
- * One-shot research control and delivery.
+ * Research and periodic follow-up control.
  * OpenMuse EngineService.control and publishOutcome stay coupled to Intelligence,
  * goals, monitors, and unread notifications, so they are not imported.
- * Writing the sourced result into the original conversation is delivery. Read is separate.
+ * Writing into the original conversation is delivery. Read is separate.
+ * A follow-up with no verifiable change writes nothing. It is a periodic search, not a live watch.
  */
 function asHttp(error: unknown): never {
   if (error instanceof WorkRuntimeError) {
@@ -18,7 +19,7 @@ function asHttp(error: unknown): never {
   throw error;
 }
 
-/** Minimal research routes. Goals, mail, files, and periodic follow-up stay out of this surface. */
+/** Research and periodic follow-up. Goals, mail, and files stay out of this surface. */
 export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
   app.get('/api/openmuse/research', c => {
     try { return c.json({ research: host.work.list().filter(task => task.kind === 'research' && task.intervalMs === null).map(task => host.work.snapshot(task.id)) }); }
@@ -35,6 +36,7 @@ export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
       prompt: z.string().trim().min(1).max(12000).optional(),
       title: z.string().trim().min(1).max(120).optional(),
       at: z.string().optional(),
+      schedule: z.object({ expression: z.string().trim().min(1).max(256), timeZone: z.string().trim().min(1).max(128).optional() }).optional(),
       expectedVersion: z.number().int().positive().optional(),
       requestId: z.string().min(1).max(200).optional(),
     }).parse(await c.req.json());
@@ -45,11 +47,13 @@ export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
       else if (body.action === 'resume') version === undefined ? host.work.resume(id) : host.work.resume(id, version);
       else if (body.action === 'stop') version === undefined ? host.work.cancel(id) : host.work.cancel(id, version);
       else {
-        if (body.prompt === undefined && body.title === undefined && body.at === undefined) throw new RuntimeError('invalid_input', 'Revised research needs a new prompt, title, or time', 400);
+        if (body.prompt === undefined && body.title === undefined && body.at === undefined && body.schedule === undefined) throw new RuntimeError('invalid_input', 'Revised research needs a new prompt, title, time, or schedule', 400);
+        const schedule = body.schedule ? { expression: body.schedule.expression, timeZone: body.schedule.timeZone || host.store.getSetting('timezone', Intl.DateTimeFormat().resolvedOptions().timeZone) } : undefined;
         host.work.revise(id, {
           ...(body.prompt !== undefined ? { prompt: body.prompt } : {}),
           ...(body.title !== undefined ? { title: body.title } : {}),
           ...(body.at !== undefined ? { at: body.at } : {}),
+          ...(schedule ? { schedule } : {}),
         }, { kind: 'user', conversationId: current.conversationId, messageId: body.requestId ?? `openmuse:${id}` }, version);
       }
       return c.json(host.work.snapshot(id));
