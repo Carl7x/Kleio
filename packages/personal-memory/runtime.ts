@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, writeFileSync, lstatSync, existsSync, unlinkSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, parse, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, URL } from 'node:url';
 
 export interface MemoryMessage { id: string; role: 'user' | 'assistant'; content: string; createdAt: string }
 export interface MemoryWindow { conversationId: string; messages: MemoryMessage[]; throughSequence: number }

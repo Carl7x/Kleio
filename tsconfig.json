@@ -13,5 +13,5 @@
     "types": ["node"]
   },
   "include": ["packages/**/*.ts", "apps/**/*.ts", "scripts/**/*.ts"],
-  "exclude": ["**/node_modules", "**/.runtime", ".research-venv", "apps/web"]
+  "exclude": ["**/node_modules", "**/.runtime", ".research-venv"]
 }

@@ -1,7 +1,11 @@
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { lock } from 'proper-lockfile';
-import { CoreError } from './contracts.ts';
+
+/** Distinguishes invalid or stale product operations from engine failures. */
+export class CoreError extends Error {
+  constructor(readonly code: string, message: string, readonly status = 409) { super(message); this.name = 'CoreError'; }
+}
 
 export interface ServiceOwnership {
   /** Canonical path shared by the database and its process lock. */

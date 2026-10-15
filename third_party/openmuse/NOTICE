@@ -1,0 +1,12 @@
+Kleio's Expo client adapts presentation code from OpenMuse.
+
+Upstream: https://github.com/CopilotKit/OpenMuse
+Revision: 1ac68f3909f2478ab6280883f1ab5ea65eb5719d
+Source: apps/mobile (client components and capybara asset), packages/domain/src (UI contracts)
+Copyright (c) 2026 OpenMuse contributors
+License: MIT; the complete notice is preserved in LICENSE in this directory.
+
+The adapted client uses Kleio authentication, conversation transport, memory,
+background work and search. Upstream hosted services and sample data are not
+included. Kleio changes remain under the repository's Apache-2.0 license;
+the above MIT notice continues to apply to the incorporated upstream material.

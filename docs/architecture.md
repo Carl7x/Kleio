@@ -3,7 +3,7 @@
 Kleio owns the product runtime independently of its clients and execution engine.
 
 ```text
-CLI / future clients
+Expo client (Web / iOS) / CLI
         |
 authenticated local HTTP API + durable event stream
         |
@@ -24,12 +24,13 @@ DSH adapter + product tool bridge
 - `packages/connectors`: scoped product capabilities.
 - `apps/runtime`: authenticated service assembly.
 - `apps/cli`: initial product API client.
+- `apps/mobile`: shared Expo / React Native Web presentation, API transport and device connection. Durable state remains owned by the runtime.
 
 Product tables share one SQLite database and one process lease. Engine sessions are opaque execution handles, not conversation IDs. The admission queue does not implement a second model/tool loop.
 
 ## Execution
 
-The current path permits memory retrieval, explicitly authorized memory correction/forgetting, public document reads and work creation. Research receives read-only tools; maintenance and review have no tools. General shell, filesystem, plugin installation and native subagent tools are disabled in the pinned composition, with a product tool allowlist as an additional check.
+The current path permits memory retrieval, explicitly authorized memory correction/forgetting, Tavily web search, public document reads and work creation. Research receives read-only tools; maintenance and review have no tools. General shell, filesystem, plugin installation and native subagent tools are disabled in the pinned composition, with a product tool allowlist as an additional check.
 
 Research is delegated as a scoped engine execution. Its result is committed before a main-assistant review execution; review is committed before inbox notification. This version does not expose native subagent controls.
 
@@ -37,4 +38,4 @@ Requests and work occurrences have durable identities. Conversation submission i
 
 ## Scope
 
-Single user, local host. A second production engine, OS sandbox for general execution, automatic migration, service installation, semantic retrieval and client product design remain further work. Clients must use product contracts and never own memory or scheduling state.
+Single user, local host, with optional paired devices on the local network. A second production engine, OS sandbox for general execution, automatic migration, service installation, semantic retrieval and native app distribution remain further work. Clients use product contracts and never own memory or scheduling state. Client capability support is explicit: unavailable mail, calendar, computer, file and goal features are omitted.

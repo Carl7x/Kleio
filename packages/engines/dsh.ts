@@ -5,6 +5,7 @@ import { DshAcpClient, DshAcpError } from '../harness-dsh/src/index.ts';
 import { prepareHeadlessLaunch, loadProductSchemaValidator, productToolName, PRODUCT_TOOL_PREFIX, type DshHeadlessOptions } from '../harness-dsh/src/headless.ts';
 import { createProductMcpBridge } from '../harness-dsh/src/product-mcp.ts';
 import { RuntimeError, type Engine, type ExecutionContext, type ExecutionInput } from '../runtime/contracts.ts';
+import { DshTextOutput } from './dsh-output.ts';
 
 export type DshEngineOptions = DshHeadlessOptions;
 
@@ -47,7 +48,7 @@ export class DshEngine implements Engine {
     let client: DshAcpClient | undefined;
     let cancelTimer: ReturnType<typeof setTimeout> | undefined;
     let stop: (() => void) | undefined;
-    let text = '';
+    const output = new DshTextOutput();
     let stopReason: string | undefined;
     let sessionId: string | undefined;
     let outcome: unknown;
@@ -57,17 +58,24 @@ export class DshEngine implements Engine {
     try {
       const launch = await prepareHeadlessLaunch(this.options, directory, input.tools.map(tool => tool.name));
       const schema = await loadProductSchemaValidator(this.options);
-      for (const tool of input.tools) schema.assertSchema(tool.inputSchema);
+      for (const tool of input.tools) {
+        try { schema.assertSchema(tool.inputSchema); }
+        catch {
+          // Tool names were checked before preparation. Never expose the schema
+          // or the dependency's error text, which may contain private values.
+          try { context.onEvent({ type: 'engine.error', data: { phase, category: 'tool-schema', productTool: tool.name } }); } catch { /* Diagnostics cannot change settlement. */ }
+          throw new RuntimeError('ENGINE_TOOL_SCHEMA', `The execution engine rejected the schema for product tool "${tool.name}" before model dispatch. Update the tool schema to match the pinned DSH runtime.`, 503);
+        }
+      }
       context.signal.throwIfAborted();
       phase = 'bridge';
       bridge = await createProductMcpBridge(input.tools, context, schema.valid);
       client = new DshAcpClient({ ...launch, onEvent: event => {
         if (context.signal.aborted || event.sessionId !== sessionId) return;
         const update = event.update;
-        if (update.sessionUpdate === 'agent_message_chunk') {
-          const content = update.content;
-          if (content !== null && typeof content === 'object' && 'type' in content && content.type === 'text' && 'text' in content && typeof content.text === 'string') { text += content.text; context.onText(content.text); }
-        } else if (update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update') {
+        const delta = output.accept(update);
+        if (delta) context.onText(delta);
+        if (update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update') {
           const name = typeof update.title === 'string' && update.title.startsWith(PRODUCT_TOOL_PREFIX) ? update.title.slice(PRODUCT_TOOL_PREFIX.length) : undefined;
           context.onEvent({ type: 'engine.tool', data: { ...update, ...(name ? { productTool: name } : {}) } });
         }
@@ -121,8 +129,8 @@ export class DshEngine implements Engine {
       // RPC/provider errors may contain credentials. Expose a fixed message only.
       throw new RuntimeError('ENGINE_FAILED', `The execution engine failed during ${phase}; inspect product state before retrying.` + status, 502);
     }
-    if (!text.trim()) throw new RuntimeError('ENGINE_EMPTY_RESULT', 'The engine settled without a text result.', 502);
-    return { text, ...(sessionId ? { engineSessionId: sessionId } : {}) };
+    if (!output.text.trim()) throw new RuntimeError('ENGINE_EMPTY_RESULT', 'The engine settled without a text result.', 502);
+    return { text: output.text, ...(sessionId ? { engineSessionId: sessionId } : {}) };
   }
 
   async close(): Promise<void> {

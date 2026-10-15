@@ -27,7 +27,7 @@ for (const [input, output] of [
 ]) assert.equal(deepSeekMessagesBase(input), output);
 assert.throws(() => deepSeekMessagesBase('https://example.com/?key=not-a-credential'));
 checks.push({ check: 'Messages API endpoint normalization', cases: 5, passed: true });
-for (const file of ['config/personal-agent.patch.yml', 'config/assistant.md', '启动 Kleio.cmd']) assert.ok(existsSync(resolve(root, file)), file);
+for (const file of ['config/personal-agent.patch.yml', 'config/assistant.md']) assert.ok(existsSync(resolve(root, file)), file);
 if (!process.argv.includes('--quick')) {
   const files = ['packages/personal-memory/store.test.mjs', 'packages/personal-memory/files.test.mjs', 'packages/personal-memory/application.test.mjs', 'packages/personal-memory/capture.test.mjs', 'packages/personal-agent/source.test.mjs', 'packages/personal-agent/http.test.mjs', 'packages/personal-agent/artifacts.test.mjs', 'packages/personal-agent-ui/api.test.mjs', 'scripts/verify-personal-tasks.mjs'];
   const result = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ...files], { cwd: root, encoding: 'utf8', windowsHide: true });

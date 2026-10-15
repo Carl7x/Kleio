@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { RuntimeError, type ExecutionKind } from './contracts.ts';
 
-export interface Conversation { id: string; title: string; createdAt: string }
+export interface Conversation { id: string; title: string; createdAt: string; archived?: boolean; isMain?: boolean }
 export interface Message { id: string; sequence: number; conversationId: string; role: 'user' | 'assistant'; content: string; createdAt: string; executionId: string; status: string }
 export interface Execution { id: string; kind: ExecutionKind; conversationId: string | null; messageId: string | null; status: string; text: string; error: string | null; createdAt: string; updatedAt: string }
 export interface ProductEvent { sequence: number; executionId: string; type: string; data: Record<string, unknown>; createdAt: string }
@@ -40,9 +40,17 @@ export class RuntimeStore {
     const value = record<Conversation>(this.db.prepare('SELECT record FROM kr_conversations WHERE id=?').get(id));
     if (!value) throw new RuntimeError('not_found', 'Conversation not found', 404); return value;
   }
-  createConversation(title = 'New conversation'): Conversation {
-    const value = { id: randomUUID(), title, createdAt: new Date().toISOString() };
+  createConversation(title = 'New conversation', id: string = randomUUID()): Conversation {
+    const existing = record<Conversation>(this.db.prepare('SELECT record FROM kr_conversations WHERE id=?').get(id));
+    if (existing) return existing;
+    const value = { id, title, createdAt: new Date().toISOString() };
     this.db.prepare('INSERT INTO kr_conversations VALUES(?,?)').run(value.id, JSON.stringify(value)); return value;
+  }
+  updateConversation(id: string, patch: { title?: string; archived?: boolean; isMain?: boolean }): Conversation {
+    const current = this.conversation(id);
+    const value = { ...current, ...patch };
+    this.db.prepare('UPDATE kr_conversations SET record=? WHERE id=?').run(JSON.stringify(value), id);
+    return value;
   }
   messages(id: string): Message[] {
     this.conversation(id);
@@ -50,11 +58,19 @@ export class RuntimeStore {
   }
   submit(conversationId: string, content: string, requestId: string): Execution {
     return this.transaction(() => {
-      this.conversation(conversationId);
+      const conversation = this.conversation(conversationId);
       const previous = record<Message>(this.db.prepare('SELECT record FROM kr_messages WHERE conversation_id=? AND request_id=?').get(conversationId, requestId));
       if (previous) {
         if (previous.content !== content) throw new RuntimeError('request_conflict', 'Request ID already belongs to different content', 409);
         return this.execution(previous.executionId);
+      }
+      if (conversation.title === 'New conversation' && !this.db.prepare("SELECT 1 FROM kr_messages WHERE conversation_id=? AND role='user' LIMIT 1").get(conversationId)) {
+        const firstLine = content.trim().split(/\r?\n/u)[0]!.replace(/\s+/gu, ' ').trim();
+        const characters = Array.from(firstLine);
+        if (characters.length) {
+          conversation.title = characters.slice(0, 32).join('') + (characters.length > 32 ? '…' : '');
+          this.db.prepare('UPDATE kr_conversations SET record=? WHERE id=?').run(JSON.stringify(conversation), conversationId);
+        }
       }
       const messageId = randomUUID(); const execution = this.createExecution('conversation', conversationId, messageId);
       const message = { id: messageId, conversationId, role: 'user', content, createdAt: execution.createdAt, executionId: execution.id, status: 'sent' };
@@ -72,7 +88,12 @@ export class RuntimeStore {
     const value = record<Execution>(this.db.prepare('SELECT record FROM kr_executions WHERE id=?').get(id));
     if (!value) throw new RuntimeError('not_found', 'Execution not found', 404); return value;
   }
-  executions(status?: string): Execution[] {
+  executions(status?: string, conversationId?: string): Execution[] {
+    if (conversationId !== undefined) {
+      this.conversation(conversationId);
+      return this.db.prepare("SELECT record FROM kr_executions WHERE json_extract(record,'$.conversationId')=? AND (? IS NULL OR status=?) ORDER BY rowid DESC")
+        .all(conversationId, status ?? null, status ?? null).map(row => record<Execution>(row)!);
+    }
     return (status ? this.db.prepare('SELECT record FROM kr_executions WHERE status=? ORDER BY rowid').all(status) : this.db.prepare('SELECT record FROM kr_executions ORDER BY rowid DESC LIMIT 100').all()).map(row => record<Execution>(row)!);
   }
   update(id: string, patch: Partial<Execution>): Execution {
