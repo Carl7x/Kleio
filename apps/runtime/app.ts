@@ -6,6 +6,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
 import { RuntimeError } from '../../packages/runtime/contracts.ts';
 import type { RuntimeHost } from '../../packages/runtime/host.ts';
+import { mountOpenMuse } from './openmuse.ts';
 
 export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono {
   const app = new Hono(); const token = Buffer.from('Bearer ' + host.config.token);
@@ -25,7 +26,7 @@ export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono 
     return c.json({ code: 'internal_error', error: 'Request failed; inspect persisted status before retrying.' }, 500);
   });
   app.get('/api/status', c => c.json({ product: 'Kleio', mode: 'headless', engine: host.engine.id, model: host.config.model.id, modelConfigured: !!host.config.model.apiKey,
-    memory: { enabled: host.store.getSetting('memoryEnabled', true), ...host.memory.health(), watermarks: host.memory.watermarks() }, capabilities: ['conversation', 'memory', 'public-web-read', 'research', 'one-shot-reminder', 'interval-work', 'inbox'] }));
+    memory: { enabled: host.store.getSetting('memoryEnabled', true), ...host.memory.health(), watermarks: host.memory.watermarks() }, capabilities: ['conversation', 'memory', 'public-web-read', 'web-search', 'research', 'one-shot-research-delivery', 'one-shot-reminder', 'interval-work', 'inbox'] }));
   app.get('/api/conversations', c => c.json(host.store.conversations()));
   app.post('/api/conversations', async c => {
     const body = z.object({ title: z.string().trim().min(1).max(120).optional() }).parse(await c.req.json());
@@ -71,7 +72,8 @@ export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono 
   });
   app.get('/api/work/:id', c => {
     const task = host.work.get(c.req.param('id')); const runs = host.work.runs(task.id);
-    return c.json({ task, runs: runs.map(run => ({ ...run, result: host.work.result(run.id), review: host.work.reviewResult(run.id) })) });
+    const research = task.kind === 'research' && task.intervalMs === null ? host.work.snapshot(task.id) : null;
+    return c.json({ task, ...(research ? { research } : {}), runs: runs.map(run => ({ ...run, result: host.work.result(run.id), review: host.work.reviewResult(run.id) })) });
   });
   app.post('/api/work/:id/cancel', async c => {
     const body = z.object({ expectedVersion: z.number().int().positive().optional() }).parse(await c.req.json());
@@ -87,5 +89,6 @@ export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono 
     return c.json({ ok: true });
   });
   app.post('/api/shutdown', c => { setTimeout(shutdown, 20); return c.json({ ok: true }); });
+  mountOpenMuse(app, host);
   return app;
 }

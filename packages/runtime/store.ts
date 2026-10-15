@@ -15,6 +15,7 @@ function terms(value: string): string[] {
 
 export class RuntimeStore {
   readonly db: DatabaseSync;
+  private deliverySerial = 0;
   constructor(path: string) {
     this.db = new DatabaseSync(path);
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
@@ -84,6 +85,33 @@ export class RuntimeStore {
   events(after = 0, executionId?: string): ProductEvent[] {
     const rows = executionId ? this.db.prepare('SELECT * FROM kr_events WHERE sequence>? AND execution_id=? ORDER BY sequence LIMIT 500').all(after, executionId) : this.db.prepare('SELECT * FROM kr_events WHERE sequence>? ORDER BY sequence LIMIT 500').all(after);
     return rows.map(row => ({ sequence: Number(row.sequence), executionId: String(row.execution_id), type: String(row.type), data: JSON.parse(String(row.data)), createdAt: String(row.created_at) }));
+  }
+  /** Inserts one assistant message. A nested savepoint joins the caller's transaction; the same request id does not write a second message. */
+  insertAssistantMessage(conversationId: string, content: string, requestId: string): Message {
+    if (typeof content !== 'string' || !content.trim() || content.length > 100000) throw new RuntimeError('invalid_input', 'Delivery text is empty', 400);
+    if (!requestId || requestId.length > 300) throw new RuntimeError('invalid_input', 'Delivery request id is invalid', 400);
+    const name = `kr_delivery_${++this.deliverySerial}`;
+    this.db.exec(`SAVEPOINT ${name}`);
+    try {
+      this.conversation(conversationId);
+      const existingRow = this.db.prepare('SELECT sequence, record FROM kr_messages WHERE conversation_id=? AND request_id=?').get(conversationId, requestId) as { sequence: number; record: string } | undefined;
+      if (existingRow) {
+        const existing = { ...(JSON.parse(existingRow.record) as Message), sequence: Number(existingRow.sequence) };
+        this.db.exec(`RELEASE ${name}`);
+        return existing;
+      }
+      const execution = this.createExecution('review', conversationId, null);
+      this.update(execution.id, { status: 'completed', text: content });
+      const message = { id: randomUUID(), conversationId, role: 'assistant' as const, content, createdAt: new Date().toISOString(), executionId: execution.id, status: 'completed' };
+      this.db.prepare('INSERT INTO kr_messages(id,conversation_id,request_id,execution_id,role,record) VALUES(?,?,?,?,?,?)').run(message.id, conversationId, requestId, execution.id, 'assistant', JSON.stringify(message));
+      const sequence = Number((this.db.prepare('SELECT sequence FROM kr_messages WHERE id=?').get(message.id) as { sequence: number }).sequence);
+      this.db.prepare('INSERT INTO kr_message_search(message_id,terms) VALUES(?,?)').run(message.id, terms(content).join(' '));
+      this.db.exec(`RELEASE ${name}`);
+      return { ...message, sequence };
+    } catch (error) {
+      this.db.exec(`ROLLBACK TO ${name}; RELEASE ${name}`);
+      throw error;
+    }
   }
   finish(id: string, text: string, status = 'completed', error: string | null = null): Execution {
     return this.transaction(() => {
