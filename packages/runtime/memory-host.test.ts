@@ -138,7 +138,7 @@ test('forgotten wording is removed from the next research and review injection',
   const conversation = store.createConversation('研究');
   host.setMemoryEnabled(false);
   const due = new Date(Date.now() - 60_000).toISOString();
-  host.createWork({ requestId: 'work-tea', title: '茶产地', prompt: '调查我喜欢桂花乌龙的产地', kind: 'research', at: due, conversationId: conversation.id });
+  host.createWork({ requestId: 'work-tea', title: '茶产地', prompt: '调查我喜欢桂花乌龙的产地', kind: 'research', at: due, intervalMs: 60_000, conversationId: conversation.id });
   host.createWork({ requestId: 'work-remind', title: '茶提醒', prompt: '提醒我：我喜欢桂花乌龙', kind: 'reminder', at: due, conversationId: conversation.id });
   host.start();
   const start = Date.now();

@@ -244,21 +244,16 @@ export class RuntimeHost {
       .map(({ id, role, content, createdAt, conversationId }) => ({ id, role, content: cleanRecallText(content), createdAt, conversationId }));
   }
     private historyEligible(message: Message): boolean {
-    const cutoff = this.store.getSetting<string>('historyRecallAfter', '');
-    if (cutoff && message.createdAt <= cutoff) return false;
-    if (this.memory.isEvidenceBlocked(message.id, message.content)) return false;
+    // A forgotten fact blocks its own evidence and later copies. Unrelated messages stay eligible; conversation rows are not erased.
+    if (this.memory.isEvidenceBlocked(message.id, message.content) || this.memory.reinjectsBlocked(message.content)) return false;
     if (message.role === 'assistant') {
       const source = this.store.messages(message.conversationId).find(item => item.executionId === message.executionId && item.role === 'user');
-      if (source && this.memory.isEvidenceBlocked(source.id, source.content)) return false;
+      if (source && (this.memory.isEvidenceBlocked(source.id, source.content) || this.memory.reinjectsBlocked(source.content))) return false;
     }
     return true;
   }
   forget(id: string, options: { expectedVersion?: number } = {}) {
-    return this.store.transaction(() => {
-      const result = this.memory.forget(id, options);
-      // Until derived-message lineage is complete, omit older history after forgetting.
-      this.store.setSetting('historyRecallAfter', new Date().toISOString()); return result;
-    });
+    return this.store.transaction(() => this.memory.forget(id, options));
   }
   setMemoryEnabled(enabled: boolean): void {
     this.store.setSetting('memoryEnabled', enabled);
