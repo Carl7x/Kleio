@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Kleio",
+    "slug": "kleio",
+    "scheme": "kleio",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.kleio.mobile",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "连接你的电脑上的 Kleio，查看对话和后台工作。",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
+    },
+    "android": {
+      "package": "app.kleio.mobile"
+    },
+    "web": {
+      "bundler": "metro",
+      "name": "Kleio",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-sharing"
+    ]
+  }
+}

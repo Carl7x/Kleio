@@ -4,12 +4,12 @@ A local, self-hosted personal assistant. Kleio owns conversations, memory, backg
 
 ## Current stage
 
-The independent headless runtime is under development. It provides an authenticated local API and a command-line client. Product navigation and desktop/mobile clients are not finalized.
+The independent runtime is under development. An Expo / React Native client shares its screens across Web and iOS, backed by Kleio's authenticated API. The command-line client remains available.
 
 - Persistent multi-turn conversations with streaming responses and queued follow-ups.
 - Automatic memory after a quiet interval, with evidence, corrections, forgetting and basic people/relationships.
 - Full-text retrieval across memory and conversation history; semantic retrieval is not implemented.
-- Read-only public web/RSS documents.
+- Tavily web search with source cards, plus read-only public web/RSS documents.
 - One-shot reminders and interval work, with durable research results, main-assistant review and a local inbox.
 - Explicit cancellation and unknown outcomes; unfinished research is not silently repeated on restart.
 
@@ -22,14 +22,24 @@ Node.js 24.19 or later in the Node 24 series, pnpm 11.25.0, and a reachable comp
 ```sh
 pnpm install --frozen-lockfile
 pnpm setup:dsh
-pnpm start
-# In another terminal:
-pnpm chat
+pnpm web
 ```
 
 Configuration is outside the repository at `~/.config/kleio/config.json` (or `$KLEIO_CONFIG`). First startup creates a private local API token. Supply model credentials through `KLEIO_MODEL_API_KEY` or the private configuration field `model.apiKey`. Never add credentials to tracked files. Default model endpoint is DeepSeek.
 
-The service binds to loopback only. Closing the CLI leaves the service running; `pnpm stop` stops it. A login service is not installed yet.
+`pnpm web` builds the Expo Web client, starts the local runtime if needed, and opens an authenticated browser session. It can reconnect to an already-running runtime. The interface supports conversations, background work and results, and memory inspection/correction. Provider keys and the administration token stay on the server.
+
+The service binds to loopback by default. Closing a client leaves the service running; `pnpm stop` stops it. A login service is not installed yet. For terminal use, run `pnpm start` and then `pnpm chat` in another terminal.
+
+### Phone access
+
+Run `pnpm mobile` to enable authenticated local-network access and open the Web client. The original client uses its workspace access gate when an authenticated session is unavailable.
+
+The native iOS client uses the same screens. `pnpm mobile:dev` starts the Expo development server for SDK 57. Its server address comes from the development host or deployment configuration, with no separate connection page. Existing device credentials are reused; new devices use the original workspace access-key gate. The adapter stores a limited device credential in the iOS Keychain. Native installation depends on the Expo SDK version and Apple's development/signing setup. `pnpm mobile:build:ios` exports a JavaScript bundle; it does not produce a signed application. Native background execution and OS push notifications are outside this release.
+
+### Search
+
+Search uses Tavily basic search. Without a key it uses Tavily's limited keyless access. For account access, set `KLEIO_TAVILY_API_KEY` (or `TAVILY_API_KEY`) on the server, or set `search.apiKey` in private configuration. Limits and provider failures are reported without switching to another provider. Search credentials are never bundled in the client.
 
 ```sh
 pnpm kleio status
@@ -62,4 +72,4 @@ Keep credentials, runtime data, personal examples, internal research notes and v
 
 ## License
 
-Apache-2.0. Dependencies retain their respective licenses.
+Apache-2.0. The Expo client incorporates MIT-licensed OpenMuse presentation code; its attribution and license are preserved in [third_party/openmuse](third_party/openmuse/NOTICE). Dependencies retain their respective licenses.

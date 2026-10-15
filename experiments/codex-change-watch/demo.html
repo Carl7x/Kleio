@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'">
+<title>Kleio · 有变化再告诉我</title>
+<style>
+:root{color-scheme:light;--bg:#f3f3ec;--ink:#24372d;--muted:#657368;--line:#dce1d6;--green:#37684d;--soft:#e6efe3;--amber:#865b20}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 system-ui,-apple-system,"PingFang SC",sans-serif}main{max-width:1100px;margin:auto;padding:36px 26px 44px}header{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:32px}.brand{font-size:15px;letter-spacing:.14em;font-weight:750}.tag{font-size:12px;color:var(--muted);border:1px solid var(--line);padding:4px 11px;border-radius:30px}.eyebrow{font-size:12px;letter-spacing:.12em;color:var(--green);font-weight:700}h1{font-size:clamp(30px,5vw,44px);line-height:1.25;letter-spacing:-.04em;margin:8px 0 12px}p{margin:8px 0}.intro{max-width:760px;color:var(--muted);font-size:16px}.top{display:grid;grid-template-columns:1fr 340px;gap:24px;margin:30px 0 20px}.panel{background:#fffef9;border:1px solid var(--line);border-radius:16px;padding:22px}.result{border-left:5px solid var(--green)}.result[data-tone="attention"]{border-left-color:var(--amber)}.result[data-tone="changed"]{border-left-color:#3d6e9d}.result[data-tone="ignored"]{border-left-color:#8b918a}.result h2{font-size:23px;margin:8px 0}.badge{display:inline-block;background:var(--soft);padding:3px 10px;border-radius:6px;font-size:12px;font-weight:650}.result[data-tone="attention"] .badge{background:#f5ead7;color:var(--amber)}.result[data-tone="changed"] .badge{background:#e4edf6;color:#345d82}.result[data-tone="ignored"] .badge{background:#ebeeea;color:#596359}.meta{font-size:13px;color:var(--muted)}label{display:block;font-size:13px;font-weight:650;margin-bottom:7px}select,textarea,button{font:inherit}select{width:100%;border:1px solid var(--line);border-radius:8px;background:white;padding:9px;color:var(--ink)}.scenario-description{font-size:13px;color:var(--muted);margin:10px 0 0;min-height:42px}.editors{display:grid;grid-template-columns:1fr 1fr;gap:18px}.editor-title{display:flex;justify-content:space-between;align-items:baseline;gap:8px}textarea{display:block;resize:vertical;width:100%;height:166px;border:1px solid var(--line);background:#fafbf6;border-radius:10px;padding:14px;color:var(--ink);font:14px/1.9 ui-monospace,SFMono-Regular,Menlo,monospace}textarea[readonly]{color:#677268}.controls{display:flex;flex-wrap:wrap;gap:14px 24px;margin-top:18px;align-items:center}.control{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:400;margin:0}.control input{accent-color:var(--green)}.control select{width:auto;padding:5px 8px;font-size:13px}.buttons{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}button{cursor:pointer;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:#fffef9;color:var(--ink);font-size:14px}button.primary{background:var(--green);border-color:var(--green);color:white}button:hover{filter:brightness(.96)}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #9eb89b;outline-offset:3px}button:disabled{cursor:not-allowed;opacity:.5}.changes{padding:0;list-style:none;margin:14px 0 0}.changes li{padding:11px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:60px 1fr;gap:10px}.changes li:last-child{border-bottom:0}.change-label{font-size:12px;color:var(--muted)}.change-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}footer{margin-top:24px;color:var(--muted);font-size:12px}.note{padding-top:14px;border-top:1px solid var(--line);margin-top:16px;font-size:12px;color:var(--muted)}details{margin-top:20px;font-size:13px}summary{cursor:pointer;color:var(--muted)}pre{font:12px/1.5 ui-monospace,monospace;overflow:auto;max-height:300px;padding:16px;background:#e9ede5;border-radius:9px}.bottom{margin-top:18px}.error{color:#a63e2f;white-space:pre-wrap}.source{overflow-wrap:anywhere}
+@media(max-width:760px){main{padding:22px 16px}.top,.editors{grid-template-columns:1fr}.top{gap:14px;margin-top:24px}header{margin-bottom:26px}.panel{padding:17px}h1{font-size:34px}.intro{font-size:14px}.editor-title{flex-wrap:wrap;gap:0}.tag{max-width:180px;text-align:center}}
+</style>
+<main>
+  <header><div class="brand">KLEIO <span style="font-weight:400;letter-spacing:0;color:var(--muted)">/ 变化观察</span></div><div class="tag">本地探索原型 · 未接入产品</div></header>
+  <div class="eyebrow">少打断，把变化说清楚</div>
+  <h1>有变化，再告诉我。</h1>
+  <p class="intro">同一来源、同一关注区域的两次观察。无变化时保持安静；有变化给出前后依据；无法判断时如实说明。</p>
+  <div class="top">
+    <section class="panel result" id="result-panel" aria-live="polite" aria-atomic="true">
+      <span class="badge" id="decision-badge">正在比较</span>
+      <h2 id="decision-title">本次无需打扰</h2>
+      <p id="decision-summary"></p>
+      <p class="meta" id="decision-detail"></p>
+    </section>
+    <section class="panel">
+      <label for="scenario">选择一个场景</label>
+      <select id="scenario"></select>
+      <p class="scenario-description" id="scenario-description"></p>
+      <div class="note">全部是虚构课程样例。页面不访问网站、不调用模型，也不发送通知。</div>
+    </section>
+  </div>
+  <section class="panel">
+    <div class="editors">
+      <div><div class="editor-title"><label for="previous">上一次完整观察</label><span class="meta" id="previous-date"></span></div><textarea id="previous" readonly></textarea></div>
+      <div><div class="editor-title"><label for="current">本次观察 · 可以修改后比较</label><span class="meta" id="current-date"></span></div><textarea id="current" spellcheck="false"></textarea></div>
+    </div>
+    <div class="controls">
+      <label class="control" for="read-status">读取结果 <select id="read-status"><option value="ok">完整</option><option value="partial">不完整</option><option value="failed">失败</option></select></label>
+      <label class="control"><input id="ignore-metadata" type="checkbox" checked>忽略独立的相对更新时间行</label>
+      <label class="control"><input id="confirm-empty" type="checkbox">已确认关注区域确实为空</label>
+    </div>
+    <div class="buttons"><button class="primary" id="compare">重新比较</button><button id="next-check">沿用本次记录，再检查一次</button><button id="reset">重置本例</button></div>
+    <p class="meta" id="round-note">比较不会发出通知。刷新页面后，本页观察记录会重置。</p>
+    <p class="error" id="error" role="alert"></p>
+  </section>
+  <section class="panel bottom">
+    <label>变化依据</label><p class="meta source">演示来源：https://example.org/courses · 摄影课程公开列表</p>
+    <ul class="changes" id="changes"></ul>
+    <details><summary>查看模块返回的结构化结果</summary><pre id="json-result"></pre></details>
+  </section>
+  <footer>范围：完整文本区域的内容比较；行序不参与判断。无法证明抓取质量、语义重要性或真实送达，接入方仍需处理提取、复核、持久化和交付。</footer>
+</main>
+<script type="module">
+// Adapted from OpenMuse 1ac68f3909f2, apps/server/src/engine/page-diff.ts.
+// MIT, Copyright (c) 2026 OpenMuse contributors. See LICENSE.openmuse.
+// Changes: retain before/after pairs; never clip compared data; relative-time
+// suppression is opt-in and limited to whole, labelled metadata lines.
+
+const englishMetadata = /^(?:posted|updated|published)(?:\s+at|\s*:)?\s+(?:\d+|an?|one)\s+(?:seconds?|minutes?|hours?|days?|weeks?|months?|years?)\s+ago[.!]?$/iu;
+const chineseMetadata = /^(?:发布于|更新于|发布时间[:：]?|更新时间[:：]?)\s*(?:\d+|一|两|半)\s*(?:秒|分钟|小时|天|周|个月|年)前[。]?$/u;
+
+function metadataKey(line) {
+  if (englishMetadata.test(line)) return line.replace(/\s+(?:\d+|an?|one)\s+.*$/iu, ' <relative-time>');
+  if (chineseMetadata.test(line)) return line.replace(/(?:\d+|一|两|半)\s*(?:秒|分钟|小时|天|周|个月|年)前[。]?$/u, '<relative-time>');
+  return line;
+}
+
+function pair(previous, current, key) {
+  const open = new Map();
+  previous.forEach((line, index) => {
+    const value = key(line);
+    if (!open.has(value)) open.set(value, []);
+    open.get(value).push({ line, index });
+  });
+  const used = new Set();
+  const paired = [], unpaired = [];
+  for (const line of current) {
+    const match = open.get(key(line))?.shift();
+    if (!match) unpaired.push(line);
+    else { used.add(match.index); paired.push({ before: match.line, after: line }); }
+  }
+  return { paired, unpaired, left: previous.filter((_, index) => !used.has(index)) };
+}
+
+function diffLines(previous, current, { ignoreRelativeMetadata = false } = {}) {
+  const same = pair(previous, current, line => line);
+  const metadata = ignoreRelativeMetadata
+    ? pair(same.left, same.unpaired, metadataKey)
+    : { paired: [], left: same.left, unpaired: same.unpaired };
+  // This key only groups a numeric edit as an update; it NEVER makes it silent.
+  const numbers = pair(metadata.left, metadata.unpaired, line => line.replace(/\d+(?:[.,]\d+)*/g, '#'));
+  return { added: numbers.unpaired, updated: numbers.paired, removed: numbers.left,
+    ignoredMetadata: metadata.paired };
+}
+
+
+
+const LIMITS = Object.freeze({ textCharacters: 120000, lines: 2000, lineCharacters: 2000 });
+const emptyDiff = () => ({ added: [], updated: [], removed: [], ignoredMetadata: [] });
+const copy = value => value == null ? value : JSON.parse(JSON.stringify(value));
+const id = value => typeof value === 'string' && /^[\w.-]{1,100}$/u.test(value);
+const positive = value => Number.isSafeInteger(value) && value > 0;
+
+function sourceUrl(value) {
+  if (typeof value !== 'string' || value.length > 4000) throw new TypeError('sourceUrl must be an HTTP(S) URL');
+  const url = new URL(value);
+  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.hash) {
+    throw new TypeError('sourceUrl requires HTTP(S), without credentials or fragments');
+  }
+  return url.href;
+}
+
+function timestamp(value) {
+  return typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?(?:Z|[+-]\d\d:\d\d)$/u.test(value)
+    && Number.isFinite(Date.parse(value));
+}
+
+function readWatch(input) {
+  if (!input || !id(input.id) || !positive(input.revision)) throw new TypeError('watch requires id and positive revision');
+  if (typeof input.active !== 'boolean' || typeof input.ignoreRelativeMetadata !== 'boolean') {
+    throw new TypeError('active and ignoreRelativeMetadata must be explicit booleans');
+  }
+  if (typeof input.region !== 'string' || !input.region.trim() || input.region.length > 200) {
+    throw new TypeError('watch requires a stable, bounded region identifier');
+  }
+  return { id: input.id, revision: input.revision, sourceUrl: sourceUrl(input.sourceUrl),
+    region: input.region, active: input.active, ignoreRelativeMetadata: input.ignoreRelativeMetadata };
+}
+
+/** Whitespace and ordering are not significant for this text-region comparator.
+ * Reject incomplete data rather than silently clipping away a meaningful edit. */
+function readLines(text, emptyConfirmed) {
+  if (typeof text !== 'string') return { error: 'invalid_text' };
+  if (text.length > LIMITS.textCharacters) return { error: 'input_too_large' };
+  const raw = text.normalize('NFC').split(/\r?\n/u).map(line => line.replace(/\s+/gu, ' ').trim()).filter(Boolean);
+  if (raw.length > LIMITS.lines || raw.some(line => line.length > LIMITS.lineCharacters)) return { error: 'input_too_large' };
+  if (!raw.length && emptyConfirmed !== true) return { error: 'unconfirmed_empty' };
+  // Duplicate identical rows can be meaningful (e.g. stock counts). Do not
+  // silently deduplicate them. pair() preserves their multiplicity.
+  return { lines: raw };
+}
+
+function initialState(watch) {
+  return { schema: 1, watchId: watch.id, revision: watch.revision, sourceUrl: watch.sourceUrl,
+    region: watch.region, ignoreRelativeMetadata: watch.ignoreRelativeMetadata,
+    lastSequence: 0, lastObservationId: null, lastCapturedAt: null, baseline: null };
+}
+
+function stateFor(watch, state) {
+  if (state == null) return initialState(watch);
+  if (state.schema !== 1 || state.watchId !== watch.id || !positive(state.revision)
+    || !Number.isSafeInteger(state.lastSequence) || state.lastSequence < 0) throw new TypeError('Invalid saved state');
+  if (state.revision > watch.revision) throw new TypeError('Caller used an older watch revision than saved state');
+  if (state.revision < watch.revision) return initialState(watch);
+  if (state.sourceUrl !== watch.sourceUrl || state.region !== watch.region
+    || state.ignoreRelativeMetadata !== watch.ignoreRelativeMetadata) {
+    throw new TypeError('A source, region or comparison-policy change must increment watch.revision');
+  }
+  if (state.lastSequence > 0 && (!id(state.lastObservationId) || !timestamp(state.lastCapturedAt))) throw new TypeError('Invalid saved cursor');
+  const b = state.baseline;
+  if (b !== null && (!b || !id(b.observationId) || !positive(b.sequence) || b.sequence > state.lastSequence
+    || !timestamp(b.capturedAt) || !Array.isArray(b.lines) || b.lines.length > LIMITS.lines
+    || b.lines.some(line => typeof line !== 'string' || line.length > LIMITS.lineCharacters)
+    || b.lines.reduce((n, line) => n + line.length, 0) > LIMITS.textCharacters)) {
+    throw new TypeError('Invalid saved baseline');
+  }
+  return copy(state);
+}
+
+const messages = {
+  baseline: '已建立首次观察记录；还没有旧记录可用于判断变化。',
+  changed: '关注区域出现内容变化，已列出新增、修改和移除的证据。',
+  unchanged: '本次检查完整，关注区域未发现内容变化。',
+  failed: '本次读取失败，无法判断是否有变化。',
+  partial: '本次内容不完整，保留上一次完整记录。',
+  unconfirmed_empty: '本次读取为空，尚不能确认内容确实已被移除。',
+  input_too_large: '本次内容超出比较范围，无法可靠判断变化。',
+  invalid_text: '本次没有可比较的文本。',
+  source_mismatch: '观察来源或区域与当前关注范围不同，无法比较。',
+  invalid_observation: '观察记录缺少有效的身份、序号或时间。',
+  inactive: '关注事项已暂停或停止，本次不处理。',
+  stale_revision: '这是旧条件下的结果，本次不处理。',
+  wrong_watch: '这条观察属于另一个关注事项，本次不处理。',
+  replayed: '这次观察已处理，不重复产生结果。',
+  out_of_order: '这是较早的观察结果，不覆盖后续记录。',
+  observation_conflict: '观察身份与序号冲突，需要读取当前状态后核对。',
+  time_regression: '本次观察时间早于已处理记录，不覆盖基线。',
+};
+
+function result(decision, reason, state, watch, observation, diff = emptyDiff(), evidence = null) {
+  const publish = ['baseline', 'changed', 'attention'].includes(decision);
+  return { decision, reason, summary: messages[reason], shouldNotify: publish,
+    // An idempotency hint for a *persisted* outbox, not a claim of delivery.
+    eventKey: publish && id(observation?.id)
+      ? `watch:${watch.id}:r${watch.revision}:${observation.id}` : null,
+    diff, evidence, nextState: copy(state) };
+}
+
+/**
+ * Pure, offline observation comparison. No timers, network, memory, model,
+ * database or delivery effects. A caller MUST commit nextState and any outbox
+ * intent in one compare-and-swap transaction, checking watch.revision/active.
+ * `shouldNotify` is a product-policy suggestion, never a send operation.
+ */
+function evaluateObservation(watchInput, savedState, observation) {
+  const watch = readWatch(watchInput);
+  // Validate saved state even when the incoming result will be ignored.
+  const state = stateFor(watch, savedState);
+  const ignored = reason => result('ignored', reason, savedState ?? state, watch, observation);
+  const attention = (reason, next = state) => result('attention', reason, next, watch, observation);
+  if (!watch.active) return ignored('inactive');
+  if (!observation || !id(observation.id) || !positive(observation.sequence) || !timestamp(observation.capturedAt)) return attention('invalid_observation');
+  if (observation.watchId !== watch.id) return ignored('wrong_watch');
+  if (observation.revision !== watch.revision) return ignored('stale_revision');
+  if (observation.sequence === state.lastSequence) return observation.id === state.lastObservationId
+    ? ignored('replayed') : attention('observation_conflict');
+  if (observation.sequence < state.lastSequence) return ignored('out_of_order');
+  if (observation.id === state.lastObservationId) return attention('observation_conflict');
+  if (state.lastCapturedAt && Date.parse(observation.capturedAt) < Date.parse(state.lastCapturedAt)) return attention('time_regression');
+  let url;
+  try { url = sourceUrl(observation.sourceUrl); } catch { return attention('source_mismatch'); }
+  if (url !== watch.sourceUrl || observation.region !== watch.region) return attention('source_mismatch');
+  const advanced = { ...state, lastSequence: observation.sequence, lastObservationId: observation.id, lastCapturedAt: observation.capturedAt };
+  if (observation.status === 'failed') return attention('failed', advanced);
+  if (observation.status !== 'ok' || observation.complete !== true) return attention('partial', advanced);
+  const parsed = readLines(observation.text, observation.emptyConfirmed);
+  if (parsed.error) return attention(parsed.error, advanced);
+  const baseline = { observationId: observation.id, sequence: observation.sequence, capturedAt: observation.capturedAt, lines: parsed.lines };
+  const diff = state.baseline ? diffLines(state.baseline.lines, parsed.lines, watch) : emptyDiff();
+  const evidence = { sourceUrl: watch.sourceUrl, region: watch.region,
+    previous: copy(state.baseline), current: copy(baseline) };
+  const decision = !state.baseline ? 'baseline'
+    : diff.added.length + diff.updated.length + diff.removed.length > 0 ? 'changed' : 'unchanged';
+  return result(decision, decision, { ...advanced, baseline }, watch, observation, diff, evidence);
+}
+
+
+const demoWatch = { id: 'photo-course', revision: 1, sourceUrl: 'https://example.org/courses',
+  region: '摄影课程公开列表', active: true, ignoreRelativeMetadata: true };
+
+const baselineText = '摄影入门课 · 线上中文班\n价格：¥1999\n开课日期：2026-11-06\n更新时间：5分钟前';
+
+function observation(sequence, changes = {}) {
+  return { id: `check-${sequence}`, watchId: demoWatch.id, revision: 1, sequence,
+    capturedAt: new Date(Date.UTC(2026, 9, 15, 10, sequence)).toISOString(),
+    sourceUrl: demoWatch.sourceUrl, region: demoWatch.region, status: 'ok', complete: true,
+    text: baselineText, ...changes };
+}
+
+const scenarios = [
+  { id: 'quiet', title: '无变化，保持安静', description: '只有行序、空白和独立的更新时间变化。',
+    next: { text: '更新时间：10分钟前\n开课日期：2026-11-06\n价格：¥1999\n  摄影入门课   · 线上中文班 ' } },
+  { id: 'price', title: '降价，给出前后依据', description: '数字是业务内容；价格变化会被保留。',
+    next: { text: baselineText.replace('1999', '1599') } },
+  { id: 'deadline', title: '开课改期，要说明', description: '不会把业务日期当成页面时间噪声。',
+    next: { text: baselineText.replace('2026-11-06', '2026-11-13') } },
+  { id: 'failed', title: '抓取失败，不能静默', description: '保留上一份完整记录，明确本次无法判断。',
+    next: { status: 'failed', complete: false, text: undefined } },
+  { id: 'partial', title: '只抓到一半，不判删除', description: '缺失内容可能只是读取不完整。',
+    next: { status: 'partial', complete: false, text: '摄影入门课 · 线上中文班' } },
+  { id: 'empty', title: '空白页面，先标不确定', description: '没有明确确认的空内容不能当作课程下架。', next: { text: '' } },
+  { id: 'revision', title: '旧条件结果，不再使用', description: '条件已升级到第 2 版，迟到的第 1 版结果不进入新基线。',
+    watch: { revision: 2 }, next: { revision: 1, text: baselineText.replace('1999', '999') } },
+  { id: 'paused', title: '已经暂停，忽略结果', description: '暂停后到达的结果不改变观察状态。', watch: { active: false }, next: {} },
+];
+
+
+
+const ui = Object.fromEntries(['scenario', 'scenario-description', 'result-panel', 'decision-badge', 'decision-title', 'decision-summary', 'decision-detail', 'previous', 'current', 'previous-date', 'current-date', 'read-status', 'ignore-metadata', 'confirm-empty', 'compare', 'next-check', 'reset', 'round-note', 'error', 'changes', 'json-result'].map(name => [name, document.getElementById(name)]));
+let selected, saved, sequence, lastResult;
+const words = {
+  baseline: ['首次观察', '已建立比较基线'],
+  unchanged: ['无变化 · 安静', '本次无需打扰'],
+  changed: ['有变化 · 建议说明', '把前后变化交给你'],
+  attention: ['无法判断 · 需要说明', '没有把失败当成无变化'],
+  ignored: ['忽略本轮', '这次结果不再使用'],
+};
+
+for (const scenario of scenarios) {
+  const option = document.createElement('option'); option.value = scenario.id; option.textContent = scenario.title;
+  ui.scenario.append(option);
+}
+
+function addChange(label, text) {
+  const item = document.createElement('li');
+  const tag = document.createElement('span'); tag.className = 'change-label'; tag.textContent = label;
+  const body = document.createElement('span'); body.className = 'change-text'; body.textContent = text;
+  item.append(tag, body); ui.changes.append(item);
+}
+
+function compare() {
+  ui.error.textContent = '';
+  try {
+    // When the demo comparison policy changes, recreate its initial fixture
+    // under that policy. Production callers must increment watch.revision.
+    const watch = { ...demoWatch, ...selected.watch, ignoreRelativeMetadata: ui['ignore-metadata'].checked };
+    if (saved && saved.ignoreRelativeMetadata !== watch.ignoreRelativeMetadata) {
+      saved = evaluateObservation({ ...demoWatch, ignoreRelativeMetadata: watch.ignoreRelativeMetadata }, null, observation(1)).nextState;
+      sequence = 2;
+    }
+    const status = ui['read-status'].value;
+    const current = observation(sequence, { ...selected.next, status, complete: status === 'ok',
+      text: ui.current.value, emptyConfirmed: ui['confirm-empty'].checked });
+    lastResult = evaluateObservation(watch, saved, current);
+    ui['result-panel'].dataset.tone = lastResult.decision;
+    ui['decision-badge'].textContent = words[lastResult.decision][0];
+    ui['decision-title'].textContent = words[lastResult.decision][1];
+    ui['decision-summary'].textContent = lastResult.summary;
+    ui['decision-detail'].textContent = lastResult.shouldNotify
+      ? '模块建议给出说明；此演示没有发送任何消息。' : '模块不建议产生新消息；观察状态仍可检查。';
+    ui.previous.value = saved?.baseline?.lines.join('\n') ?? '尚无完整观察';
+    ui['previous-date'].textContent = saved?.baseline ? `第 ${saved.baseline.sequence} 次完整观察` : '';
+    ui['current-date'].textContent = `第 ${sequence} 次检查`;
+    ui.changes.replaceChildren();
+    for (const line of lastResult.diff.added) addChange('新增', line);
+    for (const change of lastResult.diff.updated) addChange('修改', `${change.before}\n→ ${change.after}`);
+    for (const line of lastResult.diff.removed) addChange('移除', line);
+    for (const change of lastResult.diff.ignoredMetadata) addChange('已忽略', `${change.before}\n→ ${change.after}`);
+    if (!ui.changes.childElementCount) addChange('本轮', lastResult.summary);
+    ui['json-result'].textContent = JSON.stringify(lastResult, null, 2);
+    ui['next-check'].disabled = lastResult.decision === 'ignored';
+  } catch (error) {
+    lastResult = null;
+    ui.error.textContent = error.message;
+    ui['next-check'].disabled = true;
+  }
+}
+
+function loadScenario() {
+  selected = scenarios.find(item => item.id === ui.scenario.value) ?? scenarios[0];
+  sequence = 2;
+  saved = evaluateObservation(demoWatch, null, observation(1)).nextState;
+  ui.current.value = selected.next.text ?? (selected.next.status === 'failed' ? '' : observation(2).text);
+  ui['read-status'].value = selected.next.status ?? 'ok';
+  ui['ignore-metadata'].checked = true;
+  ui['confirm-empty'].checked = false;
+  ui['scenario-description'].textContent = selected.description;
+  ui['round-note'].textContent = '比较不会发出通知。刷新页面后，本页观察记录会重置。';
+  compare();
+}
+
+ui.scenario.addEventListener('change', loadScenario);
+ui.compare.addEventListener('click', compare);
+ui.reset.addEventListener('click', loadScenario);
+ui['next-check'].addEventListener('click', () => {
+  if (!lastResult || lastResult.decision === 'ignored') return;
+  saved = lastResult.nextState; sequence++;
+  ui['round-note'].textContent = '已在本页沿用返回状态。再次观察相同内容时，不会重复产生变化结果。';
+  compare();
+});
+ui['ignore-metadata'].addEventListener('change', compare);
+loadScenario();
+
+</script>
+</html>

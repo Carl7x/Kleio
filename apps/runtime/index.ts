@@ -34,9 +34,10 @@ try {
   server = serve({ fetch: request => {
     if (closing) return new Response('Stopping', { status: 503 });
     ownership.assertHeld(); return app.fetch(request);
-  }, hostname: '127.0.0.1', port: config.port }, () => {
+  }, hostname: config.listenHost ?? '127.0.0.1', port: config.port }, () => {
     console.log(`Kleio runtime: http://127.0.0.1:${config.port} (local authentication enabled)`);
-    console.log('Connect with pnpm chat. Closing the client leaves this service running.');
+    console.log('Open the Web client with pnpm web, or chat in the terminal with pnpm chat. Closing a client leaves this service running.');
+    if (config.listenHost === '0.0.0.0') console.log('Device access is enabled on the local network.');
     if (!config.model.apiKey) console.log('Model credentials are missing. Configure the private model settings before chatting.');
     host!.start();
   });

@@ -4,8 +4,8 @@
     "strict": true, "skipLibCheck": true, "noEmit": true, "allowJs": true, "checkJs": false,
     "lib": ["ES2023", "DOM"],
     "paths": {
-      "react": ["../../apps/web/node_modules/@types/react"],
-      "react/*": ["../../apps/web/node_modules/@types/react/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"],
       "@deepseek-ai/cordis": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/cordis"],
       "@deepseek-ai/dsh-client-ui-primitives": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/dsh-client-ui-primitives"],
       "@deepseek-ai/dsh-client-store": ["../harness-dsh/.runtime/node_modules/@deepseek-ai/dsh-client-store"],

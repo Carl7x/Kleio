@@ -404,10 +404,18 @@ export class WorkRuntime {
     ]);
     return counts;
   }
-  notifications(options: { unreadOnly?: boolean; limit?: number } = {}): WorkNotification[] {
-    return (options.unreadOnly
-      ? this.db.prepare('SELECT record FROM kw_notifications WHERE read_at IS NULL ORDER BY rowid DESC LIMIT ?').all(limit(options.limit))
-      : this.db.prepare('SELECT record FROM kw_notifications ORDER BY rowid DESC LIMIT ?').all(limit(options.limit))).map(value => row<WorkNotification>(value)!);
+  notifications(options: { unreadOnly?: boolean; limit?: number; conversationId?: string } = {}): WorkNotification[] {
+    const filters: string[] = [], parameters: (string | number)[] = [];
+    if (options.unreadOnly) filters.push('read_at IS NULL');
+    if (options.conversationId !== undefined) {
+      filters.push("json_extract(record,'$.conversationId')=?");
+      parameters.push(text(options.conversationId, 'conversationId', 192));
+    }
+    // Conversation history must include older reports even after other conversations fill the inbox.
+    const count = options.limit !== undefined || options.conversationId === undefined ? limit(options.limit) : undefined;
+    if (count !== undefined) parameters.push(count);
+    const query = `SELECT record FROM kw_notifications${filters.length ? ' WHERE ' + filters.join(' AND ') : ''} ORDER BY rowid DESC${count === undefined ? '' : ' LIMIT ?'}`;
+    return this.db.prepare(query).all(...parameters).map(value => row<WorkNotification>(value)!);
   }
   readNotification(id: string): WorkNotification {
     return this.transaction(() => {

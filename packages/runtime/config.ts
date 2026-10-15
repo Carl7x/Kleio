@@ -6,10 +6,12 @@ import { randomBytes } from 'node:crypto';
 
 export interface RuntimeConfig {
   port: number;
+  listenHost?: '127.0.0.1' | '0.0.0.0';
   token: string;
   dataDirectory: string;
   model: { baseURL: string; id: string; apiKey: string };
   memoryIdleMs: number;
+  search?: { apiKey?: string };
 }
 export const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url));
 export function configPath(): string { return resolve(process.env.KLEIO_CONFIG ?? join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'kleio/config.json')); }
@@ -23,13 +25,16 @@ export function loadConfig(): RuntimeConfig {
   const file = configPath(); outsideRepository(file);
   const raw = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) as Partial<RuntimeConfig> : {};
   const port = Number(process.env.KLEIO_PORT ?? raw.port ?? 4317);
+  const listenHost = process.env.KLEIO_LISTEN_HOST ?? raw.listenHost ?? '127.0.0.1';
+  if (listenHost !== '127.0.0.1' && listenHost !== '0.0.0.0') throw new Error('KLEIO_LISTEN_HOST must be 127.0.0.1 or 0.0.0.0.');
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('KLEIO_PORT must be between 1024 and 65535.');
   const dataDirectory = resolve(process.env.KLEIO_DATA_DIR ?? raw.dataDirectory ?? join(process.env.XDG_DATA_HOME ?? join(homedir(), '.local/share'), 'kleio'));
   outsideRepository(dataDirectory);
-  const config: RuntimeConfig = { port, dataDirectory,
+  const config: RuntimeConfig = { port, dataDirectory, listenHost,
     token: process.env.KLEIO_TOKEN ?? raw.token ?? randomBytes(32).toString('base64url'),
     model: { baseURL: process.env.KLEIO_MODEL_BASE_URL ?? raw.model?.baseURL ?? 'https://api.deepseek.com', id: process.env.KLEIO_MODEL_ID ?? raw.model?.id ?? 'deepseek-flash', apiKey: process.env.KLEIO_MODEL_API_KEY ?? raw.model?.apiKey ?? '' },
     memoryIdleMs: Number(process.env.KLEIO_MEMORY_IDLE_MS ?? raw.memoryIdleMs ?? 120_000),
+    search: { apiKey: process.env.KLEIO_TAVILY_API_KEY ?? process.env.TAVILY_API_KEY ?? raw.search?.apiKey ?? '' },
   };
   if (!Number.isFinite(config.memoryIdleMs) || config.memoryIdleMs < 1_000) throw new Error('Memory idle delay must be at least 1000 ms.');
   if (config.token.length < 24) throw new Error('The local API token must contain at least 24 characters.');

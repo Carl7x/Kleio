@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'">
+<title>Kleio · 有变化再告诉我</title>
+<style>
+:root{color-scheme:light;--bg:#f3f3ec;--ink:#24372d;--muted:#657368;--line:#dce1d6;--green:#37684d;--soft:#e6efe3;--amber:#865b20}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 system-ui,-apple-system,"PingFang SC",sans-serif}main{max-width:1100px;margin:auto;padding:36px 26px 44px}header{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:32px}.brand{font-size:15px;letter-spacing:.14em;font-weight:750}.tag{font-size:12px;color:var(--muted);border:1px solid var(--line);padding:4px 11px;border-radius:30px}.eyebrow{font-size:12px;letter-spacing:.12em;color:var(--green);font-weight:700}h1{font-size:clamp(30px,5vw,44px);line-height:1.25;letter-spacing:-.04em;margin:8px 0 12px}p{margin:8px 0}.intro{max-width:760px;color:var(--muted);font-size:16px}.top{display:grid;grid-template-columns:1fr 340px;gap:24px;margin:30px 0 20px}.panel{background:#fffef9;border:1px solid var(--line);border-radius:16px;padding:22px}.result{border-left:5px solid var(--green)}.result[data-tone="attention"]{border-left-color:var(--amber)}.result[data-tone="changed"]{border-left-color:#3d6e9d}.result[data-tone="ignored"]{border-left-color:#8b918a}.result h2{font-size:23px;margin:8px 0}.badge{display:inline-block;background:var(--soft);padding:3px 10px;border-radius:6px;font-size:12px;font-weight:650}.result[data-tone="attention"] .badge{background:#f5ead7;color:var(--amber)}.result[data-tone="changed"] .badge{background:#e4edf6;color:#345d82}.result[data-tone="ignored"] .badge{background:#ebeeea;color:#596359}.meta{font-size:13px;color:var(--muted)}label{display:block;font-size:13px;font-weight:650;margin-bottom:7px}select,textarea,button{font:inherit}select{width:100%;border:1px solid var(--line);border-radius:8px;background:white;padding:9px;color:var(--ink)}.scenario-description{font-size:13px;color:var(--muted);margin:10px 0 0;min-height:42px}.editors{display:grid;grid-template-columns:1fr 1fr;gap:18px}.editor-title{display:flex;justify-content:space-between;align-items:baseline;gap:8px}textarea{display:block;resize:vertical;width:100%;height:166px;border:1px solid var(--line);background:#fafbf6;border-radius:10px;padding:14px;color:var(--ink);font:14px/1.9 ui-monospace,SFMono-Regular,Menlo,monospace}textarea[readonly]{color:#677268}.controls{display:flex;flex-wrap:wrap;gap:14px 24px;margin-top:18px;align-items:center}.control{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:400;margin:0}.control input{accent-color:var(--green)}.control select{width:auto;padding:5px 8px;font-size:13px}.buttons{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}button{cursor:pointer;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:#fffef9;color:var(--ink);font-size:14px}button.primary{background:var(--green);border-color:var(--green);color:white}button:hover{filter:brightness(.96)}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #9eb89b;outline-offset:3px}button:disabled{cursor:not-allowed;opacity:.5}.changes{padding:0;list-style:none;margin:14px 0 0}.changes li{padding:11px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:60px 1fr;gap:10px}.changes li:last-child{border-bottom:0}.change-label{font-size:12px;color:var(--muted)}.change-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}footer{margin-top:24px;color:var(--muted);font-size:12px}.note{padding-top:14px;border-top:1px solid var(--line);margin-top:16px;font-size:12px;color:var(--muted)}details{margin-top:20px;font-size:13px}summary{cursor:pointer;color:var(--muted)}pre{font:12px/1.5 ui-monospace,monospace;overflow:auto;max-height:300px;padding:16px;background:#e9ede5;border-radius:9px}.bottom{margin-top:18px}.error{color:#a63e2f;white-space:pre-wrap}.source{overflow-wrap:anywhere}
+@media(max-width:760px){main{padding:22px 16px}.top,.editors{grid-template-columns:1fr}.top{gap:14px;margin-top:24px}header{margin-bottom:26px}.panel{padding:17px}h1{font-size:34px}.intro{font-size:14px}.editor-title{flex-wrap:wrap;gap:0}.tag{max-width:180px;text-align:center}}
+</style>
+<main>
+  <header><div class="brand">KLEIO <span style="font-weight:400;letter-spacing:0;color:var(--muted)">/ 变化观察</span></div><div class="tag">本地探索原型 · 未接入产品</div></header>
+  <div class="eyebrow">少打断，把变化说清楚</div>
+  <h1>有变化，再告诉我。</h1>
+  <p class="intro">同一来源、同一关注区域的两次观察。无变化时保持安静；有变化给出前后依据；无法判断时如实说明。</p>
+  <div class="top">
+    <section class="panel result" id="result-panel" aria-live="polite" aria-atomic="true">
+      <span class="badge" id="decision-badge">正在比较</span>
+      <h2 id="decision-title">本次无需打扰</h2>
+      <p id="decision-summary"></p>
+      <p class="meta" id="decision-detail"></p>
+    </section>
+    <section class="panel">
+      <label for="scenario">选择一个场景</label>
+      <select id="scenario"></select>
+      <p class="scenario-description" id="scenario-description"></p>
+      <div class="note">全部是虚构课程样例。页面不访问网站、不调用模型，也不发送通知。</div>
+    </section>
+  </div>
+  <section class="panel">
+    <div class="editors">
+      <div><div class="editor-title"><label for="previous">上一次完整观察</label><span class="meta" id="previous-date"></span></div><textarea id="previous" readonly></textarea></div>
+      <div><div class="editor-title"><label for="current">本次观察 · 可以修改后比较</label><span class="meta" id="current-date"></span></div><textarea id="current" spellcheck="false"></textarea></div>
+    </div>
+    <div class="controls">
+      <label class="control" for="read-status">读取结果 <select id="read-status"><option value="ok">完整</option><option value="partial">不完整</option><option value="failed">失败</option></select></label>
+      <label class="control"><input id="ignore-metadata" type="checkbox" checked>忽略独立的相对更新时间行</label>
+      <label class="control"><input id="confirm-empty" type="checkbox">已确认关注区域确实为空</label>
+    </div>
+    <div class="buttons"><button class="primary" id="compare">重新比较</button><button id="next-check">沿用本次记录，再检查一次</button><button id="reset">重置本例</button></div>
+    <p class="meta" id="round-note">比较不会发出通知。刷新页面后，本页观察记录会重置。</p>
+    <p class="error" id="error" role="alert"></p>
+  </section>
+  <section class="panel bottom">
+    <label>变化依据</label><p class="meta source">演示来源：https://example.org/courses · 摄影课程公开列表</p>
+    <ul class="changes" id="changes"></ul>
+    <details><summary>查看模块返回的结构化结果</summary><pre id="json-result"></pre></details>
+  </section>
+  <footer>范围：完整文本区域的内容比较；行序不参与判断。无法证明抓取质量、语义重要性或真实送达，接入方仍需处理提取、复核、持久化和交付。</footer>
+</main>
+<script type="module">
+/* MODULE_BUNDLE */
+</script>
+</html>
