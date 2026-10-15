@@ -21,10 +21,11 @@ Default listener: `127.0.0.1:4317`. `/health` only reports liveness. Every `/api
 | GET `/api/executions/:id/stream` | SSE, reconnect using Last-Event-ID |
 | POST `/api/executions/:id/cancel` | Request cancellation |
 | GET `/api/events?after=...` | Durable event cursor |
-| GET `/api/memory?q=...` | Current memory/search |
-| PATCH `/api/memory/:id` | `{text,expectedVersion}` correction |
-| DELETE `/api/memory/:id` | `{expectedVersion}` forgetting |
+| GET `/api/memory?q=...` | Current memory/search. Long queries need two lexical overlaps |
+| PATCH `/api/memory/:id` | `{text,expectedVersion}` correction. Returns the new active claim; the previous id is superseded |
+| DELETE `/api/memory/:id` | `{expectedVersion}` forgetting. Stops later use and reinjection; does not erase the chat row or unrelated history |
 | GET `/api/memory/:id/history` | Explicit version/source inspection |
+| GET `/api/memory/:id/explain` | Source, replacement chain, and whether use has stopped |
 | GET `/api/people` | Basic people and relationships |
 | GET/POST `/api/work` | List/create explicitly authorized work |
 | GET `/api/work/:id` | Task, runs, research and review |

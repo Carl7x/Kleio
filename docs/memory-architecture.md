@@ -17,7 +17,7 @@ After a quiet interval, the product supplies a bounded continuous conversation w
 
 Model extraction can misunderstand meaning despite correct quotations. Source/version inspection and correction remain part of the product contract.
 
-Claims include scope, validity and provenance. Explicit edits require an expected version. Forgetting blocks ordinary recall and re-extraction of old evidence; it is not physical erasure. Until complete derived-message lineage exists, forgetting conservatively excludes older conversation history from automatic recall. Revisions remain available for explicit inspection.
+Claims include scope, validity and provenance. Explicit edits require an expected version. Forgetting blocks ordinary recall, idle re-extraction, and later work or review injection of the forgotten wording. It is not physical erasure: the conversation row and the bank record remain. Unrelated history stays eligible for recall. Explicit explain still shows the source, the replacement chain, and whether use has stopped.
 
 Markdown files are database projections. Hash checks preserve conflicting external edits and report them through runtime health. Editing a managed file does not silently replace the authoritative bank.
 

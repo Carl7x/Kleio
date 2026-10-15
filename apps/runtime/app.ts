@@ -53,6 +53,7 @@ export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono 
     });
   });
   app.get('/api/memory', c => c.json(c.req.query('q') ? host.memory.search(c.req.query('q')!) : host.memory.list()));
+  app.get('/api/memory/:id/explain', c => c.json(host.memory.explain(c.req.param('id'))));
   app.get('/api/memory/:id/history', c => c.json(host.memory.history(c.req.param('id'))));
   app.patch('/api/memory/:id', async c => {
     const body = z.object({ text: z.string().min(1).max(4000), expectedVersion: z.number().int().positive() }).parse(await c.req.json());
@@ -77,7 +78,7 @@ export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono 
     const body = z.object({ expectedVersion: z.number().int().positive().optional() }).parse(await c.req.json());
     return c.json(host.work.cancel(c.req.param('id'), body.expectedVersion));
   });
-  app.get('/api/notifications', c => c.json(host.work.notifications({ unreadOnly: c.req.query('unread') === 'true' })));
+  app.get('/api/notifications', c => c.json(host.work.notifications({ unreadOnly: c.req.query('unread') === 'true' }).map(item => ({ ...item, text: host.memory.redactBlocked(item.text) }))));
   app.post('/api/notifications/:id/read', c => c.json(host.work.readNotification(c.req.param('id'))));
   app.patch('/api/settings', async c => {
     const body = z.object({ memoryEnabled: z.boolean().optional(), timezone: z.string().max(80).optional() }).parse(await c.req.json());
