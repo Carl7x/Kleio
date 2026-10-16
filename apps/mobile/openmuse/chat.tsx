@@ -20,6 +20,7 @@ import {
   type TextStyle,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { z } from "zod";
 import { ArtifactCard } from "./agent-ui";
 import { useAgentWorkspace } from "./agent-workspace";
@@ -248,22 +249,30 @@ export function ChatScreen({
   const replaying = useRef(0);
   // Set while a queued message is being sent, so a lock refusal holds it instead of failing.
   const queuedTurn = useRef(false);
+  const insets = useSafeAreaInsets();
   const [keyboardPadding, setKeyboardPadding] = useState(0);
 
+  // iOS KeyboardAvoidingView alone fails here: the tab bar is a sibling below ChatScreen,
+  // so the composer stays under the keyboard. Mirror Android — pad by keyboard height minus
+  // the bottom nav block. Web has no software keyboard overlap.
   useEffect(() => {
-    if (Platform.OS !== "android") return;
+    if (Platform.OS === "web") return;
+    // App hides the sibling tab bar while the keyboard is open, so lift by the full
+    // keyboard height (home-indicator inset is already outside the composer).
     const onShow = (e: { endCoordinates: { height: number } }) => {
-      const bottomNavHeight = 74;
-      setKeyboardPadding(Math.max(0, e.endCoordinates.height - bottomNavHeight));
+      // SafeAreaView still keeps bottom inset under the composer; don't double-count it.
+      setKeyboardPadding(Math.max(0, e.endCoordinates.height - insets.bottom));
     };
     const onHide = () => setKeyboardPadding(0);
-    const showSub = Keyboard.addListener("keyboardDidShow", onShow);
-    const hideSub = Keyboard.addListener("keyboardDidHide", onHide);
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, onShow);
+    const hideSub = Keyboard.addListener(hideEvent, onHide);
     return () => {
       showSub.remove();
       hideSub.remove();
     };
-  }, []);
+  }, [insets.bottom]);
   useEffect(() => {
     if (!isReady) return;
     let active = true;
@@ -766,7 +775,8 @@ export function ChatScreen({
         </Button>
       )}
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        // Manual keyboardPadding handles iOS + Android; avoid double-lift from behavior="padding".
+        behavior={undefined}
         style={keyboardPadding > 0 ? { paddingBottom: keyboardPadding } : undefined}
       >
         <ErrorNotice error={saveError} />
