@@ -50,6 +50,10 @@ import {
   composerBorderColor,
   composerBoxShadow,
   composerChrome,
+  composerChromeMetrics,
+  composerControlChrome,
+  composerNativeShadow,
+  composerPlaceholder,
   composerSendFace,
   emptyThreadSuggestions,
   listedBackgroundTasks,
@@ -644,6 +648,8 @@ export function ChatScreen({
   const replying = busy || agent.isRunning;
   const chrome = composerChrome({ focused, hovered: composerHovered });
   const sendFace = composerSendFace({ draft, loaded, ready: isReady, replying });
+  const control = composerControlChrome(sendFace);
+  const lift = composerNativeShadow(chrome);
   const liveCue = liveTurnCue({
     replying,
     settledToolIds: new Set(
@@ -1029,8 +1035,8 @@ export function ChatScreen({
           ref={composerRef}
           style={{
             backgroundColor: "#FFF",
-            borderRadius: 20,
-            padding: 8,
+            borderRadius: composerChromeMetrics.radius,
+            padding: composerChromeMetrics.pad,
             ...(Platform.OS === "web"
               ? {
                   borderWidth: 0,
@@ -1040,15 +1046,26 @@ export function ChatScreen({
                   borderWidth: 1,
                   borderColor: composerBorderColor(chrome),
                   shadowColor: "#18384B",
-                  shadowOpacity: chrome === "focus" ? 0.08 : chrome === "hover" ? 0.06 : 0.035,
-                  shadowRadius: chrome === "rest" ? 20 : 24,
-                  shadowOffset: { width: 0, height: 4 },
-                  elevation: chrome === "focus" ? 3 : 2,
+                  shadowOpacity: lift.shadowOpacity,
+                  shadowRadius: lift.shadowRadius,
+                  shadowOffset: { width: 0, height: lift.shadowOffsetY },
+                  elevation: lift.elevation,
                 }),
           }}
         >
           {attachments.length > 0 && (
-            <View style={[s.row, { gap: 4, flexWrap: "wrap", paddingHorizontal: 6, paddingTop: 2, paddingBottom: 4 }]}>
+            <View
+              style={[
+                s.row,
+                {
+                  gap: composerChromeMetrics.chipGap,
+                  flexWrap: "wrap",
+                  paddingHorizontal: 8,
+                  paddingTop: 4,
+                  paddingBottom: 2,
+                },
+              ]}
+            >
               {w.files
                 .filter((f) => attachments.includes(f.id))
                 .map((f) => (
@@ -1057,25 +1074,30 @@ export function ChatScreen({
                     accessibilityRole="button"
                     accessibilityLabel={`移除附件：${f.name}`}
                     onPress={() => setAttachments((ids) => ids.filter((id) => id !== f.id))}
-                    hitSlop={4}
+                    hitSlop={6}
                     style={[
                       s.row,
                       {
                         gap: 4,
-                        maxWidth: "100%",
+                        maxWidth: composerChromeMetrics.chipMaxWidth,
                         backgroundColor: colors.sky,
                         borderWidth: 1,
                         borderColor: colors.line,
-                        borderRadius: 8,
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
+                        borderRadius: composerChromeMetrics.chipRadius,
+                        paddingHorizontal: composerChromeMetrics.chipPadX,
+                        paddingVertical: composerChromeMetrics.chipPadY,
                       },
                     ]}
                   >
                     <FileText size={12} color={colors.blueDark} />
                     <Text
                       numberOfLines={1}
-                      style={{ flexShrink: 1, fontSize: 12, lineHeight: 16, color: colors.text }}
+                      style={{
+                        flexShrink: 1,
+                        fontSize: composerChromeMetrics.chipFont,
+                        lineHeight: composerChromeMetrics.chipLine,
+                        color: colors.text,
+                      }}
                     >
                       {f.name}
                     </Text>
@@ -1084,22 +1106,22 @@ export function ChatScreen({
                 ))}
             </View>
           )}
-          <View style={[s.row, { gap: 7, alignItems: "flex-end" }]}>
+          <View style={[s.row, { gap: composerChromeMetrics.rowGap, alignItems: "flex-end" }]}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="附加文档"
               accessibilityState={{ expanded: picking }}
               onPress={() => setPicking(!picking)}
               style={({ pressed }) => ({
-                width: 44,
-                height: 44,
+                width: composerChromeMetrics.control,
+                height: composerChromeMetrics.control,
                 alignItems: "center",
                 justifyContent: "center",
                 borderRadius: 24,
                 backgroundColor: picking || pressed ? colors.sky : "transparent",
               })}
             >
-              <Text style={{ color: colors.text, fontSize: 29, fontWeight: "300", lineHeight: 32 }}>
+              <Text style={{ color: colors.text, fontSize: 26, fontWeight: "300", lineHeight: 28 }}>
                 +
               </Text>
             </Pressable>
@@ -1114,15 +1136,11 @@ export function ChatScreen({
               onContentSizeChange={(event) =>
                 setInputHeight(Math.max(44, Math.min(140, event.nativeEvent.contentSize.height)))
               }
-              placeholder={
-                !isReady
-                  ? "连接中…"
-                  : !loaded
-                    ? historyError
-                      ? "对话不可用"
-                      : "正在加载对话…"
-                    : "发消息…"
-              }
+              placeholder={composerPlaceholder({
+                ready: isReady,
+                loaded,
+                historyFailed: !!historyError,
+              })}
               placeholderTextColor="#949B9F"
               selectionColor={colors.blueDark}
               onFocus={() => setFocused(true)}
@@ -1170,27 +1188,32 @@ export function ChatScreen({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={sendFace === "stop" ? "停止回复" : "发送消息"}
-              accessibilityState={{ disabled: sendFace === "idle" }}
+              accessibilityHint={
+                sendFace === "stop"
+                  ? "回复进行中"
+                  : sendFace === "idle"
+                    ? "写好内容后才能发送"
+                    : undefined
+              }
+              accessibilityState={{ disabled: sendFace === "idle", busy: sendFace === "stop" }}
               disabled={sendFace === "idle"}
               onPress={sendFace === "stop" ? () => void stop() : send}
               style={({ pressed }) => ({
-                width: 44,
-                height: 44,
+                width: composerChromeMetrics.control,
+                height: composerChromeMetrics.control,
                 borderRadius: 24,
-                backgroundColor: sendFace === "idle" ? "#F3F5F6" : colors.blue,
+                backgroundColor: control.fill,
+                borderWidth: 1,
+                borderColor: control.border,
                 alignItems: "center",
                 justifyContent: "center",
                 transform: [{ scale: pressed && sendFace !== "idle" ? 0.94 : 1 }],
               })}
             >
               {sendFace === "stop" ? (
-                <Square size={18} fill={colors.text} strokeWidth={0} />
+                <Square size={13} fill={control.icon} strokeWidth={0} />
               ) : (
-                <ArrowUp
-                  size={25}
-                  strokeWidth={1.8}
-                  color={sendFace === "send" ? colors.text : "#9CB5C5"}
-                />
+                <ArrowUp size={22} strokeWidth={2} color={control.icon} />
               )}
             </Pressable>
           </View>

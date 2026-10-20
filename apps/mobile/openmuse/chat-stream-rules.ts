@@ -72,21 +72,66 @@ export function composerChrome(input: { focused: boolean; hovered: boolean }): C
   return "rest";
 }
 
-/** Dual-ring composer shadow. Web uses the inset hairline; native keeps one border. */
+/**
+ * Floating composer shadow. Focus keeps the Kleio blue ring; rest sits a little
+ * higher than a flat card so the pill reads as the place to write.
+ * Web uses the inset hairline; native keeps one border.
+ */
 export function composerBoxShadow(chrome: ComposerChrome): string {
   if (chrome === "focus") {
-    return "0 4px 24px rgba(24,56,75,0.08), inset 0 0 0 1px #1473C8, 0 0 0 1px #1473C8";
+    return "0 8px 28px rgba(24,56,75,0.10), inset 0 0 0 1px #1473C8, 0 0 0 1px #1473C8";
   }
   if (chrome === "hover") {
-    return "0 4px 24px rgba(24,56,75,0.06), inset 0 0 0 1px #D5D8DC";
+    return "0 6px 24px rgba(24,56,75,0.07), inset 0 0 0 1px #D5D8DC";
   }
-  return "0 4px 20px rgba(24,56,75,0.035), inset 0 0 0 1px #EEEEF0";
+  return "0 6px 22px rgba(24,56,75,0.05), inset 0 0 0 1px #EEEEF0";
 }
 
 export function composerBorderColor(chrome: ComposerChrome): string {
   if (chrome === "focus") return "#1473C8";
   if (chrome === "hover") return "#D5D8DC";
   return "#EEEEF0";
+}
+
+/** Native elevation that matches composerBoxShadow. Keyboard inset is separate. */
+export function composerNativeShadow(chrome: ComposerChrome): {
+  shadowOpacity: number;
+  shadowRadius: number;
+  shadowOffsetY: number;
+  elevation: number;
+} {
+  if (chrome === "focus") return { shadowOpacity: 0.1, shadowRadius: 28, shadowOffsetY: 8, elevation: 4 };
+  if (chrome === "hover") return { shadowOpacity: 0.07, shadowRadius: 24, shadowOffsetY: 6, elevation: 3 };
+  return { shadowOpacity: 0.05, shadowRadius: 22, shadowOffsetY: 6, elevation: 2 };
+}
+
+/**
+ * Pill rhythm for the chat composer. Controls stay 44px for touch.
+ * Chips are short pills so a few attachments do not stack into a second card.
+ */
+export const composerChromeMetrics = {
+  radius: 24,
+  pad: 6,
+  control: 44,
+  rowGap: 6,
+  chipRadius: 999,
+  chipPadX: 8,
+  chipPadY: 2,
+  chipGap: 6,
+  chipMaxWidth: 200,
+  chipFont: 12,
+  chipLine: 16,
+} as const;
+
+/** Status lines keep an ellipsis. The ready line is an invitation, without one. */
+export function composerPlaceholder(input: {
+  ready: boolean;
+  loaded: boolean;
+  historyFailed: boolean;
+}): string {
+  if (!input.ready) return "正在连接…";
+  if (!input.loaded) return input.historyFailed ? "对话暂时不可用" : "正在加载对话…";
+  return "跟 Kleio 说";
 }
 
 /** Running, pending, and failed work stays open. A finished or paused card starts as a one-line receipt. */
@@ -271,6 +316,29 @@ export function approvalProposeLabel(editing: boolean): string {
   return editing ? "审阅变更" : "提交审阅";
 }
 
+/** Owners and writers stay unmarked. Every other calendar role is read-only. */
+export function calendarAccessSuffix(accessRole: string): string {
+  const role = accessRole.trim().toLowerCase();
+  if (role === "owner" || role === "writer") return "";
+  return " · 只读";
+}
+
+/** Rich-thread connection value. The vendor name stays off the settings line. */
+export function richThreadValue(connected: boolean): string {
+  return connected ? "已接通" : "未连接";
+}
+
+/** Goal-monitor cadence. Minutes and check counts stay as given. */
+export function monitorCadenceLine(intervalMinutes: number, checks: number): string {
+  return `每 ${intervalMinutes} 分钟 · 已查 ${checks} 次`;
+}
+
+/** Last check, and the next check only while the monitor is still active. */
+export function monitorCheckLine(last: string, next?: string): string {
+  const checked = `上次 ${last}`;
+  return next ? `${checked}\n下次 ${next}` : checked;
+}
+
 export type ComposerSendFace = "stop" | "send" | "idle";
 
 /**
@@ -286,6 +354,22 @@ export function composerSendFace(input: {
   if (input.replying) return "stop";
   if (input.draft.trim().length > 0 && input.loaded && input.ready) return "send";
   return "idle";
+}
+
+export type ComposerControlChrome = {
+  fill: string;
+  icon: string;
+  border: string;
+};
+
+/**
+ * Idle is a quiet well. Send uses the soft Kleio blue.
+ * Stop uses the darker blue so an in-progress reply is not another send button.
+ */
+export function composerControlChrome(face: ComposerSendFace): ComposerControlChrome {
+  if (face === "stop") return { fill: "#1473C8", icon: "#FFFFFF", border: "#1473C8" };
+  if (face === "send") return { fill: "#C8E7FF", icon: "#11191C", border: "#C8E7FF" };
+  return { fill: "#F4F6F7", icon: "#A8B4BC", border: "#E4E7EA" };
 }
 
 export type LiveCue = "thinking" | "writing";

@@ -12,9 +12,14 @@ import {
   backgroundToolKind,
   browserReceiptAction,
   choiceRowQuiet,
+  calendarAccessSuffix,
   composerBorderColor,
   composerBoxShadow,
   composerChrome,
+  composerChromeMetrics,
+  composerControlChrome,
+  composerNativeShadow,
+  composerPlaceholder,
   composerSendFace,
   desktopReceiptActions,
   listedBackgroundTasks,
@@ -23,8 +28,11 @@ import {
   liveCueLabel,
   liveTurnCue,
   mailReceiptAction,
+  monitorCadenceLine,
+  monitorCheckLine,
   operationStatusLabel,
   reviewGateLabel,
+  richThreadValue,
   savedResultReceiptAction,
   searchReceiptAction,
   shouldCommitComposerEnter,
@@ -109,6 +117,52 @@ test("the send face waits for a real draft and yields to stop", () => {
   assert.equal(composerSendFace({ draft: "你好", loaded: true, ready: false, replying: false }), "idle");
   assert.equal(composerSendFace({ draft: "你好", loaded: true, ready: true, replying: false }), "send");
   assert.equal(composerSendFace({ draft: "", loaded: true, ready: true, replying: true }), "stop");
+  assert.equal(composerSendFace({ draft: "你好", loaded: true, ready: true, replying: true }), "stop");
+});
+
+test("composer copy and control chrome stay short and Kleio-colored", () => {
+  assert.equal(composerPlaceholder({ ready: false, loaded: false, historyFailed: false }), "正在连接…");
+  assert.equal(composerPlaceholder({ ready: true, loaded: false, historyFailed: false }), "正在加载对话…");
+  assert.equal(composerPlaceholder({ ready: true, loaded: false, historyFailed: true }), "对话暂时不可用");
+  assert.equal(composerPlaceholder({ ready: true, loaded: true, historyFailed: false }), "跟 Kleio 说");
+  assert.doesNotMatch(
+    [
+      composerPlaceholder({ ready: false, loaded: false, historyFailed: false }),
+      composerPlaceholder({ ready: true, loaded: true, historyFailed: false }),
+    ].join("\n"),
+    /message|send|connect/i,
+  );
+  const idle = composerControlChrome("idle");
+  const send = composerControlChrome("send");
+  const stop = composerControlChrome("stop");
+  assert.equal(send.fill, "#C8E7FF");
+  assert.equal(stop.fill, "#1473C8");
+  assert.notEqual(idle.fill, send.fill);
+  assert.notEqual(stop.icon, send.icon);
+  assert.equal(composerChromeMetrics.control, 44);
+  assert.equal(composerChromeMetrics.radius, 24);
+  assert.equal(composerChromeMetrics.chipPadY < 4, true);
+  assert.equal(composerNativeShadow("focus").elevation > composerNativeShadow("rest").elevation, true);
+  assert.match(composerBoxShadow("rest"), /0\.05/);
+});
+
+test("calendar, monitor, and connection lines drop the leftover English", () => {
+  assert.equal(calendarAccessSuffix("owner"), "");
+  assert.equal(calendarAccessSuffix("writer"), "");
+  assert.equal(calendarAccessSuffix("reader"), " · 只读");
+  assert.equal(calendarAccessSuffix("freeBusyReader"), " · 只读");
+  assert.equal(richThreadValue(true), "已接通");
+  assert.equal(richThreadValue(false), "未连接");
+  assert.equal(monitorCadenceLine(15, 3), "每 15 分钟 · 已查 3 次");
+  assert.equal(monitorCheckLine("尚未检查"), "上次 尚未检查");
+  assert.equal(monitorCheckLine("10月20日 14:30", "10月20日 14:45"), "上次 10月20日 14:30\n下次 10月20日 14:45");
+  const copy = [
+    calendarAccessSuffix("reader"),
+    richThreadValue(true),
+    monitorCadenceLine(15, 3),
+    monitorCheckLine("尚未检查", "稍后"),
+  ].join("\n");
+  assert.doesNotMatch(copy, /read only|every |last check|next check|copilotkit/i);
 });
 
 test("the live cue is a thought, then writing, and stays out of a running tool", () => {
