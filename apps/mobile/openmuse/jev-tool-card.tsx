@@ -8,7 +8,8 @@ import {
   retryChoiceAvailable,
   selectionText,
 } from "./jev-actions";
-import { Button, Card, colors, ErrorNotice, s } from "./ui";
+import { StreamCard } from "./chat-stream";
+import { Button, colors, ErrorNotice, s } from "./ui";
 
 type JevInteraction = {
   threadId: string | null;
@@ -74,7 +75,7 @@ function ChoiceButton({
     return (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${caption}: ${option.label} (option ${position})`}
+        accessibilityLabel={`${caption}：${option.label}（第 ${position} 项）`}
         accessibilityState={{ disabled: disabled || pending, busy: pending, selected }}
         disabled={disabled || pending}
         onPress={() => onChoose(option.id)}
@@ -114,14 +115,7 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
   const [failedOptionId, setFailedOptionId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState("");
   const pendingRef = useRef(false);
-  if (loading) {
-    return (
-      <View style={[s.row, { gap: 10, padding: 14 }]}>
-        <ActivityIndicator size="small" color={colors.blueDark} />
-        <Text style={s.muted}>正在准备选项…</Text>
-      </View>
-    );
-  }
+  if (loading) return <StreamCard state="running" title="正在准备选项…" />;
 
   const parsed = parseJevResult(result);
   if (!parsed) return <ErrorNotice error="无法显示选项。请重试。" />;
@@ -187,17 +181,25 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
     }
   }
 
+  const decisionState = selectedId ? "done" : submitError ? "error" : stale ? "paused" : "pending";
   return (
-    <Card style={{ width: "100%", maxWidth: 440, padding: 17, gap: 13 }}>
+    <StreamCard
+      state={decisionState}
+      tint={selectedId ? colors.green : stale ? undefined : colors.orange}
+      title={selectedId ? "已提交选择" : submitError ? "选择没有发出" : stale ? "更早的选择" : "待你选择"}
+      detail={
+        panel.mode === "sample"
+          ? "示例 · 脚本化决策"
+          : panel.mode === "live"
+            ? "按当前对话里的选项决定"
+            : undefined
+      }
+    >
       <View style={{ gap: 5 }}>
         <Text style={s.heading}>{panel.title}</Text>
-        {panel.mode === "sample" && <Text style={s.small}>示例 · 脚本化决策</Text>}
-        {panel.mode === "live" && <Text style={s.small}>实时 Jev · 模型决策</Text>}
         {preferredOption && !selectedId && (
-          <Text style={s.small}>Previous preference: {preferredOption.label}</Text>
+          <Text style={s.small}>沿用上次的偏好：{preferredOption.label}</Text>
         )}
-        {stale && <Text style={s.small}>更早的选择</Text>}
-        {selectedId && <Text style={s.small}>已提交选择</Text>}
       </View>
       {panel.type === "clarification" ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -265,6 +267,6 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
           重试选择
         </Button>
       )}
-    </Card>
+    </StreamCard>
   );
 }

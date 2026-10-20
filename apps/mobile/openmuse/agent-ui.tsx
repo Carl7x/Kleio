@@ -34,6 +34,7 @@ import type {
   RunEvent,
 } from "../../../packages/openmuse-domain/src/agent";
 import { useAgentWorkspace } from "./agent-workspace";
+import { QuietDots, StreamCard } from "./chat-stream";
 import { ActivityScreen, ConnectionsScreen } from "./screens";
 import {
   Button,
@@ -106,9 +107,13 @@ export function AgentStatus() {
           重新连接智能体
         </Button>
       )}
-      {!data && !error && <ActivityIndicator color={colors.blueDark} />}
+      {!data && !error && <QuietDots label="正在连接 Kleio" />}
       {data && !data.worker.running && (
-        <Text style={s.small}>工作进程离线。已保存的工作会在重连后继续。</Text>
+        <StreamCard
+          state="paused"
+          title="工作进程离线"
+          detail="已保存的工作会在重连后继续。"
+        />
       )}
     </View>
   );
@@ -156,7 +161,7 @@ export function TaskCard({
             <Text style={s.heading}>{task.title}</Text>
             <Text style={s.small}>
               {statusLabel(task.status)}
-              {task.plan.length ? ` · ${done}/${task.plan.length} steps` : ""}
+              {task.plan.length ? ` · ${done}/${task.plan.length} 步` : ""}
             </Text>
           </View>
           <ChevronRight size={17} color={colors.muted} />
@@ -179,9 +184,11 @@ export function TaskCard({
           </Text>
         )}
         {waiting && (
-          <Text style={[s.small, { color: colors.blueDark, fontWeight: "600" }]}>
-            {task.status === "waiting_approval" ? "请求审阅" : "需要你补充"}
-          </Text>
+          <View style={[s.chip, { backgroundColor: colors.orange }]}>
+            <Text style={[s.chipText, { color: "#6B4A1B" }]}>
+              {task.status === "waiting_approval" ? "待你审阅" : "需要你补充"}
+            </Text>
+          </View>
         )}
       </Card>
     </Pressable>
@@ -484,18 +491,24 @@ export function TaskDetail({ taskId }: { taskId: string }) {
               <Text style={s.small}>此工作台未启用暂停、继续与重试。</Text>
             )}
           {task.status === "waiting_approval" && (
-            <Card style={{ backgroundColor: colors.lavender, gap: 12 }}>
-              <Text style={s.heading}>待你审阅</Text>
-              <Text style={s.muted}>继续前请核对具体操作与账户。</Text>
+            <StreamCard
+              state="pending"
+              tint={colors.lavender}
+              title="待你审阅"
+              detail="继续前请核对具体操作与账户。这一步还没有执行。"
+            >
               {!capabilities?.google && <Text style={s.small}>此工作台未启用。</Text>}
               <Button primary busy={busy} disabled={!capabilities?.google} onPress={() => void review()}>
                 审阅操作
               </Button>
-            </Card>
+            </StreamCard>
           )}
           {task.status === "waiting_input" && (
-            <Card style={{ backgroundColor: colors.sky, gap: 10 }}>
-              <Text style={s.heading}>{task.question || "需要你补充一点细节"}</Text>
+            <StreamCard
+              state="pending"
+              tint={colors.sky}
+              title={task.question || "需要你补充一点细节"}
+            >
               {!capabilities?.taskInput && <Text style={s.small}>此工作台未启用。</Text>}
               {fieldNames.map((name) =>
                 missing.some(
@@ -552,7 +565,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
               >
                 继续任务
               </Button>
-            </Card>
+            </StreamCard>
           )}
           {!!task.plan.length && (
             <Card style={{ gap: 15 }}>

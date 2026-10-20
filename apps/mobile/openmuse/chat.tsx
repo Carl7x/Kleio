@@ -42,6 +42,15 @@ import { JevInteractionContext, JevToolCard } from "./jev-tool-card";
 import { MailToolCard } from "./mail-tool-card";
 import { SearchToolCard } from "./search-tool-card";
 import { FileThreadCard, TaskThreadCard } from "./thread-artifacts";
+import {
+  AssistantTurn,
+  ChatStatusScreen,
+  EventHeading,
+  QuietDots,
+  shouldCommitComposerEnter,
+  StreamCard,
+  UserBubble,
+} from "./chat-stream";
 import { type Selection, useMuseThread } from "./threads";
 import { Button, Card, CheckRow, colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
@@ -177,16 +186,16 @@ function ServerToolCard({
     ? data?.tasks.find((item) => item.id === parsed.data.id || item.id === parsed.data.taskId)
     : undefined;
   if (task) return <TaskThreadCard task={task} />;
+  const failed = parsed.success && parsed.data.error;
   return (
-    <Card style={{ padding: 16, gap: 10 }}>
-      <Text style={s.heading}>{loading ? `正在保存 ${name.toLowerCase()}…` : name}</Text>
-      {parsed.success && parsed.data.error ? (
-        <ErrorNotice error={parsed.data.error} />
-      ) : (
-        <Text style={s.muted}>
-          {loading ? "正在等待服务器。" : "打开工作台查看已保存的结果。"}
-        </Text>
-      )}
+    <StreamCard
+      state={failed ? "error" : loading ? "running" : "done"}
+      title={loading ? `正在保存${name}…` : name}
+      detail={
+        failed ? undefined : loading ? "正在等待服务器。" : "打开工作台查看已保存的结果。"
+      }
+    >
+      {failed ? <ErrorNotice error={parsed.data.error} /> : null}
       <Button
         small
         onPress={() =>
@@ -199,9 +208,9 @@ function ServerToolCard({
           )
         }
       >
-        View {name.toLowerCase()}
+        {`查看${name}`}
       </Button>
-    </Card>
+    </StreamCard>
   );
 }
 export function ChatScreen({
@@ -234,6 +243,8 @@ export function ChatScreen({
   const [picking, setPicking] = useState(false);
   const [attachments, setAttachments] = useState<string[]>([]);
   const list = useRef<ScrollView>(null);
+  const inputRef = useRef<TextInput>(null);
+  const composing = useRef(false);
   const [queue] = useState(() => new ConversationQueue());
   const choiceCompletions = useRef(
     new Map<string, { resolve: () => void; reject: (error: unknown) => void }>(),
@@ -273,6 +284,30 @@ export function ChatScreen({
       hideSub.remove();
     };
   }, [insets.bottom]);
+  // react-native-web drops onComposition* props, so listen on the host node.
+  // Enter during IME composition must not send a partial draft.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const node = inputRef.current as unknown as {
+      addEventListener?: (type: string, listener: () => void) => void;
+      removeEventListener?: (type: string, listener: () => void) => void;
+    } | null;
+    const listen = node?.addEventListener;
+    const unlisten = node?.removeEventListener;
+    if (!listen || !unlisten) return;
+    const start = () => {
+      composing.current = true;
+    };
+    const end = () => {
+      composing.current = false;
+    };
+    listen("compositionstart", start);
+    listen("compositionend", end);
+    return () => {
+      unlisten("compositionstart", start);
+      unlisten("compositionend", end);
+    };
+  }, []);
   useEffect(() => {
     if (!isReady) return;
     let active = true;
@@ -521,7 +556,15 @@ export function ChatScreen({
         }}
         keyboardShouldPersistTaps="handled"
       >
-        {!!historyError && (
+        {!!historyError && !visible.length && (
+          <ChatStatusScreen title="这段对话没有载入" detail="已保存的消息未被改动。">
+            <ErrorNotice error={historyError} />
+            <Button onPress={() => setHistoryAttempt((attempt) => attempt + 1)}>
+              重试加载对话
+            </Button>
+          </ChatStatusScreen>
+        )}
+        {!!historyError && visible.length > 0 && (
           <>
             <ErrorNotice error={historyError} />
             <Button onPress={() => setHistoryAttempt((attempt) => attempt + 1)}>
@@ -529,30 +572,27 @@ export function ChatScreen({
             </Button>
           </>
         )}
-        {!visible.length ? (
-          <View
-            style={{
-              flexGrow: 1,
-              flexShrink: 0,
-              justifyContent: "center",
-              alignItems: "center",
-              paddingVertical: 34,
-              gap: 15,
-            }}
+        {!historyError && !loaded && !visible.length && (
+          <ChatStatusScreen
+            busy
+            title="正在接上这段对话"
+            detail="已保存的消息会原样出现在这里。"
+          />
+        )}
+        {!historyError && loaded && syncing && !visible.length && (
+          <ChatStatusScreen
+            busy
+            title="正在同步尚未结束的回复"
+            detail="同步完成前，新消息会排在输入框上方。"
+          />
+        )}
+        {!historyError && loaded && !syncing && !visible.length ? (
+          <ChatStatusScreen
+            hero
+            title="一点帮助，生活多一点空间。"
+            detail="告诉我你在想什么。我可以做计划、调用你的应用，并用电脑来帮忙。"
           >
-            <Text
-              style={{
-                fontSize: 28,
-                letterSpacing: -1,
-                color: colors.text,
-                textAlign: "center",
-                maxWidth: 350,
-              }}
-            >
-              一点帮助，生活多一点空间。
-            </Text>
-            <Text style={[s.muted, { maxWidth: 320, textAlign: "center", lineHeight: 23 }]}>告诉我你在想什么。我可以做计划、调用你的应用，并用电脑来帮忙。</Text>
-            <View style={{ width: "100%", maxWidth: 360, marginTop: 14, gap: 8 }}>
+            <View style={{ width: "100%", maxWidth: 360, marginTop: 6, gap: 8 }}>
               {[
                 {
                   text: "在 Hacker News 找点有趣的",
@@ -569,8 +609,12 @@ export function ChatScreen({
                 </Button>
               ))}
             </View>
-          </View>
-        ) : (
+          </ChatStatusScreen>
+        ) : null}
+        {syncing && visible.length > 0 && !replying && (
+          <QuietDots label="正在同步尚未结束的回复" />
+        )}
+        {visible.length > 0 &&
           visible.map((message) => {
             const user = message.role === "user";
             const text =
@@ -583,36 +627,25 @@ export function ChatScreen({
                   : message.content
                 : "";
             const toolCalls = "toolCalls" in message ? message.toolCalls || [] : [];
+            const wide = !user || toolCalls.length > 0;
             return (
               <View
                 key={message.id}
                 style={{
-                  alignSelf: user ? "flex-end" : "flex-start",
-                  maxWidth: user ? "85%" : "95%",
-                  width: toolCalls.length ? "95%" : undefined,
-                  gap: 8,
+                  alignSelf: wide ? "stretch" : "flex-end",
+                  maxWidth: wide ? "100%" : "85%",
+                  width: wide ? "100%" : undefined,
+                  gap: 10,
                 }}
               >
-                {!!text && (
-                  <View
-                    style={{
-                      paddingHorizontal: 16,
-                      paddingVertical: 13,
-                      borderRadius: 22,
-                      borderBottomRightRadius: user ? 7 : 22,
-                      borderBottomLeftRadius: user ? 22 : 7,
-                      backgroundColor: user ? colors.blue : "#EEEEF0",
-                    }}
-                  >
-                    {user ? (
-                      <Text selectable style={[s.text, { fontSize: 16, lineHeight: 24 }]}>
-                        {text}
-                      </Text>
-                    ) : (
+                {!!text &&
+                  (user ? (
+                    <UserBubble text={text} />
+                  ) : (
+                    <AssistantTurn>
                       <AssistantResponse content={text} />
-                    )}
-                  </View>
-                )}
+                    </AssistantTurn>
+                  ))}
                 <JevInteractionContext.Provider
                   value={{
                     threadId,
@@ -659,8 +692,7 @@ export function ChatScreen({
                 </JevInteractionContext.Provider>
               </View>
             );
-          })
-        )}
+          })}
         {!!latestDesktop && (
           <DesktopToolCard
             live
@@ -718,35 +750,7 @@ export function ChatScreen({
           </>
         )}
         {(!richThreads || selection.id === mainId) && <BackgroundUpdates />}
-        {(busy || agent.isRunning) && (
-          <View
-            accessibilityLabel="智能体工作中"
-            style={[
-              s.row,
-              {
-                alignSelf: "flex-start",
-                gap: 7,
-                paddingHorizontal: 19,
-                paddingVertical: 18,
-                backgroundColor: "#EEEEF0",
-                borderRadius: 28,
-              },
-            ]}
-          >
-            {[0.4, 0.75, 0.5].map((opacity) => (
-              <View
-                key={opacity}
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: colors.muted,
-                  opacity,
-                }}
-              />
-            ))}
-          </View>
-        )}
+        {replying && <QuietDots label="正在回复" />}
         <ErrorNotice error={error} />
         {!!error && (
           <Button
@@ -797,10 +801,25 @@ export function ChatScreen({
           </Button>
         )}
         {!!outbox.pending.length && (
-          <View style={{ padding: 12, gap: 6 }}>
-            <Text style={s.small}>
-              {outbox.paused ? "排队中的消息" : "下一条"} · Keep the app open until sent
-            </Text>
+          <View
+            style={{
+              marginBottom: 8,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              gap: 8,
+              borderRadius: 16,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.line,
+              borderLeftWidth: 3,
+              borderLeftColor: outbox.paused ? colors.muted : colors.blueDark,
+            }}
+          >
+            <EventHeading
+              state={outbox.paused ? "paused" : "running"}
+              title={outbox.paused ? "有消息在排队" : "下一条即将发送"}
+              detail="发送前请保持应用打开。"
+            />
             {outbox.pending.map((message) => (
               <View key={message.id} style={[s.row, { gap: 8 }]}>
                 <Text numberOfLines={2} style={[s.muted, { flex: 1 }]}>
@@ -872,9 +891,9 @@ export function ChatScreen({
         <View
           style={{
             backgroundColor: "#FFF",
-            borderRadius: 32,
+            borderRadius: 28,
             borderWidth: 1,
-            borderColor: focused ? "#C7E4F9" : "#EEF0F2",
+            borderColor: focused ? "#9ED0F2" : colors.line,
             padding: 8,
             shadowColor: "#18384B",
             shadowOpacity: focused ? 0.1 : 0.06,
@@ -937,7 +956,11 @@ export function ChatScreen({
               </Text>
             </Pressable>
             <TextInput
+              ref={inputRef}
               accessibilityLabel="给 Kleio 发消息"
+              accessibilityHint={
+                Platform.OS === "web" ? "Enter 发送，Shift+Enter 换行" : undefined
+              }
               value={draft}
               onChangeText={setDraft}
               onContentSizeChange={(event) =>
@@ -974,13 +997,24 @@ export function ChatScreen({
               onKeyPress={
                 Platform.OS === "web"
                   ? (event) => {
+                      const native = event.nativeEvent as {
+                        key: string;
+                        shiftKey?: boolean;
+                        isComposing?: boolean;
+                        keyCode?: number;
+                      };
                       if (
-                        event.nativeEvent.key === "Enter" &&
-                        !("shiftKey" in event.nativeEvent && event.nativeEvent.shiftKey)
-                      ) {
-                        event.preventDefault();
-                        send();
-                      }
+                        !shouldCommitComposerEnter({
+                          key: native.key,
+                          shiftKey: native.shiftKey,
+                          isComposing: native.isComposing,
+                          keyCode: native.keyCode,
+                          composing: composing.current,
+                        })
+                      )
+                        return;
+                      event.preventDefault();
+                      send();
                     }
                   : undefined
               }
