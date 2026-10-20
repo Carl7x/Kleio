@@ -115,7 +115,7 @@ export function BrowserThreadCard({ browser }: { browser: BrowserSession }) {
     </Card>
   );
 }
-const tabIcons = { Browser: Globe2, Desktop: Monitor, Terminal, Files: FolderOpen } as const;
+const tabIcons = { 浏览器: Globe2, 桌面: Monitor, 终端: Terminal, 文件: FolderOpen } as const;
 export function ComputerSheet() {
   const { workspace, api, refresh, close, open, navigate } = useWorkspace();
   const [url, setUrl] = useState("");
@@ -213,7 +213,7 @@ export function ComputerSheet() {
                 label="网站地址"
                 value={url}
                 onChangeText={setUrl}
-                placeholder="https://example.com"
+                placeholder="输入网址"
                 autoCapitalize="none"
                 keyboardType="url"
                 onSubmitEditing={() => void create()}

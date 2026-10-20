@@ -895,7 +895,7 @@ export function BrowserScreen() {
             onChangeText={setUrl}
             onSubmitEditing={() => void create()}
             autoCapitalize="none"
-            placeholder="https://example.com"
+            placeholder="输入网址"
             placeholderTextColor={colors.muted}
             style={[s.input, { flex: 1 }]}
           />

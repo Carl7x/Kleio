@@ -527,7 +527,7 @@ function EventEditor({
         label="时区"
         value={zone}
         onChangeText={setZone}
-        placeholder="America/Los_Angeles"
+        placeholder="Asia/Shanghai"
       />
       <Field
         label="地点或会议链接"
