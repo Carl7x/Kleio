@@ -18,8 +18,11 @@ import {
   composerSendFace,
   desktopReceiptActions,
   listedBackgroundTasks,
+  knownOperationStatus,
   liveTurnCue,
   mailReceiptAction,
+  operationStatusLabel,
+  reviewGateLabel,
   savedResultReceiptAction,
   searchReceiptAction,
   shouldCommitComposerEnter,
@@ -148,6 +151,29 @@ test("folded tool cards keep the primary action on the receipt", () => {
   assert.equal(savedResultReceiptAction({ name: "盯梢", loading: false, failed: false })?.label, "查看盯梢");
   assert.equal(savedResultReceiptAction({ name: "记忆", loading: true, failed: false }), null);
   assert.equal(savedResultReceiptAction({ name: "记忆", loading: false, failed: true }), null);
+});
+
+test("operation chips and the review gate stay in Chinese", () => {
+  assert.equal(reviewGateLabel(2), "待你审阅 · 2");
+  assert.equal(reviewGateLabel(0), "待你审阅 · 0");
+  assert.doesNotMatch(reviewGateLabel(1), /needs|review/i);
+  assert.equal(operationStatusLabel("running"), "进行中");
+  assert.equal(operationStatusLabel("completed"), "已完成");
+  assert.equal(operationStatusLabel("failed"), "失败");
+  assert.equal(operationStatusLabel("cancelled"), "已取消");
+  assert.equal(operationStatusLabel("canceled"), "已取消");
+  assert.equal(operationStatusLabel("Needs review"), "待你审阅");
+  assert.equal(operationStatusLabel("needs_review"), "待你审阅");
+  assert.equal(operationStatusLabel("awaiting_review"), "待你审阅");
+  assert.equal(operationStatusLabel("WAITING APPROVAL"), "待你审阅");
+  assert.equal(operationStatusLabel("waiting_input"), "需要你补充");
+  assert.equal(operationStatusLabel("read"), "已读");
+  assert.equal(operationStatusLabel("unread"), "未读");
+  assert.equal(operationStatusLabel("queued"), "排队中");
+  assert.equal(knownOperationStatus("finance"), undefined);
+  assert.equal(operationStatusLabel("finance"), "状态待更新");
+  assert.equal(approvalStatusLabel("failed"), "未完成");
+  assert.doesNotMatch(operationStatusLabel("running"), /[A-Za-z]/);
 });
 
 test("approval copy stays in Chinese and matches the chat shell", () => {

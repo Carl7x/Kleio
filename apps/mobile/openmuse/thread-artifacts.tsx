@@ -39,7 +39,7 @@ export function FileThreadCard({ file }: { file: Artifact }) {
             ))
           ) : (
             <Text style={s.muted}>
-              {file.pageCount} {file.pageCount === 1 ? "page" : "pages"} · Tap to read the document
+              {file.pageCount} 页 · 点按阅读
             </Text>
           )}
         </View>

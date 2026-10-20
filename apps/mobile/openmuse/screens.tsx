@@ -39,6 +39,7 @@ import type {
   EmailDraft,
 } from "../../../packages/openmuse-domain/src";
 import { API_URL } from "./api";
+import { approvalStatusLabel, operationStatusLabel, reviewGateLabel } from "./chat-stream-rules";
 import { browserAddress } from "./browser-address";
 import { localDateTime, startOfZonedDay, zonedInstant } from "./date-time";
 import {
@@ -1097,7 +1098,7 @@ export function ActivityScreen() {
           全部动态
         </Button>
         <Button small primary={filter === "review"} onPress={() => setFilter("review")}>
-          Needs review · {pending.length}
+          {reviewGateLabel(pending.length)}
         </Button>
       </View>
       {actions.length > 0 && (
@@ -1140,7 +1141,7 @@ export function ActivityScreen() {
                       : colors.canvas
                 }
               >
-                {a.status.replace(/_/g, " ")}
+                {approvalStatusLabel(a.status)}
               </Chip>
               <ChevronRight size={16} color={colors.muted} />
             </Pressable>
@@ -1177,7 +1178,7 @@ export function ActivityScreen() {
                     {dateLabel(a.date)} · {timeLabel(a.date)}
                   </Text>
                 </View>
-                <Chip>{a.status}</Chip>
+                <Chip>{operationStatusLabel(a.status)}</Chip>
               </View>
             ))
           ) : (

@@ -35,6 +35,7 @@ import type {
 } from "../../../packages/openmuse-domain/src/agent";
 import { useAgentWorkspace } from "./agent-workspace";
 import { QuietDots, ReceiptAction, StreamCard } from "./chat-stream";
+import { knownOperationStatus } from "./chat-stream-rules";
 import { ActivityScreen, ConnectionsScreen } from "./screens";
 import {
   Button,
@@ -54,30 +55,18 @@ import {
 } from "./ui";
 import { useWorkspace } from "./workspace";
 
-const STATUS_ZH: Record<string, string> = {
+const TONE_ZH: Record<string, string> = {
   warm: "温暖",
   concise: "简洁",
   thoughtful: "周到",
-  succeeded: "已完成",
-  failed: "失败",
-  cancelled: "已取消",
-  canceled: "已取消",
-  running: "进行中",
-  pending: "待处理",
-  waiting: "等待中",
-  queued: "排队中",
-  active: "进行中",
-  paused: "已暂停",
-  completed: "已完成",
-  scheduled: "已安排",
-  review: "待审阅",
-  needs_input: "需补充",
-  in_progress: "进行中",
 };
+/** Operation statuses share chat-stream-rules. Tones and other labels stay here. */
 export function statusLabel(value: string) {
-  if (STATUS_ZH[value]) return STATUS_ZH[value];
+  const operation = knownOperationStatus(value);
+  if (operation) return operation;
+  if (TONE_ZH[value]) return TONE_ZH[value];
   const key = value.replace(/\s+/g, "_").toLowerCase();
-  if (STATUS_ZH[key]) return STATUS_ZH[key];
+  if (TONE_ZH[key]) return TONE_ZH[key];
   return value.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 function stamp(value?: string) {

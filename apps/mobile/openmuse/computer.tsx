@@ -43,7 +43,7 @@ export function ComputerEntry() {
       ]}
     >
       <Monitor size={13} color={colors.muted} />
-      <Text style={{ fontSize: 12, color: colors.muted }}>Computer · {status}</Text>
+      <Text style={{ fontSize: 12, color: colors.muted }}>电脑 · {status}</Text>
       <View
         style={{
           width: 5,
