@@ -3,12 +3,16 @@ import test from "node:test";
 import {
   backgroundStreamState,
   backgroundToolKind,
+  choiceRowQuiet,
   composerBorderColor,
   composerBoxShadow,
   composerChrome,
+  composerSendFace,
   listedBackgroundTasks,
+  liveTurnCue,
   shouldCommitComposerEnter,
   surfaceFadeAlphas,
+  toolCardStartsOpen,
   userMessageOverflows,
   withAlpha,
 } from "./chat-stream-rules.ts";
@@ -50,6 +54,55 @@ test("reading fades and the composer ring stay on the Kleio surface", () => {
   assert.doesNotMatch(composerBoxShadow("focus"), /d97757/i);
   assert.equal(composerBorderColor("rest"), "#EEEEF0");
   assert.equal(composerBorderColor("focus"), "#1473C8");
+});
+
+test("finished tool cards start closed; work in progress stays open", () => {
+  assert.equal(toolCardStartsOpen("running"), true);
+  assert.equal(toolCardStartsOpen("pending"), true);
+  assert.equal(toolCardStartsOpen("done"), false);
+  assert.equal(toolCardStartsOpen("paused"), false);
+  assert.equal(toolCardStartsOpen("error"), true);
+});
+
+test("the send face waits for a real draft and yields to stop", () => {
+  assert.equal(composerSendFace({ draft: "", loaded: true, ready: true, replying: false }), "idle");
+  assert.equal(composerSendFace({ draft: "  ", loaded: true, ready: true, replying: false }), "idle");
+  assert.equal(composerSendFace({ draft: "你好", loaded: false, ready: true, replying: false }), "idle");
+  assert.equal(composerSendFace({ draft: "你好", loaded: true, ready: false, replying: false }), "idle");
+  assert.equal(composerSendFace({ draft: "你好", loaded: true, ready: true, replying: false }), "send");
+  assert.equal(composerSendFace({ draft: "", loaded: true, ready: true, replying: true }), "stop");
+});
+
+test("the live cue is a thought, then writing, and stays out of a running tool", () => {
+  const turns = [
+    { role: "user", content: "看看天气" },
+    { role: "assistant", content: "", toolCallIds: ["call-1"] },
+  ];
+  assert.equal(liveTurnCue({ replying: false, turns, settledToolIds: new Set() }), null);
+  assert.equal(liveTurnCue({ replying: true, turns: [{ role: "user", content: "你好" }], settledToolIds: new Set() }), "thinking");
+  assert.equal(liveTurnCue({ replying: true, turns, settledToolIds: new Set() }), null);
+  assert.equal(
+    liveTurnCue({
+      replying: true,
+      turns: [...turns, { role: "assistant", content: "今天" }],
+      settledToolIds: new Set(["call-1"]),
+    }),
+    "writing",
+  );
+  assert.equal(
+    liveTurnCue({
+      replying: true,
+      turns: [{ role: "user", content: "早" }, { role: "assistant", content: "   " }],
+      settledToolIds: new Set(),
+    }),
+    "thinking",
+  );
+});
+
+test("a settled choice keeps only the chosen row in full", () => {
+  assert.equal(choiceRowQuiet(null, "a"), false);
+  assert.equal(choiceRowQuiet("a", "a"), false);
+  assert.equal(choiceRowQuiet("a", "b"), true);
 });
 
 test("long user messages collapse; short ones stay open", () => {

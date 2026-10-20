@@ -1,9 +1,11 @@
+import { ChevronDown } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AccessibilityInfo, Animated, Pressable, Text, View } from "react-native";
 import {
   SCROLL_FADE_PX,
   type StreamState,
   surfaceFadeAlphas,
+  toolCardStartsOpen,
   USER_BUBBLE_FADE_PX,
   userMessageOverflows,
   withAlpha,
@@ -88,7 +90,11 @@ export function EventHeading({
       {icon ? <View style={{ marginTop: 2 }}>{icon}</View> : null}
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={[s.text, { fontWeight: "600" }]}>{title}</Text>
-        {detail ? <Text style={s.small}>{detail}</Text> : null}
+        {detail ? (
+          <Text numberOfLines={2} style={s.small}>
+            {detail}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -102,6 +108,7 @@ export function StreamCard({
   icon,
   tint,
   wide,
+  collapsible = false,
   children,
 }: {
   state: StreamState;
@@ -110,16 +117,46 @@ export function StreamCard({
   icon?: ReactNode;
   tint?: string;
   wide?: boolean;
+  /** Fold finished work behind the heading. Running, pending, and error stay open until the person toggles. */
+  collapsible?: boolean;
   children?: ReactNode;
 }) {
+  const canFold = collapsible && children != null && children !== false;
+  const [open, setOpen] = useState(() => !canFold || toolCardStartsOpen(state));
+  const touched = useRef(false);
+  const previousState = useRef(state);
+  useEffect(() => {
+    const prior = previousState.current;
+    previousState.current = state;
+    if (!canFold) return;
+    // A new failure opens once, even if the person had folded the running card.
+    if (state === "error" && prior !== "error") {
+      setOpen(true);
+      return;
+    }
+    if (touched.current) return;
+    setOpen(toolCardStartsOpen(state));
+  }, [canFold, state]);
+  const heading = (
+    <View style={[s.row, { gap: 8, alignItems: "flex-start" }]}>
+      <View style={{ flex: 1 }}>
+        <EventHeading state={state} title={title} detail={detail} icon={icon} />
+      </View>
+      {canFold ? (
+        <View style={{ marginTop: 3, transform: [{ rotate: open ? "0deg" : "-90deg" }] }}>
+          <ChevronDown size={16} color={colors.muted} />
+        </View>
+      ) : null}
+    </View>
+  );
   return (
     <View
       style={{
         width: "100%",
         maxWidth: wide ? 640 : 440,
         paddingHorizontal: 14,
-        paddingVertical: 13,
-        gap: 10,
+        paddingVertical: canFold && !open ? 10 : 13,
+        gap: canFold && !open ? 0 : 10,
         backgroundColor: tint ?? colors.card,
         borderRadius: 16,
         borderWidth: 1,
@@ -128,8 +165,23 @@ export function StreamCard({
         borderLeftColor: streamInk(state),
       }}
     >
-      <EventHeading state={state} title={title} detail={detail} icon={icon} />
-      {children}
+      {canFold ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          accessibilityLabel={`${open ? "收起" : "展开"}：${title}`}
+          onPress={() => {
+            touched.current = true;
+            setOpen((value) => !value);
+          }}
+          hitSlop={4}
+        >
+          {heading}
+        </Pressable>
+      ) : (
+        heading
+      )}
+      {!canFold || open ? children : null}
     </View>
   );
 }
