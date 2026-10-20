@@ -62,6 +62,8 @@ import {
   operationStatusLabel,
   savedResultReceiptAction,
   SCROLL_FADE_PX,
+  threadStatusCopy,
+  threadSurface,
   turnSpacing,
   turnTimeLabel,
 } from "./chat-stream-rules";
@@ -296,7 +298,7 @@ export function ChatScreen({
   active?: boolean;
 }) {
   const { api, workspace: w, refresh, navigate } = useWorkspace();
-  const { data: agentWorkspace, refresh: refreshAgent } = useAgentWorkspace();
+  const { data: agentWorkspace, error: agentError, refresh: refreshAgent } = useAgentWorkspace();
   const { enabled: richThreads, mainId, claimPrompt } = useMuseThread();
   const selection = thread || { id: "local", existing: false };
   const threadId = richThreads ? selection.id : "local-main";
@@ -443,9 +445,7 @@ export function ChatScreen({
       } catch (e) {
         if (active) {
           setLoaded(false);
-          setHistoryError(
-            `无法加载对话。已保存的消息未被改动。${e instanceof Error ? e.message : String(e)}`,
-          );
+          setHistoryError(e instanceof Error ? e.message : String(e));
         }
       }
     }
@@ -646,6 +646,36 @@ export function ChatScreen({
     .filter((call) => call.function.name === "use_desktop")
     .at(-1)?.id;
   const replying = busy || agent.isRunning;
+  const agentOffline = !!agentWorkspace && !agentWorkspace.worker.running;
+  const agentConnectFailed = !!agentError && !agentWorkspace;
+  const agentReconnecting = !!agentError && !!agentWorkspace && !agentOffline;
+  const surface = threadSurface({
+    historyFailed: !!historyError,
+    loaded,
+    syncing,
+    hasMessages: visible.length > 0,
+    replying,
+    side: richThreads && selection.id !== mainId,
+    connectFailed: agentConnectFailed,
+    reconnecting: agentReconnecting,
+    offline: agentOffline,
+  });
+  const statusKind =
+    surface.place === "cue" ? "syncing" : surface.place === "screen" || surface.place === "banner" ? surface.kind : null;
+  const statusCopy = statusKind ? threadStatusCopy(statusKind) : null;
+  const statusNote =
+    statusKind === "history-failed" || statusKind === "history-partial"
+      ? historyError || undefined
+      : statusKind === "connect-failed" || statusKind === "reconnecting" || statusKind === "offline"
+        ? agentError || undefined
+        : undefined;
+  const retryThreadStatus = (kind: NonNullable<typeof statusKind>) => {
+    if (kind === "history-failed" || kind === "history-partial") {
+      setHistoryAttempt((attempt) => attempt + 1);
+      return;
+    }
+    void refreshAgent().catch(() => {});
+  };
   const chrome = composerChrome({ focused, hovered: composerHovered });
   const sendFace = composerSendFace({ draft, loaded, ready: isReady, replying });
   const control = composerControlChrome(sendFace);
@@ -682,39 +712,18 @@ export function ChatScreen({
         }}
         keyboardShouldPersistTaps="handled"
       >
-        {!!historyError && !visible.length && (
-          <ChatStatusScreen title="这段对话没有载入" detail="已保存的消息未被改动。">
-            <ThreadNotice
-              title="没能完成加载"
-              detail={historyError}
-              actionLabel="重试加载对话"
-              onAction={() => setHistoryAttempt((attempt) => attempt + 1)}
-            />
-          </ChatStatusScreen>
-        )}
-        {!!historyError && visible.length > 0 && (
-          <ThreadNotice
-            title="这段对话没有完整载入"
-            detail={historyError}
-            actionLabel="重试加载对话"
-            onAction={() => setHistoryAttempt((attempt) => attempt + 1)}
-          />
-        )}
-        {!historyError && !loaded && !visible.length && (
+        {surface.place === "screen" ? (
           <ChatStatusScreen
-            busy
-            title="正在接上这段对话"
-            detail="已保存的消息会原样出现在这里。"
+            busy={statusCopy?.busy}
+            tone={statusCopy?.tone}
+            title={statusCopy?.title ?? ""}
+            detail={statusCopy?.detail}
+            note={statusNote}
+            actionLabel={statusCopy?.actionLabel}
+            onAction={statusCopy?.actionLabel ? () => retryThreadStatus(surface.kind) : undefined}
           />
-        )}
-        {!historyError && loaded && syncing && !visible.length && (
-          <ChatStatusScreen
-            busy
-            title="正在同步尚未结束的回复"
-            detail="同步完成前，新消息会排在输入框上方。"
-          />
-        )}
-        {!historyError && loaded && !syncing && !visible.length ? (
+        ) : null}
+        {surface.place === "hero" ? (
           <ChatStatusScreen
             hero
             title="一点帮助，生活多一点空间。"
@@ -734,9 +743,19 @@ export function ChatScreen({
             </View>
           </ChatStatusScreen>
         ) : null}
-        {syncing && visible.length > 0 && !replying && (
-          <StreamCue identity label="正在同步尚未结束的回复" />
-        )}
+        {surface.place === "banner" && statusCopy ? (
+          <ThreadNotice
+            tone={statusCopy.tone}
+            title={statusCopy.title}
+            detail={statusCopy.detail}
+            note={statusNote}
+            actionLabel={statusCopy.actionLabel}
+            onAction={() => retryThreadStatus(surface.kind)}
+          />
+        ) : null}
+        {surface.place === "cue" && statusCopy ? (
+          <StreamCue identity label={statusCopy.title} />
+        ) : null}
         {(visible.length > 0 || liveCue) && (
           <View>
             {visible.map((message, index) => {
@@ -886,9 +905,9 @@ export function ChatScreen({
         )}
         {!!error && (
           <ThreadNotice
-            title="这次回复没有完成"
+            title={threadStatusCopy("run-failed").title}
             detail={error}
-            actionLabel="重试回复"
+            actionLabel={threadStatusCopy("run-failed").actionLabel}
             actionDisabled={busy || agent.isRunning || !loaded || syncing || !isReady || !agent.canRetry}
             onAction={() => {
               void run()
@@ -1140,6 +1159,8 @@ export function ChatScreen({
                 ready: isReady,
                 loaded,
                 historyFailed: !!historyError,
+                offline: agentOffline,
+                reconnecting: agentReconnecting || agentConnectFailed,
               })}
               placeholderTextColor="#949B9F"
               selectionColor={colors.blueDark}

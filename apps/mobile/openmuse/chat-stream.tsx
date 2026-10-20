@@ -14,6 +14,8 @@ import {
   type StreamState,
   surfaceFadeAlphas,
   suggestionRowChrome,
+  threadChrome,
+  type ThreadStatusTone,
   toolCardChrome,
   toolCardStartsOpen,
   USER_BUBBLE_FADE_PX,
@@ -517,20 +519,92 @@ export function StreamCue({ label, identity = false }: { label: string; identity
   );
 }
 
-/** In-thread failure. The rail matches a stream card; the action stays on the notice. */
+const statusToneInk: Record<
+  ThreadStatusTone,
+  { bg: string; border: string; ink: string; action: string; actionPressed: string; actionBorder: string }
+> = {
+  error: {
+    bg: "#FBEFED",
+    border: "#F3D7D4",
+    ink: colors.danger,
+    action: "#FFFFFF",
+    actionPressed: "#F6E4E1",
+    actionBorder: "#F3D7D4",
+  },
+  paused: {
+    bg: colors.card,
+    border: colors.line,
+    ink: colors.muted,
+    action: colors.sky,
+    actionPressed: "#E4F1FA",
+    actionBorder: colors.line,
+  },
+  neutral: {
+    bg: colors.sky,
+    border: "#D7EBF8",
+    ink: colors.blueDark,
+    action: "#FFFFFF",
+    actionPressed: colors.sky,
+    actionBorder: "#D7EBF8",
+  },
+};
+
+function StatusAction({
+  label,
+  onPress,
+  disabled,
+  tone,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  tone: ThreadStatusTone;
+}) {
+  const face = statusToneInk[tone];
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      hitSlop={4}
+      style={({ pressed }) => ({
+        alignSelf: "flex-start",
+        minHeight: 36,
+        justifyContent: "center",
+        paddingHorizontal: 12,
+        borderRadius: toolCardChrome.radius,
+        borderWidth: 1,
+        borderColor: face.actionBorder,
+        backgroundColor: pressed && !disabled ? face.actionPressed : face.action,
+        opacity: disabled ? 0.5 : 1,
+      })}
+    >
+      <Text style={{ color: face.ink, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** In-thread status. Error, offline, and reconnect share the tool-card radius and one action. */
 export function ThreadNotice({
   title,
   detail,
+  note,
   actionLabel,
   onAction,
   actionDisabled,
+  tone = "error",
 }: {
   title: string;
   detail?: string;
+  note?: string;
   actionLabel?: string;
   onAction?: () => void;
   actionDisabled?: boolean;
+  tone?: ThreadStatusTone;
 }) {
+  const face = statusToneInk[tone];
   return (
     <View
       accessibilityRole="alert"
@@ -538,41 +612,65 @@ export function ThreadNotice({
         alignSelf: "stretch",
         width: "100%",
         maxWidth: 440,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        gap: 8,
-        borderRadius: 16,
-        backgroundColor: "#FBEFED",
+        paddingHorizontal: toolCardChrome.padX,
+        paddingVertical: toolCardChrome.padYOpen,
+        gap: 6,
+        borderRadius: toolCardChrome.radius,
+        backgroundColor: face.bg,
         borderWidth: 1,
-        borderColor: "#F3D7D4",
-        borderLeftWidth: 3,
-        borderLeftColor: colors.danger,
+        borderColor: face.border,
+        borderLeftWidth: toolCardChrome.rail,
+        borderLeftColor: face.ink,
       }}
     >
-      <Text style={{ color: colors.text, fontSize: 15, lineHeight: 22, fontWeight: "600" }}>{title}</Text>
+      <Text style={{ color: colors.text, fontSize: toolCardChrome.titleSize, lineHeight: toolCardChrome.titleLine, fontWeight: "600" }}>
+        {title}
+      </Text>
       {detail ? (
-        <Text style={{ color: colors.danger, fontSize: 13, lineHeight: 19 }}>{detail}</Text>
+        <Text style={{ color: tone === "error" ? face.ink : colors.muted, fontSize: 13, lineHeight: 18 }}>{detail}</Text>
+      ) : null}
+      {note ? (
+        <Text numberOfLines={2} style={{ color: colors.muted, fontSize: threadChrome.detailSize, lineHeight: threadChrome.detailLine }}>
+          {note}
+        </Text>
       ) : null}
       {actionLabel && onAction ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={actionLabel}
-          accessibilityState={{ disabled: !!actionDisabled }}
-          disabled={actionDisabled}
-          onPress={onAction}
-          hitSlop={4}
-          style={({ pressed }) => ({
-            alignSelf: "flex-start",
-            minHeight: 36,
-            justifyContent: "center",
-            paddingHorizontal: 12,
-            borderRadius: 12,
-            backgroundColor: pressed && !actionDisabled ? "#F6E4E1" : "#FFFFFF",
-            opacity: actionDisabled ? 0.5 : 1,
-          })}
+        <StatusAction label={actionLabel} onPress={onAction} disabled={actionDisabled} tone={tone} />
+      ) : null}
+    </View>
+  );
+}
+
+/** Pinned title for a side thread. The main thread uses the portrait instead. */
+export function ThreadTitleBar({ title, detail }: { title: string; detail?: string }) {
+  return (
+    <View
+      accessibilityRole="header"
+      style={{ paddingTop: 2, paddingBottom: threadChrome.barPadBottom, gap: 1 }}
+    >
+      <Text
+        numberOfLines={1}
+        style={{
+          color: colors.text,
+          fontSize: threadChrome.titleSize,
+          lineHeight: threadChrome.titleLine,
+          fontWeight: "600",
+          letterSpacing: -0.3,
+        }}
+      >
+        {title}
+      </Text>
+      {detail ? (
+        <Text
+          numberOfLines={1}
+          style={{
+            color: colors.muted,
+            fontSize: threadChrome.detailSize,
+            lineHeight: threadChrome.detailLine,
+          }}
         >
-          <Text style={{ color: colors.danger, fontSize: 13, fontWeight: "600" }}>{actionLabel}</Text>
-        </Pressable>
+          {detail}
+        </Text>
       ) : null}
     </View>
   );
@@ -616,14 +714,25 @@ export function SuggestionRow({ label, onPress }: { label: string; onPress: () =
 export function ChatStatusScreen({
   title,
   detail,
+  note,
   busy,
   hero,
+  tone = "neutral",
+  actionLabel,
+  onAction,
+  actionDisabled,
   children,
 }: {
   title: string;
   detail?: string;
+  /** Server detail, capped. The title and detail stay the stable Chinese line. */
+  note?: string;
   busy?: boolean;
   hero?: boolean;
+  tone?: ThreadStatusTone;
+  actionLabel?: string;
+  onAction?: () => void;
+  actionDisabled?: boolean;
   children?: ReactNode;
 }) {
   return (
@@ -632,33 +741,53 @@ export function ChatStatusScreen({
         flexGrow: 1,
         justifyContent: "center",
         alignItems: "center",
-        paddingVertical: hero ? 28 : 24,
+        paddingVertical: hero ? 24 : 20,
         paddingHorizontal: 8,
-        gap: 12,
+        gap: threadChrome.statusGap,
       }}
     >
       {hero ? <Mascot size={48} /> : null}
       {busy ? <QuietDots /> : null}
       <Text
         style={{
-          fontSize: hero ? 26 : 22,
-          lineHeight: hero ? 32 : 28,
-          letterSpacing: hero ? -0.6 : -0.4,
+          fontSize: hero ? threadChrome.statusHero : threadChrome.statusTitle,
+          lineHeight: hero ? threadChrome.statusHeroLine : threadChrome.statusTitleLine,
+          letterSpacing: hero ? -0.5 : -0.3,
+          fontWeight: hero ? "500" : "600",
           color: colors.text,
           textAlign: "center",
-          maxWidth: 340,
+          maxWidth: 320,
         }}
       >
         {title}
       </Text>
       {detail ? (
-        <Text style={[s.muted, { maxWidth: 320, textAlign: "center", lineHeight: 22 }]}>{detail}</Text>
+        <Text style={[s.muted, { maxWidth: 300, textAlign: "center", lineHeight: 21 }]}>{detail}</Text>
+      ) : null}
+      {note ? (
+        <Text
+          numberOfLines={2}
+          style={{
+            maxWidth: 300,
+            textAlign: "center",
+            color: colors.muted,
+            fontSize: threadChrome.detailSize,
+            lineHeight: threadChrome.detailLine,
+          }}
+        >
+          {note}
+        </Text>
+      ) : null}
+      {actionLabel && onAction ? (
+        <View style={{ marginTop: 2 }}>
+          <StatusAction label={actionLabel} onPress={onAction} disabled={actionDisabled} tone={tone} />
+        </View>
       ) : null}
       {busy ? (
         <View
           accessibilityElementsHidden
           importantForAccessibility="no"
-          style={{ width: "100%", maxWidth: 260, gap: 10, marginTop: 4 }}
+          style={{ width: "100%", maxWidth: 260, gap: 8, marginTop: 2 }}
         >
           <SkeletonLine width="68%" />
           <SkeletonLine width="100%" />
