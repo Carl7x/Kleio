@@ -81,7 +81,7 @@ function ChoiceButton({
         onPress={() => onChoose(option.id)}
         style={({ pressed }) => [
           s.button,
-          { alignSelf: "flex-start", backgroundColor: colors.blue },
+          { alignSelf: "flex-start", backgroundColor: selected ? colors.green : colors.blue },
           (disabled || pending) && { opacity: 0.5 },
           pressed && { transform: [{ scale: 0.98 }] },
         ]}
@@ -102,6 +102,7 @@ function ChoiceButton({
       busy={pending}
       icon={selected ? Check : undefined}
       onPress={() => onChoose(option.id)}
+      style={selected ? { backgroundColor: colors.green } : undefined}
     >
       {option.label}
     </Button>
@@ -217,11 +218,22 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
           ))}
         </View>
       ) : (
-        <View style={{ gap: 10 }}>
-          {panel.options.map((option, index) => (
+        <View>
+          {panel.options.map((option, index) => {
+            const chosen = selectedId === option.id;
+            return (
             <View
               key={option.id}
-              style={{ borderRadius: 16, padding: 14, gap: 9, backgroundColor: "#F6F7F8" }}
+              style={{
+                gap: 9,
+                paddingVertical: 12,
+                paddingHorizontal: chosen ? 12 : 0,
+                borderTopWidth: index === 0 ? 0 : 1,
+                borderTopColor: colors.line,
+                borderRadius: 12,
+                backgroundColor: chosen ? colors.green : "transparent",
+                opacity: selectedId && !chosen ? 0.55 : 1,
+              }}
             >
               <Text style={[s.text, { fontWeight: "600" }]}>{option.label}</Text>
               {!!option.details.length && (
@@ -244,7 +256,8 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
                 onChoose={(id) => void choose(id)}
               />
             </View>
-          ))}
+            );
+          })}
         </View>
       )}
       <ErrorNotice error={submitError} />
