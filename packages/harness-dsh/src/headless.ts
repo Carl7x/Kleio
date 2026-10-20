@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
+import { isEstimatorId } from '../../context-contracts/request-admission.ts';
 import type { DshAcpOptions } from './index.ts';
 
 export const DSH_VERSION = '0.2.1-alpha.2';
@@ -26,8 +27,22 @@ export interface DshHeadlessOptions {
   cancelTimeoutMs?: number;
 }
 
+/** Private loopback connection for one explicit admission profile. Never part of the model prompt. */
+export interface DshAdmissionLaunch {
+  controlUrl: string;
+  authorization: string;
+  executionId: string;
+  hostGeneration: number;
+  policyEpoch: number;
+  profileVersion: string;
+  contextLimit: number;
+  outputLimit: number;
+  timeoutMs: number;
+}
+
 const defaultBin = fileURLToPath(new URL('../.runtime/node_modules/@deepseek-ai/dsh/lib/bin.js', import.meta.url));
 const guardPlugin = fileURLToPath(new URL('./product-guard.mjs', import.meta.url));
+const admissionPlugin = fileURLToPath(new URL('./request-admission.mjs', import.meta.url));
 const environmentNames = ['PATH', 'Path', 'SystemRoot', 'WINDIR', 'PATHEXT', 'LANG', 'LC_ALL', 'TZ', 'SSL_CERT_FILE', 'NODE_EXTRA_CA_CERTS', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy'] as const;
 
 // These are composition rows in the exact pinned base/ACP bundles, not tool names.
@@ -70,16 +85,52 @@ function capacity(value: number | undefined, fallback: number): number {
   return result;
 }
 
-export async function prepareHeadlessLaunch(options: DshHeadlessOptions, executionDirectory: string, tools: string[]): Promise<DshAcpOptions> {
+function assertLoopbackControl(value: string): void {
+  let url: URL;
+  try { url = new URL(value); } catch { throw new Error('Invalid admission control endpoint.'); }
+  if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.username || url.password || url.search || url.hash || url.pathname !== '/control/request-check') {
+    throw new Error('Invalid admission control endpoint.');
+  }
+}
+
+function assertAdmissionLaunch(admission: DshAdmissionLaunch): void {
+  assertLoopbackControl(admission.controlUrl);
+  if (!/^Bearer [0-9a-f]{64}$/.test(admission.authorization)) throw new Error('Invalid admission control endpoint.');
+  if (!Number.isSafeInteger(admission.hostGeneration) || admission.hostGeneration < 0) throw new Error('Invalid admission control endpoint.');
+  if (!Number.isSafeInteger(admission.policyEpoch) || admission.policyEpoch < 0) throw new Error('Invalid admission control endpoint.');
+  if (!Number.isSafeInteger(admission.contextLimit) || admission.contextLimit <= 0) throw new Error('Invalid model capacity.');
+  if (!Number.isSafeInteger(admission.outputLimit) || admission.outputLimit <= 0 || admission.outputLimit >= admission.contextLimit) throw new Error('Invalid model capacity.');
+  if (!Number.isSafeInteger(admission.timeoutMs) || admission.timeoutMs < 100 || admission.timeoutMs > 10_000) throw new Error('Invalid admission control endpoint.');
+  if (!admission.executionId || !admission.profileVersion || /[\u0000-\u001f\u007f]/.test(admission.executionId) || /[\u0000-\u001f\u007f]/.test(admission.profileVersion)) throw new Error('Invalid admission control endpoint.');
+}
+
+export async function prepareHeadlessLaunch(options: DshHeadlessOptions, executionDirectory: string, tools: string[], admission?: DshAdmissionLaunch): Promise<DshAcpOptions> {
   const bin = resolve(options.runtimeBin ?? defaultBin);
   const manifest = JSON.parse(await readFile(resolve(dirname(bin), '../package.json'), 'utf8')) as { name?: string; version?: string };
   if (manifest.name !== '@deepseek-ai/dsh' || manifest.version !== DSH_VERSION) throw new Error('The pinned DSH runtime is required.');
   const endpoint = new URL(options.model.baseURL);
   if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) throw new Error('Invalid model endpoint.');
   if (!options.model.id.trim() || /[\r\n\0]/.test(options.model.id) || !options.model.apiKey.trim()) throw new Error('Model configuration is incomplete.');
-  const contextWindow = capacity(options.model.contextWindow, 128_000);
-  const maxTokens = capacity(options.model.maxTokens, 8192);
-  if (maxTokens > contextWindow) throw new Error('Output capacity exceeds context capacity.');
+  let contextWindow: number;
+  let maxTokens: number;
+  let estimatorModule: string | undefined;
+  let estimatorId: string | undefined;
+  if (admission) {
+    assertAdmissionLaunch(admission);
+    if (options.model.contextWindow === undefined || options.model.maxTokens === undefined) throw new Error('Invalid model capacity.');
+    contextWindow = capacity(options.model.contextWindow, options.model.contextWindow);
+    maxTokens = capacity(options.model.maxTokens, options.model.maxTokens);
+    if (contextWindow !== admission.contextLimit || maxTokens !== admission.outputLimit || maxTokens >= contextWindow) throw new Error('Invalid model capacity.');
+    const require = createRequire(bin);
+    estimatorModule = require.resolve('@deepseek-ai/dsh-token-meter/estimate');
+    const estimatorPackage = JSON.parse(await readFile(require.resolve('@deepseek-ai/dsh-token-meter/package.json'), 'utf8')) as { version?: unknown };
+    estimatorId = `dsh-token-meter/estimate@${typeof estimatorPackage.version === 'string' ? estimatorPackage.version : ''}`;
+    if (!isEstimatorId(estimatorId)) throw new Error('The pinned token estimator is required.');
+  } else {
+    contextWindow = capacity(options.model.contextWindow, 128_000);
+    maxTokens = capacity(options.model.maxTokens, 8192);
+    if (maxTokens > contextWindow) throw new Error('Output capacity exceeds context capacity.');
+  }
   const home = resolve(executionDirectory, 'home');
   const profile = resolve(home, 'profiles/kleio-execution');
   const workspace = resolve(executionDirectory, 'workspace');
@@ -92,7 +143,16 @@ export async function prepareHeadlessLaunch(options: DshHeadlessOptions, executi
     { id: 'llm-pi-ai', config: { providers: { 'kleio-model': { apiKeyEnv: 'KLEIO_EXECUTION_MODEL_KEY', api: 'openai-completions', baseURL: endpoint.href, retryPolicy: { mode: 'normal', maxRetries: 0 }, models: [{ id: options.model.id, contextWindow, maxTokens, reasoningEfforts: false }] } } } },
     { id: 'acp', config: { provider: 'kleio-model', model: options.model.id } },
     { id: 'agent-default-model', config: { provider: 'kleio-model', model: options.model.id } },
-    { insert: [{ id: 'kleio-product-boundary', name: guardPlugin, config: { allowedTools: tools.map(productToolName) } }] },
+    { insert: [
+      { id: 'kleio-product-boundary', name: guardPlugin, config: { allowedTools: tools.map(productToolName) } },
+      ...(admission && estimatorModule && estimatorId ? [{ id: 'kleio-request-admission', name: admissionPlugin, config: {
+        controlUrl: admission.controlUrl, authorization: admission.authorization, executionId: admission.executionId,
+        hostGeneration: admission.hostGeneration, policyEpoch: admission.policyEpoch, profileVersion: admission.profileVersion,
+        contextLimit: admission.contextLimit, outputLimit: admission.outputLimit, timeoutMs: admission.timeoutMs,
+        estimatorModule, estimatorId,
+      } }] : []),
+    ] },
+    ...(admission ? [{ id: 'compaction-basic', disabled: true }, { id: 'tool-result-pruner', disabled: true }] : []),
   ];
   const patchPath = resolve(executionDirectory, 'execution.patch.json');
   await writeFile(patchPath, JSON.stringify(patch), { mode: 0o600 });

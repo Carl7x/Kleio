@@ -31,6 +31,7 @@
     "verify:tasks": "node scripts/verify-personal-tasks-native.mjs",
     "verify:provider": "node scripts/verify-deepseek.mjs",
     "verify:memory-provider": "node scripts/verify-memory-provider.mjs",
+    "verify:l1-live": "node --import tsx scripts/verify-l1-live-model.ts --confirm-live-model",
     "verify": "pnpm native:verify",
     "native:dev": "node scripts/native-web.mjs",
     "native:start": "node scripts/native-web.mjs",
@@ -50,6 +51,7 @@
     "croner": "10.0.1",
     "hono": "4.13.13",
     "proper-lockfile": "4.1.2",
+    "yaml": "2.9.1",
     "zod": "4.6.5"
   },
   "devDependencies": {

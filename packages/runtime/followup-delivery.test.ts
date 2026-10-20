@@ -1,3 +1,4 @@
+import { TEST_CONTEXT_CAPABILITIES, TEST_MODEL_CAPACITY } from './context-test-fixture.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -16,10 +17,10 @@ test('openmuse can pause, revise, and resume a periodic follow-up', async t => {
     port: 4317,
     token: 'local-test-token-0123456789',
     dataDirectory: directory,
-    model: { baseURL: 'https://example.com', id: 'fixture', apiKey: '' },
+    model: { ...TEST_MODEL_CAPACITY, baseURL: 'https://example.com', id: 'fixture', apiKey: '' },
     memoryIdleMs: 120_000,
   };
-  const engine: Engine = { id: 'fixture', async execute() { return { text: 'ok' }; }, async close() {} };
+  const engine: Engine = { id: 'fixture', contextCapabilities: TEST_CONTEXT_CAPABILITIES, async execute() { return { text: 'ok' }; }, async close() {} };
   const host = new RuntimeHost(store, engine, config);
   const app = createRuntimeApp(host, () => {});
   t.after(async () => {

@@ -326,6 +326,11 @@ export function ChatScreen({
       if (richThreads) void agent.detachActiveRun().catch(() => {});
     };
   }, [agent, agentId, api, copilotkit, isReady, historyAttempt, richThreads, selection.existing]);
+  useEffect(() => {
+    if (!richThreads || !isReady) return;
+    agent.setConversationActive(active, selection.existing);
+    return () => agent.setConversationActive(false);
+  }, [agent, active, historyAttempt, isReady, richThreads, selection.existing]);
   const saveHistory = useCallback(async () => {
     if (!richThreads) await api.request("/api/conversation", { messages: agent.messages }, "PUT");
     setSaveError("");

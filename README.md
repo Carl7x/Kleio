@@ -27,6 +27,8 @@ pnpm web
 
 Configuration is outside the repository at `~/.config/kleio/config.json` (or `$KLEIO_CONFIG`). First startup creates a private local API token. Supply model credentials through `KLEIO_MODEL_API_KEY` or the private configuration field `model.apiKey`. Never add credentials to tracked files. Default model endpoint is DeepSeek.
 
+Model execution now requires explicit `model.contextWindow` and `model.maxTokens`, or `KLEIO_MODEL_CONTEXT_WINDOW` and `KLEIO_MODEL_MAX_TOKENS`. Use a capacity supported by the configured endpoint, including a conservative lower bound for external auto routing. Missing capacity leaves stored-data APIs available but rejects model execution; the runtime does not guess a model window. The isolated DeepSeek Flash acceptance setup uses a 131072-token working window and an 8192-token output allowance, below its [documented limits](https://api-docs.deepseek.com/quick_start/pricing/). This is a test configuration, not a default for other providers.
+
 `pnpm web` builds the Expo Web client, starts the local runtime if needed, and opens an authenticated browser session. It can reconnect to an already-running runtime. The interface supports conversations, background work and results, and memory inspection/correction. Provider keys and the administration token stay on the server.
 
 The service binds to loopback by default. Closing a client leaves the service running; `pnpm stop` stops it. A login service is not installed yet. For terminal use, run `pnpm start` and then `pnpm chat` in another terminal.
@@ -58,9 +60,15 @@ Chat supports `/new`, `/work`, `/inbox`, `/memory`, `/people` and `/quit`. Backg
 
 Default data lives in `~/.local/share/kleio/` (or `$KLEIO_DATA_DIR`). One SQLite database owns product state. Markdown memory files are readable projections; conflicting external edits are preserved and reported. DSH uses fresh execution directories and product-controlled tools, with credentials supplied through its child environment. This is tool restriction, not an OS sandbox for general execution.
 
+Standing files and playbooks also live in that data directory (`standing/*.md`, `skills/<id>/SKILL.md`, `skills-index.json`). Standing is captured when an execution starts. Skills are discovered as metadata; bodies and related text files enter model context only through explicit resource reads. A new valid skill directory does not require a selector change or an index allowlist entry. Product context remains owned by Kleio. This is still one local user. `standing/IDENTITY.md` supplies the display name and tone. `POST /api/agent/identity` writes those same fields; avatar and chat-update visibility stay presentation settings. A direct file edit wins on the next turn. Startup does not overwrite an existing standing or skill file. Empty or invalid identity fields use the product default, Kleio / warm.
+
 Older Harness-hosted entry points remain under `native:*` for compatibility. The new runtime does not automatically import old databases or private archives. Select and review a migration before switching existing data.
 
 See [architecture](docs/architecture.md), [memory](docs/memory-architecture.md), and [runtime/API](docs/runtime.md).
+
+## Engineering workflow
+
+Core feature work follows [AGENTS.md](AGENTS.md): inspect source, submit a decision-complete plan, obtain explicit user confirmation, then dispatch small implementation tasks to Codex with GPT-6.1 Sol, use a separate read-only reviewer, and independently verify architectural compliance as well as behavior. The scoped loader now supports generic skill discovery, progressive resources, structured context, request budgets and policy invalidation. The three pre-existing history/review failures are fixed. Current acceptance includes 285 targeted regression tests, 33 supplemental frontend tests (partly overlapping), runtime type checking, a Web build, real HTTP/database/model research and four real-browser scenarios (synthetic data). Active conversations receive background deliveries without reload, recover after reconnect or thread switching, and preserve drafts and foreground streaming. Mobile-wide type checking still has one existing Computer error. Full Muse behavior adaptation, automatic compaction/recovery, multi-user migration, native iOS validation and ECS deployment remain separate work. See the [current context-loading plan](docs/engineering/context-loading-plan-2026-10-17.md).
 
 ## Development
 

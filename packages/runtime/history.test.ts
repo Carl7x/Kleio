@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRuntimeApp } from '../../apps/runtime/app.ts';
 import { WorkRuntime, type WorkCallbacks, type WorkNotification } from '../personal-tasks/runtime.ts';
+import { MemoryRuntime } from '../personal-memory/runtime.ts';
 import type { RuntimeHost } from './host.ts';
 import { RuntimeStore, type Execution } from './store.ts';
 
@@ -29,9 +30,9 @@ async function reminders(work: WorkRuntime, conversationId: string, count: numbe
   assert.equal(emitted, count);
 }
 
-function historyApp(store: RuntimeStore, work: WorkRuntime) {
+function historyApp(store: RuntimeStore, work: WorkRuntime, memory: MemoryRuntime, dataDirectory: string) {
   const port = 31999, token = 'isolated-history-test-token';
-  const app = createRuntimeApp({ store, work, config: { port, token, listenHost: '127.0.0.1' } } as unknown as RuntimeHost, () => {});
+  const app = createRuntimeApp({ store, work, memory, config: { port, token, dataDirectory, listenHost: '127.0.0.1' } } as unknown as RuntimeHost, () => {});
   return (path: string, authenticated = true) => app.request(`http://127.0.0.1:${port}${path}`, {
     headers: authenticated ? { authorization: `Bearer ${token}` } : {},
   });
@@ -99,6 +100,7 @@ test('conversation executions filter before truncation and combine conversation 
 });
 
 test('authenticated history endpoints return complete scoped executions and read or unread notifications', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'kleio-history-api-'));
   const store = new RuntimeStore(':memory:');
   try {
     const work = new WorkRuntime(store.db, { now });
@@ -110,7 +112,8 @@ test('authenticated history endpoints return complete scoped executions and read
     work.readNotification(notification.id);
     for (let i = 0; i < 110; i++) store.createExecution('conversation', other.id);
     await reminders(work, other.id, 110);
-    const request = historyApp(store, work);
+    const memory = new MemoryRuntime(store.db, { directory: join(directory, 'memory') });
+    const request = historyApp(store, work, memory, directory);
     const executionPath = `/api/executions?conversationId=${encodeURIComponent(conversation.id)}`;
     const notificationPath = `/api/notifications?conversationId=${encodeURIComponent(conversation.id)}`;
     assert.equal((await request(executionPath, false)).status, 401);
@@ -132,5 +135,26 @@ test('authenticated history endpoints return complete scoped executions and read
     assert.equal((await (await request('/api/notifications')).json() as WorkNotification[]).length, 100);
     assert.equal((await (await request('/api/executions')).json() as Execution[]).length, 100);
     assert.equal((await request('/api/executions?conversationId=missing')).status, 404);
-  } finally { store.close(); }
+
+    // Forget changes the API projection, not the persisted delivery or its read state.
+    const persistedBefore = work.notifications({ conversationId: conversation.id });
+    const storedBefore = store.db.prepare('SELECT record,read_at FROM kw_notifications WHERE id=?').get(notification.id);
+    const claim = memory.remember({ key: 'Synthetic report to forget', text: notification.text, kind: 'fact',
+      source: { messageId: 'synthetic-history-forget', conversationId: conversation.id, createdAt: new Date(now()).toISOString(), quote: notification.text } });
+    assert.equal(memory.forget(claim.id, { expectedVersion: claim.version }).status, 'forgotten');
+    const redactedResponse = await request(notificationPath);
+    assert.equal(redactedResponse.status, 200);
+    const projected = await redactedResponse.json() as WorkNotification[];
+    assert.equal(projected.length, 105);
+    assert.ok(projected.every(value => !value.text.includes(notification.text)));
+    assert.equal(projected.find(value => value.id === notification.id)?.text, '[已停止使用]');
+    assert.equal(projected.find(value => value.id === notification.id)?.readAt, new Date(now()).toISOString());
+    const redactedUnreadResponse = await request(`${notificationPath}&unread=true`);
+    assert.equal(redactedUnreadResponse.status, 200);
+    const redactedUnread = await redactedUnreadResponse.json() as WorkNotification[];
+    assert.equal(redactedUnread.length, 104);
+    assert.ok(redactedUnread.every(value => value.readAt === null && value.id !== notification.id));
+    assert.deepEqual(work.notifications({ conversationId: conversation.id }), persistedBefore);
+    assert.deepEqual(store.db.prepare('SELECT record,read_at FROM kw_notifications WHERE id=?').get(notification.id), storedBefore);
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });

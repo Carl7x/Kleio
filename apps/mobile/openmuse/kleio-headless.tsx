@@ -1,16 +1,12 @@
 // OpenMuse's headless view contract backed by Kleio's local, persisted runtime.
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { api, type Execution, type Message as SavedMessage, type ProductEvent } from "../src/api";
+import { api } from "../src/api";
+import { LocalAgent } from "./local-agent";
 import { clientFetch } from "../src/transport";
-import { replayedRunError, threadLocked } from "./conversation-run";
 
-export type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
-export type ToolMessage = { id: string; role: "tool"; toolCallId: string; content: string };
-export type Message =
-  | { id: string; role: "user"; content: string }
-  | { id: string; role: "assistant"; content: string; toolCalls?: ToolCall[] }
-  | ToolMessage;
-type AssistantMessage = Extract<Message, { role: "assistant" }>;
+import { type Message, type ToolCall, type ToolMessage } from "./conversation-history";
+export { executionMessages } from "./conversation-history";
+export type { ToolCall, ToolMessage, Message } from "./conversation-history";
 type RunError = { error: unknown; code?: string; context?: { agentId?: string } };
 type Thread = { id: string; name: string; archived: boolean };
 type ThreadRecord = { id: string; name?: string; title?: string; archived?: boolean };
@@ -20,9 +16,7 @@ type ToolRenderer = {
   parameters?: unknown;
   render: (input: { toolCallId: string; args: Record<string, unknown>; result: unknown; status: "complete" | "executing" }) => ReactNode;
 };
-const working = (execution: Execution) => execution.status === "queued" || execution.status === "running";
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
-const displayToolName = (name: string) => ({ web_search: "search_web", create_work: "delegate_task", work_status: "agent_status", memory_correct: "remember_fact" } as Record<string, string>)[name] ?? name;
 
 async function request<T>(path: string, value?: unknown, method?: string): Promise<T> {
   const controller = new AbortController();
@@ -46,221 +40,7 @@ async function request<T>(path: string, value?: unknown, method?: string): Promi
   } finally { clearTimeout(timer); }
 }
 
-/** Preserve the original assistant text → tool calls → next assistant text order. */
-export function executionMessages(execution: Execution, events: readonly ProductEvent[], fallback = ""): Message[] {
-  const messages: Message[] = [];
-  let current: AssistantMessage | undefined;
-  let afterTool = false;
-  const tools = new Map<string, ToolCall>();
-  const makeMessage = (sequence: number) => {
-    const next: AssistantMessage = { id: `${execution.id}:assistant:${sequence}`, role: "assistant", content: "" };
-    messages.push(next);
-    current = next;
-    return next;
-  };
-  for (const event of [...events].sort((a, b) => a.sequence - b.sequence)) {
-    const data = event.data;
-    if (event.type === "text.delta" && typeof data.text === "string" && data.text) {
-      if (!current || afterTool) makeMessage(event.sequence);
-      current!.content += data.text;
-      afterTool = false;
-    } else if (event.type === "tool.started" && typeof data.callId === "string" && typeof data.name === "string") {
-      if (tools.has(data.callId)) continue;
-      const call: ToolCall = { id: data.callId, type: "function", function: { name: displayToolName(data.name), arguments: JSON.stringify(data.args ?? {}) } };
-      if (!current) makeMessage(event.sequence);
-      current!.toolCalls = [...(current!.toolCalls ?? []), call];
-      tools.set(call.id, call);
-      afterTool = true;
-    } else if ((event.type === "tool.completed" || event.type === "tool.failed") && typeof data.callId === "string") {
-      if (!tools.has(data.callId) && typeof data.name === "string") {
-        const call: ToolCall = { id: data.callId, type: "function", function: { name: displayToolName(data.name), arguments: "{}" } };
-        if (!current) makeMessage(event.sequence);
-        current!.toolCalls = [...(current!.toolCalls ?? []), call];
-        tools.set(call.id, call);
-      }
-      const result = event.type === "tool.failed" ? { error: typeof data.error === "string" ? data.error : "工具未完成。" } : data.result ?? {};
-      messages.push({ id: `${execution.id}:tool:${data.callId}`, role: "tool", toolCallId: data.callId, content: typeof result === "string" ? result : JSON.stringify(result) });
-      afterTool = true;
-    }
-  }
-  // Older saved turns without text events still retain their completed answer.
-  if (!messages.some(item => item.role === "assistant" && item.content)) {
-    const text = execution.text || fallback;
-    if (text) makeMessage(Number.MAX_SAFE_INTEGER).content = text;
-  }
-  return messages;
-}
 
-class LocalAgent {
-  messages: Message[] = [];
-  isRunning = false;
-  canRetry = true;
-  private version = 0;
-  private readonly listeners = new Set<() => void>();
-  private readonly messageListeners = new Set<(input: { messages: Message[] }) => void>();
-  private saved: SavedMessage[] = [];
-  private executions: Execution[] = [];
-  private readonly events = new Map<string, ProductEvent[]>();
-  private readonly subscriptions = new Map<string, { controller: AbortController; promise: Promise<Execution> }>();
-  private pendingUser: Extract<Message, { role: "user" }> | undefined;
-  private acceptedRequest: { requestId: string; executionId: string; text: string } | undefined;
-  private ensured = false;
-  private generation = 0;
-  private stopRequested = false;
-  constructor(readonly id: string, readonly threadId: string, private runtime: HeadlessRuntime) {}
-  getSnapshot = () => this.version;
-  subscribeUpdate = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
-  private notify() { this.version++; this.listeners.forEach(listener => listener()); this.messageListeners.forEach(listener => listener({ messages: this.messages })); }
-  subscribe({ onMessagesChanged }: { onMessagesChanged: (input: { messages: Message[] }) => void }) {
-    this.messageListeners.add(onMessagesChanged);
-    return { unsubscribe: () => { this.messageListeners.delete(onMessagesChanged); } };
-  }
-  addMessage(value: Message) {
-    if (value.role === "user") { this.pendingUser = value; this.canRetry = true; }
-    this.messages = [...this.messages, value]; this.notify();
-  }
-  setMessages(messages: Message[]) {
-    if (this.pendingUser && !messages.some(item => item.id === this.pendingUser!.id)) this.pendingUser = undefined;
-    this.messages = messages; this.notify();
-  }
-  private rebuild() {
-    const output: Message[] = [];
-    for (const user of this.saved.filter(item => item.role === "user")) {
-      output.push({ id: user.id, role: "user", content: user.content });
-      const turns = this.executions.filter(item => item.messageId === user.id || item.id === user.executionId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      for (const turn of turns) {
-        const fallback = this.saved.find(item => item.role === "assistant" && item.executionId === turn.id)?.content;
-        output.push(...executionMessages(turn, this.events.get(turn.id) ?? [], fallback));
-      }
-    }
-    if (this.pendingUser) {
-      output.push(this.pendingUser);
-      if (this.acceptedRequest?.requestId === this.pendingUser.id) {
-        const turn = this.executions.find(item => item.id === this.acceptedRequest!.executionId);
-        if (turn) output.push(...executionMessages(turn, this.events.get(turn.id) ?? []));
-      }
-    }
-    this.messages = output;
-    this.isRunning = this.executions.some(working);
-    this.canRetry = (!!this.pendingUser && this.acceptedRequest?.requestId !== this.pendingUser.id) || !!this.failedTurn() || this.isRunning;
-    this.notify();
-  }
-  /** The latest saved turn when it stopped and can be run again on the same user message. */
-  private failedTurn(): Execution | undefined {
-    if (this.pendingUser || this.executions.some(working)) return;
-    const user = [...this.saved].reverse().find(item => item.role === "user");
-    if (!user) return;
-    const latest = this.executions.filter(item => item.messageId === user.id || item.id === user.executionId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-    if (latest && ["failed", "cancelled", "interrupted"].includes(latest.status)) return latest;
-  }
-  private acceptEvent(event: ProductEvent) {
-    const previous = this.events.get(event.executionId) ?? [];
-    if (previous.some(item => item.sequence === event.sequence)) return;
-    this.events.set(event.executionId, [...previous, event].sort((a, b) => a.sequence - b.sequence));
-    this.rebuild();
-  }
-  private mergeExecution(next: Execution) {
-    const previous = this.executions.find(item => item.id === next.id);
-    if (previous && !working(previous) && working(next)) return;
-    this.executions = [...this.executions.filter(item => item.id !== next.id), next];
-  }
-  private async ensureThread() {
-    if (this.ensured) return;
-    await request("/api/threads", { id: this.threadId });
-    this.ensured = true; this.runtime.threadsChanged();
-  }
-  private async hydrate() {
-    const generation = this.generation;
-    const [saved, executions] = await Promise.all([api.messages(this.threadId), api.executions(undefined, this.threadId)]);
-    const turns = executions.filter(item => item.kind === "conversation");
-    await Promise.all(turns.map(async execution => {
-      let after = 0;
-      while (generation === this.generation) {
-        const page = await api.events(after, execution.id);
-        const previous = this.events.get(execution.id) ?? [];
-        const bySequence = new Map(previous.map(item => [item.sequence, item]));
-        page.forEach(item => bySequence.set(item.sequence, item));
-        this.events.set(execution.id, [...bySequence.values()].sort((a, b) => a.sequence - b.sequence));
-        if (page.length < 500) break;
-        after = page[page.length - 1].sequence;
-      }
-    }));
-    if (generation !== this.generation) return;
-    this.saved = saved;
-    turns.forEach(turn => this.mergeExecution(turn));
-    if (this.acceptedRequest && saved.some(item => item.role === "user" && item.executionId === this.acceptedRequest!.executionId)) this.pendingUser = undefined;
-    this.rebuild();
-  }
-  private watch(execution: Execution, replay = false): Promise<Execution> {
-    const existing = this.subscriptions.get(execution.id);
-    if (existing) return existing.promise;
-    const controller = new AbortController();
-    const generation = this.generation;
-    const after = this.events.get(execution.id)?.at(-1)?.sequence ?? 0;
-    const promise = api.subscribeExecution(execution.id, event => {
-      if (generation === this.generation) this.acceptEvent(event);
-    }, { after, signal: controller.signal }).then(async terminal => {
-      if (generation !== this.generation) return terminal;
-      this.mergeExecution(terminal); this.rebuild();
-      try { await this.hydrate(); }
-      catch (error) { this.runtime.emitError({ error, context: { agentId: this.id } }); }
-      this.runtime.threadsChanged();
-      if (["failed", "unknown", "interrupted"].includes(terminal.status)) this.runtime.emitError({ error: new Error(terminal.error || "回复未完成。"), code: replay ? replayedRunError : "agent_run_failed", context: { agentId: this.id } });
-      return terminal;
-    }).finally(() => { if (this.subscriptions.get(execution.id)?.controller === controller) this.subscriptions.delete(execution.id); });
-    this.subscriptions.set(execution.id, { controller, promise });
-    return promise;
-  }
-  async connect() {
-    await this.hydrate(); this.ensured = true;
-    await Promise.all(this.executions.filter(working).map(execution => this.watch(execution, true)));
-  }
-  async run() {
-    if (this.isRunning) {
-      this.runtime.emitError({ error: new Error("对话正在回复中。"), code: threadLocked, context: { agentId: this.id } });
-      return;
-    }
-    const user = this.pendingUser ?? [...this.messages].reverse().find((item): item is Extract<Message, { role: "user" }> => item.role === "user");
-    if (!user) throw new Error("没有可发送的消息。");
-    const retryOf = this.pendingUser ? undefined : this.failedTurn();
-    if (!this.pendingUser && !retryOf) throw new Error("这条已保存的回复无法再运行。发送新消息继续。");
-    if (this.pendingUser && !this.canRetry) throw new Error("这条已保存的回复无法再运行。发送新消息继续。");
-    this.stopRequested = false;
-    this.isRunning = true; this.notify();
-    try {
-      await this.ensureThread();
-      const requestId = this.pendingUser?.id ?? this.acceptedRequest?.requestId ?? user.id;
-      const execution = retryOf ? await api.retryExecution(retryOf.id) : await api.submitMessage(this.threadId, user.content, requestId);
-      this.acceptedRequest = { requestId, executionId: execution.id, text: user.content };
-      this.mergeExecution(execution); this.rebuild();
-      if (this.stopRequested && working(execution)) await api.cancelExecution(execution.id);
-      if (working(execution)) {
-        const following = this.watch(execution);
-        void following.catch(() => {});
-        try { await this.hydrate(); }
-        catch (error) { this.runtime.emitError({ error, context: { agentId: this.id } }); }
-        await following;
-      } else {
-        await this.hydrate();
-        if (["failed", "unknown", "interrupted"].includes(execution.status)) this.runtime.emitError({ error: new Error(execution.error || "回复未完成。"), code: "agent_run_failed", context: { agentId: this.id } });
-      }
-    } catch (error) {
-      const code = error && typeof error === "object" && "code" in error ? String(error.code) : undefined;
-      this.runtime.emitError({ error, code, context: { agentId: this.id } });
-      throw error;
-    } finally { this.isRunning = this.executions.some(working); this.notify(); }
-  }
-  async stop() {
-    this.stopRequested = true;
-    await Promise.all(this.executions.filter(working).map(item => api.cancelExecution(item.id)));
-  }
-  async detachActiveRun() {
-    this.generation++;
-    this.subscriptions.forEach(subscription => subscription.controller.abort());
-    this.subscriptions.clear();
-  }
-}
 
 class HeadlessRuntime {
   readonly agents = new Map<string, LocalAgent>();
@@ -300,7 +80,7 @@ function useRuntime() {
 export function useAgent({ agentId, threadId }: { agentId: string; runtimeAgentId: string; threadId: string }) {
   const runtime = useRuntime();
   let agent = runtime.agents.get(agentId);
-  if (!agent) { agent = new LocalAgent(agentId, threadId, runtime); runtime.agents.set(agentId, agent); }
+  if (!agent) { agent = new LocalAgent(agentId, threadId, runtime, api, () => request("/api/threads", { id: threadId })); runtime.agents.set(agentId, agent); }
   useSyncExternalStore(agent.subscribeUpdate, agent.getSnapshot, agent.getSnapshot);
   return { agent, isReady: true };
 }

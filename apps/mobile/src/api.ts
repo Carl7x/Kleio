@@ -1,5 +1,6 @@
 import type {
   Conversation,
+  ConversationChange,
   Execution,
   Message,
   ProductEvent,
@@ -22,6 +23,7 @@ import { clientFetch } from './transport';
 
 export type {
   Conversation,
+  ConversationChange,
   CreateWork,
   Execution,
   MemoryClaim,
@@ -239,6 +241,85 @@ async function subscribeExecution(
   }
 }
 
+/** A watermark acknowledges a persisted snapshot only after its consumer reconciles it. */
+async function subscribeConversation(
+  id: string,
+  onChange: (change: ConversationChange) => void | Promise<void>,
+  options: ExecutionSubscriptionOptions = {},
+): Promise<void> {
+  const { signal } = options;
+  let after = options.after ?? 0;
+  let retryDelay = 300;
+  if (!Number.isSafeInteger(after) || after < 0) throw new ApiError("无效的会话位置。", "invalid_input", 400);
+  const invalid = () => new ApiError("本地服务返回了无效的会话变更。", "invalid_event", 502);
+  const encoder = new TextEncoder();
+  while (!signal?.aborted) {
+    try {
+      const response = await fetchResponse(`/conversations/${encode(id)}/stream?after=${after}`, {
+        ...withSignal(signal), headers: { Accept: "text/event-stream" },
+      });
+      if (!response.body || !response.headers.get("content-type")?.includes("text/event-stream")) {
+        throw new ApiError("本地服务没有返回会话事件流。", "invalid_stream", 502);
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8', { fatal: true });
+      const cancelReader = () => { void reader.cancel().catch(() => undefined); };
+      signal?.addEventListener('abort', cancelReader, { once: true });
+      if (signal?.aborted) cancelReader();
+      let buffer = "";
+      const consume = async (frame: string) => {
+        if (encoder.encode(frame).byteLength > 64 * 1024) throw invalid();
+        const fields = frame.split(/\r?\n/u).filter(line => line && !line.startsWith(':'));
+        if (!fields.length) return;
+        if (fields.some(line => !/^(event|id|data):/u.test(line))) throw invalid();
+        const values = (name: string) => fields.filter(line => line.startsWith(name + ':'))
+          .map(line => line.slice(name.length + 1).replace(/^ /u, ''));
+        const names = values('event'); const ids = values('id'); const data = values('data');
+        if (names.length !== 1 || names[0] !== 'conversation.changed' || ids.length !== 1 || !data.length) throw invalid();
+        let change: ConversationChange;
+        try { change = JSON.parse(data.join('\n')) as ConversationChange; } catch { throw invalid(); }
+        if (!change || Array.isArray(change) || Object.keys(change).sort().join(',') !== 'conversationId,sequence,version'
+          || change.version !== 1 || change.conversationId !== id
+          || !Number.isSafeInteger(change.sequence) || change.sequence < 1 || ids[0] !== String(change.sequence)) throw invalid();
+        if (change.sequence <= after) return;
+        throwIfAborted(signal);
+        await onChange(change);
+        throwIfAborted(signal);
+        after = change.sequence;
+        retryDelay = 300;
+      };
+      try {
+        while (!signal?.aborted) {
+          let part: ReadableStreamReadResult<Uint8Array>;
+          try { part = await reader.read(); }
+          catch (error) { if (signal?.aborted) throw error; throw offline(); }
+          // EOF may split a valid UTF-8 code point in an incomplete frame. Discard
+          // that unacknowledged tail rather than flushing the decoder as a protocol error.
+          // Invalid bytes received in actual chunks still fail fatal decoding.
+          if (part.done) break;
+          try { buffer += decoder.decode(part.value, { stream: true }); } catch { throw invalid(); }
+          let separator: RegExpExecArray | null;
+          while ((separator = /\r?\n\r?\n/u.exec(buffer))) {
+            const frame = buffer.slice(0, separator.index);
+            buffer = buffer.slice(separator.index + separator[0].length);
+            await consume(frame);
+          }
+          if (encoder.encode(buffer).byteLength > 64 * 1024) throw invalid();
+        }
+      } finally {
+        signal?.removeEventListener('abort', cancelReader);
+        await reader.cancel().catch(() => undefined);
+        reader.releaseLock();
+      }
+    } catch (error) {
+      if (signal?.aborted) return;
+      if (!(error instanceof ApiError) || !(error.code === 'offline' || error.code === 'timeout' || (error.status >= 500 && !error.code.startsWith('invalid_')))) throw error;
+    }
+    try { await reconnectDelay(retryDelay, signal); } catch (error) { if (signal?.aborted) return; throw error; }
+    retryDelay = Math.min(retryDelay * 2, 5000);
+  }
+}
+
 export const api = {
   session: (ticket: string) => request<{ ok: boolean }>("/session", { method: "POST", ...body({ ticket }) }),
   signOut: () => request<{ ok: boolean }>("/session", { method: 'DELETE' }),
@@ -260,6 +341,7 @@ export const api = {
   retryExecution: (id: string) => request<Execution>(`/executions/${encode(id)}/retry`, { method: "POST" }),
   events: (after = 0, executionId?: string, signal?: AbortSignal) => request<ProductEvent[]>(eventPath(after, executionId), withSignal(signal)),
   subscribeExecution,
+  subscribeConversation,
   memories: (signal?: AbortSignal, query?: string) => request<MemoryClaim[]>("/memory" + (query ? `?q=${encode(query)}` : ""), withSignal(signal)),
   people: (signal?: AbortSignal) => request<Person[]>("/people", withSignal(signal)),
   editMemory: (memory: MemoryClaim, text: string) => request<MemoryClaim>(`/memory/${encode(memory.id)}`, { method: "PATCH", ...body({ text, expectedVersion: memory.version }) }),

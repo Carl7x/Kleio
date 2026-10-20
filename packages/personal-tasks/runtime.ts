@@ -149,7 +149,12 @@ export interface WorkNotification {
   createdAt: string;
   readAt: string | null;
 }
-export interface WorkExecution { task: WorkTask; run: WorkRun; signal: AbortSignal; }
+export interface WorkExecution {
+  task: WorkTask; run: WorkRun; signal: AbortSignal;
+  /** Transient per-claim binding. Host binds once at actual execution start;
+   * the guard reads the existing policy owner, never a second policy snapshot. */
+  readonly bindCommitGuard?: (guard: () => boolean) => void;
+}
 export interface ReviewHandoff extends WorkExecution { result: StoredResearchResult; }
 export interface WorkCallbacks {
   /** One engine execution. The caller owns its tool policy, budget and cancellation. */
@@ -339,6 +344,7 @@ function scheduledIso(schedule: WorkSchedule, anchor: number, inclusive: boolean
  */
 export class WorkRuntime {
   private readonly active = new Map<string, AbortController>();
+  private readonly commitGuards = new WeakMap<WorkExecution, { guard?: () => boolean; bound: boolean }>();
   private transactionSerial = 0;
   private readonly clock: () => number;
   private readonly maxConcurrent: number;
@@ -697,17 +703,43 @@ export class WorkRuntime {
       }
       const controller = new AbortController();
       this.active.set(run.id, controller);
-      return { task: next, run, signal: controller.signal };
+      return this.withCommitGuard({ task: next, run, signal: controller.signal });
     });
   }
 
+  private withCommitGuard<T extends WorkExecution>(work: T): T {
+    const state: { guard?: () => boolean; bound: boolean } = { bound: false };
+    this.commitGuards.set(work, state);
+    Object.defineProperty(work, 'bindCommitGuard', { enumerable: false, value: (guard: () => boolean) => {
+      if (state.bound) throw new WorkRuntimeError('COMMIT_GUARD_ALREADY_BOUND', 'A claim accepts only one commit guard.');
+      if (typeof guard !== 'function') throw new WorkRuntimeError('INVALID_COMMIT_GUARD', 'A commit guard must be a function.');
+      state.bound = true;
+      state.guard = guard;
+    } });
+    return work;
+  }
+  /** Called inside the same transaction as every asynchronous claim commit.
+   * Like assertActive/generation, recheck after await, including error paths. */
+  private guardedClaim(work: WorkExecution, status: WorkRunStatus): boolean {
+    if (!this.currentClaim(work, status)) return false;
+    const guard = this.commitGuards.get(work)?.guard;
+    let allowed = true;
+    try { if (guard) allowed = guard() === true; } catch { allowed = false; }
+    if (!allowed) {
+      const timestamp = this.timestamp();
+      this.saveRun({ ...work.run, status: 'cancelled', version: work.run.version + 1, claimToken: null, reviewAfter: null, errorCode: 'CONTEXT_INVALIDATED', updatedAt: timestamp });
+      const task = this.get(work.task.id);
+      // Keep future periodic occurrences; a one-shot has no automatic retry.
+      if (task.nextAt === null) this.saveTask({ ...task, status: 'cancelled', updatedAt: timestamp });
+      return false;
+    }
+    return !this.stopping && !work.signal.aborted;
+  }
   private currentClaim(work: WorkExecution, status: WorkRunStatus): boolean {
-    if (this.stopping || work.signal.aborted) return false;
     const task = this.get(work.task.id), run = this.run(work.run.id);
     return task.status === 'active' && task.version === work.run.taskVersion && task.constraintVersion === work.run.constraintVersion && run.status === status && run.version === work.run.version && run.claimToken === work.run.claimToken;
   }
   private storeResult(work: WorkExecution, output: ResearchResult): boolean {
-    if (this.stopping || work.signal.aborted) return false;
     const resultText = text(output.text, 'result.text', 100000);
     const sessionId = output.sessionId === undefined ? undefined : text(output.sessionId, 'result.sessionId', 192);
     if (output.evidence !== undefined && (!Array.isArray(output.evidence) || output.evidence.length > 100)) throw new WorkRuntimeError('INVALID_RESULT', 'Invalid research evidence.');
@@ -718,7 +750,7 @@ export class WorkRuntime {
       return { kind: item.kind, reference, ...(title === undefined ? {} : { title }) };
     });
     return this.transaction(() => {
-      if (!this.currentClaim(work, 'running')) return false;
+      if (!this.guardedClaim(work, 'running')) return false;
       const task = this.get(work.task.id);
       if (oneShotResearch(task) && !(evidence ?? []).some(item => item.kind === 'url')) throw new WorkRuntimeError('UNSOURCED_RESULT', 'One-shot research requires at least one source URL from web search.');
       const timestamp = this.timestamp();
@@ -744,15 +776,14 @@ export class WorkRuntime {
       const claimed = this.saveRun({ ...run, status: 'reviewing', version: run.version + 1, claimToken: randomUUID(), reviewAttempts: run.reviewAttempts + 1, updatedAt: timestamp });
       const controller = new AbortController();
       this.active.set(id, controller);
-      return { task, run: claimed, result, signal: controller.signal };
+      return this.withCommitGuard({ task, run: claimed, result, signal: controller.signal });
     });
   }
   private storeReview(work: ReviewHandoff, output: WorkReview, deliver: WorkCallbacks['deliver']): boolean {
-    if (this.stopping || work.signal.aborted) return false;
     if (output.decision !== 'silent' && output.decision !== 'notify') throw new WorkRuntimeError('INVALID_REVIEW', 'Invalid review decision.');
     const reviewText = text(output.text, 'review.text', 100000);
     return this.transaction(() => {
-      if (!this.currentClaim(work, 'reviewing')) return false;
+      if (!this.guardedClaim(work, 'reviewing')) return false;
       const task = this.get(work.task.id);
       const timestamp = this.timestamp();
       const review: StoredWorkReview = { id: randomUUID(), resultId: work.result.id, runId: work.run.id, taskId: work.task.id, decision: output.decision, text: reviewText, createdAt: timestamp };
@@ -780,10 +811,16 @@ export class WorkRuntime {
     this.db.prepare('INSERT INTO kw_notifications(id,run_id,task_id,read_at,record) VALUES(?,?,?,?,?)').run(notification.id, run.id, task.id, null, JSON.stringify(notification));
   }
   private failed(work: WorkExecution, stage: 'research' | 'review', error?: unknown): boolean {
-    if (this.stopping || work.signal.aborted) return false;
     return this.transaction(() => {
-      if (!this.currentClaim(work, stage === 'research' ? 'running' : 'reviewing')) return false;
+      if (!this.guardedClaim(work, stage === 'research' ? 'running' : 'reviewing')) return false;
       const timestamp = this.timestamp();
+      const fixedCode = error !== null && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+      if (fixedCode === 'CONTEXT_BUDGET_EXCEEDED' || fixedCode === 'CONTEXT_STATE_MISMATCH') {
+        this.saveRun({ ...work.run, status: 'failed', version: work.run.version + 1, claimToken: null, reviewAfter: null, errorCode: fixedCode, updatedAt: timestamp });
+        const task = this.get(work.task.id);
+        if (task.nextAt === null) this.saveTask({ ...task, status: 'failed', updatedAt: timestamp });
+        return true;
+      }
       if (stage === 'research') {
         const code = error !== null && typeof error === 'object' && 'code' in error ? String(error.code) : '';
         const uncertain = code !== 'UNSOURCED_RESULT' && /UNKNOWN|TRANSPORT|TIMEOUT|HOST_INTERRUPTED/iu.test(code);
@@ -822,7 +859,6 @@ export class WorkRuntime {
   }
   /** Compares verifiable fields. Equal values stay quiet, including a reworded price or version. */
   private finishFollowup(work: WorkExecution, output: ResearchResult, deliver: WorkCallbacks['deliver']): boolean {
-    if (this.stopping || work.signal.aborted) return false;
     const resultText = text(output.text, 'result.text', 100000);
     const sessionId = output.sessionId === undefined ? undefined : text(output.sessionId, 'result.sessionId', 192);
     const evidence = this.evidenceOf(output);
@@ -830,7 +866,7 @@ export class WorkRuntime {
     const baseline = preview.baselineConstraintVersion === preview.constraintVersion ? preview.baseline : null;
     const verdict = decideFollowup(baseline, output.follow, evidence);
     return this.transaction(() => {
-      if (!this.currentClaim(work, 'running')) return false;
+      if (!this.guardedClaim(work, 'running')) return false;
       const task = this.get(work.task.id);
       if (!periodicFollowup(task)) return false;
       if (verdict.outcome !== 'quiet' && !deliver) throw new WorkRuntimeError('MISSING_DELIVERY', 'Periodic follow-up has no conversation writer.');
@@ -852,13 +888,12 @@ export class WorkRuntime {
     });
   }
   private failFollowup(work: WorkExecution, error: unknown, deliver: WorkCallbacks['deliver']): boolean {
-    if (this.stopping || work.signal.aborted) return false;
     const code = error !== null && typeof error === 'object' && 'code' in error ? String(error.code) : '';
     const uncertain = code !== 'UNSOURCED_RESULT' && /UNKNOWN|TRANSPORT|TIMEOUT|HOST_INTERRUPTED/iu.test(code);
-    const errorCode = code === 'UNSOURCED_RESULT' ? 'UNSOURCED_RESULT' : uncertain ? 'RESEARCH_OUTCOME_UNKNOWN' : 'RESEARCH_FAILED';
+    const errorCode = code === 'CONTEXT_BUDGET_EXCEEDED' || code === 'CONTEXT_STATE_MISMATCH' ? code : code === 'UNSOURCED_RESULT' ? 'UNSOURCED_RESULT' : uncertain ? 'RESEARCH_OUTCOME_UNKNOWN' : 'RESEARCH_FAILED';
     const status: WorkRunStatus = uncertain || code === 'UNSOURCED_RESULT' ? 'unknown' : 'failed';
     const marked = this.transaction(() => {
-      if (!this.currentClaim(work, 'running')) return false;
+      if (!this.guardedClaim(work, 'running')) return false;
       const timestamp = this.timestamp();
       this.saveRun({ ...work.run, status, version: work.run.version + 1, claimToken: null, errorCode, updatedAt: timestamp });
       const task = this.get(work.task.id);
@@ -882,6 +917,7 @@ export class WorkRuntime {
       if (!periodicFollowup(task) || current.constraintVersion !== task.constraintVersion) return;
       if (task.status === 'cancelled' || task.status === 'paused') return;
       if (current.status !== 'failed' && current.status !== 'unknown') return;
+      if (current.errorCode === 'CONTEXT_BUDGET_EXCEEDED' || current.errorCode === 'CONTEXT_STATE_MISMATCH') return;
       if (this.deliveryForRun(current.id)) return;
       const latest = this.runs(task.id).find(item => item.constraintVersion === task.constraintVersion && item.status !== 'cancelled');
       if (!latest || latest.id !== current.id) return;

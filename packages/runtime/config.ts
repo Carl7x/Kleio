@@ -9,7 +9,7 @@ export interface RuntimeConfig {
   listenHost?: '127.0.0.1' | '0.0.0.0';
   token: string;
   dataDirectory: string;
-  model: { baseURL: string; id: string; apiKey: string };
+  model: { baseURL: string; id: string; apiKey: string; contextWindow?: number; maxTokens?: number };
   memoryIdleMs: number;
   search?: { apiKey?: string };
 }
@@ -30,9 +30,18 @@ export function loadConfig(): RuntimeConfig {
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('KLEIO_PORT must be between 1024 and 65535.');
   const dataDirectory = resolve(process.env.KLEIO_DATA_DIR ?? raw.dataDirectory ?? join(process.env.XDG_DATA_HOME ?? join(homedir(), '.local/share'), 'kleio'));
   outsideRepository(dataDirectory);
+  const optionalCapacity = (value: unknown, name: string): number | undefined => {
+    if (value === undefined) return undefined;
+    const number = Number(value);
+    if (!Number.isSafeInteger(number) || number <= 0) throw new Error(name + ' must be a positive integer.');
+    return number;
+  };
+  const contextWindow = optionalCapacity(process.env.KLEIO_MODEL_CONTEXT_WINDOW ?? raw.model?.contextWindow, 'Model contextWindow');
+  const maxTokens = optionalCapacity(process.env.KLEIO_MODEL_MAX_TOKENS ?? raw.model?.maxTokens, 'Model maxTokens');
+  if (contextWindow !== undefined && maxTokens !== undefined && maxTokens >= contextWindow) throw new Error('Model maxTokens must be below contextWindow.');
   const config: RuntimeConfig = { port, dataDirectory, listenHost,
     token: process.env.KLEIO_TOKEN ?? raw.token ?? randomBytes(32).toString('base64url'),
-    model: { baseURL: process.env.KLEIO_MODEL_BASE_URL ?? raw.model?.baseURL ?? 'https://api.deepseek.com', id: process.env.KLEIO_MODEL_ID ?? raw.model?.id ?? 'deepseek-flash', apiKey: process.env.KLEIO_MODEL_API_KEY ?? raw.model?.apiKey ?? '' },
+    model: { baseURL: process.env.KLEIO_MODEL_BASE_URL ?? raw.model?.baseURL ?? 'https://api.deepseek.com', id: process.env.KLEIO_MODEL_ID ?? raw.model?.id ?? 'deepseek-flash', apiKey: process.env.KLEIO_MODEL_API_KEY ?? raw.model?.apiKey ?? '', ...(contextWindow !== undefined ? { contextWindow } : {}), ...(maxTokens !== undefined ? { maxTokens } : {}) },
     memoryIdleMs: Number(process.env.KLEIO_MEMORY_IDLE_MS ?? raw.memoryIdleMs ?? 120_000),
     search: { apiKey: process.env.KLEIO_TAVILY_API_KEY ?? process.env.TAVILY_API_KEY ?? raw.search?.apiKey ?? '' },
   };
