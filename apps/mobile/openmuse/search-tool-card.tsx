@@ -3,7 +3,8 @@ import { useContext, useState } from "react";
 import { Linking, Text, View } from "react-native";
 import { z } from "zod";
 import { BrowserRunContext } from "./browser-tool-card";
-import { StreamCard } from "./chat-stream";
+import { ReceiptAction, StreamCard } from "./chat-stream";
+import { searchReceiptAction } from "./chat-stream-rules";
 import { colors, ErrorNotice, s } from "./ui";
 
 const resultSchema = z.object({
@@ -49,12 +50,25 @@ export function SearchToolCard({ result, loading }: { result: unknown; loading: 
         : count
           ? `找到 ${count} 个来源`
           : "未找到来源";
+  const receipt = searchReceiptAction({ loading, failed: Boolean(failure), sourceCount: count });
+  const first = sources[0];
   return (
     <StreamCard
       collapsible={hasBody}
-      state={failure ? "error" : working ? "running" : loading ? "paused" : "done"}
+      state={failure || linkError ? "error" : working ? "running" : loading ? "paused" : "done"}
       title={title}
-      icon={<Search size={16} color={failure ? colors.danger : colors.blueDark} />}
+      icon={<Search size={16} color={failure || linkError ? colors.danger : colors.blueDark} />}
+      action={
+        receipt && first ? (
+          <ReceiptAction
+            label={receipt.label}
+            onPress={() => {
+              setLinkError("");
+              void Linking.openURL(first.url).catch(() => setLinkError("无法打开该来源。"));
+            }}
+          />
+        ) : null
+      }
     >
       {!loading && parsed.success && (
         <View style={{ gap: 6 }}>

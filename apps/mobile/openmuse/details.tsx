@@ -33,6 +33,15 @@ import {
   type ProposalInput,
 } from "../../../packages/openmuse-domain/src";
 import { DelegateSheet, NotificationsSheet, TaskDetail } from "./agent-ui";
+import {
+  approvalAttachmentLine,
+  approvalCalendarName,
+  approvalEndNote,
+  approvalExpirySentence,
+  approvalKindLabel,
+  approvalProposeLabel,
+  approvalStatusLabel,
+} from "./chat-stream-rules";
 import BrowserConsole from "./BrowserConsole";
 import { browserAddress, browserSite } from "./browser-address";
 import { ComputerSheet } from "./computer";
@@ -544,7 +553,7 @@ function EventEditor({
       <ErrorNotice error={error} />
       <View style={[s.row, { gap: 10, flexWrap: "wrap" }]}>
         <Button primary icon={ShieldCheck} busy={busy} disabled={!enabled} onPress={() => void propose()}>
-          Review {e ? "changes" : "event"}
+          {approvalProposeLabel(!!e)}
         </Button>
         {e && (
           <Button icon={Trash2} disabled={busy || !enabled} danger onPress={() => void propose(true)}>
@@ -612,6 +621,16 @@ function ReviewDetail({ initial }: { initial: ActionProposal }) {
     }
   }
   const email = action.kind === "email.send";
+  const expiresAt = new Date(action.expiresAt);
+  const expiresLabel = Number.isNaN(expiresAt.getTime())
+    ? "截止时间"
+    : expiresAt.toLocaleString("zh-CN", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
   return (
     <Sheet
       title={pending ? "最后确认一下" : action.title}
@@ -622,19 +641,28 @@ function ReviewDetail({ initial }: { initial: ActionProposal }) {
       }
       onClose={close}
     >
-      <View style={[s.row, { gap: 13, marginBottom: 21 }]}>
-        <View style={[s.iconBox, { backgroundColor: colors.lavender }]}>
-          <ShieldCheck size={22} color={colors.text} />
+      <View
+        style={{
+          marginBottom: 10,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          gap: 4,
+          borderRadius: 16,
+          borderWidth: 1,
+          borderColor: colors.line,
+          borderLeftWidth: 3,
+          borderLeftColor: pending ? "#8A5A24" : "#47896C",
+          backgroundColor: pending ? colors.lavender : colors.card,
+        }}
+      >
+        <View style={[s.row, { gap: 8, alignItems: "center" }]}>
+          <ShieldCheck size={16} color={colors.blueDark} />
+          <Text style={[s.text, { flex: 1, fontWeight: "600" }]}>{action.title}</Text>
+          <Chip tint={pending ? colors.card : colors.green}>{approvalStatusLabel(action.status)}</Chip>
         </View>
-        <View style={{ flex: 1, gap: 4 }}>
-          <Text style={s.heading}>{action.title}</Text>
-          <Text style={s.small}>{action.kind.replace(".", " · ")}</Text>
-        </View>
-        <Chip tint={pending ? colors.lavender : colors.green}>
-          {action.status.replace(/_/g, " ")}
-        </Chip>
+        <Text style={[s.small, { marginLeft: 24 }]}>{approvalKindLabel(action.kind)}</Text>
       </View>
-      <Card style={{ gap: 13 }}>
+      <Card style={{ gap: 8, padding: 14, borderRadius: 16 }}>
         <ReviewLine label="账户" value={action.account || w.profile.email} />
         {email ? (
           <>
@@ -642,18 +670,18 @@ function ReviewDetail({ initial }: { initial: ActionProposal }) {
             <ReviewLine label="抄送" value={arrayText(d.cc) || "无"} />
             <ReviewLine label="密送" value={arrayText(d.bcc) || "无"} />
             <ReviewLine label="主题" value={String(d.subject || "")} />
-            <View style={s.divider} />
-            <Text selectable style={[s.text, { lineHeight: 25 }]}>
+            <View style={{ height: 1, backgroundColor: colors.line, marginVertical: 4 }} />
+            <Text selectable style={[s.text, { lineHeight: 22 }]}>
               {String(d.body || "")}
             </Text>
-            <View style={s.divider} />
-            <Text style={s.label}>附件</Text>
+            <View style={{ height: 1, backgroundColor: colors.line, marginVertical: 4 }} />
+            <Text style={[s.small, { fontWeight: "600" }]}>附件</Text>
             {Array.isArray(d.attachmentIds) && d.attachmentIds.length ? (
               d.attachmentIds.map((id) => {
                 const file = w.files.find((f) => f.id === id);
                 return (
                   <Text key={String(id)} style={s.text}>
-                    {file?.name || String(id)} · version {String(id).slice(-8)}
+                    {approvalAttachmentLine(file?.name || String(id), String(id))}
                   </Text>
                 );
               })
@@ -678,7 +706,7 @@ function ReviewDetail({ initial }: { initial: ActionProposal }) {
                   label="结束"
                   value={
                     d.allDay
-                      ? `${String(d.end || "")} (exclusive)`
+                      ? `${String(d.end || "")}${approvalEndNote(true)}`
                       : `${dateLabel(String(d.end || ""), { year: "numeric", month: "short", day: "numeric", timeZone: String(d.timeZone || "UTC") })} · ${timeLabel(String(d.end || ""), String(d.timeZone || "UTC"))}`
                   }
                 />
@@ -689,7 +717,7 @@ function ReviewDetail({ initial }: { initial: ActionProposal }) {
                 <ReviewLine label="备注" value={String(d.description || "无")} />
               </>
             )}
-            <ReviewLine label="日历" value={String(d.calendarId || "primary")} />
+            <ReviewLine label="日历" value={approvalCalendarName(String(d.calendarId || "primary"))} />
             <Text style={s.small}>
               {action.kind === "calendar.delete"
                 ? "将删除此日程，并可能通知参与者。"
@@ -701,7 +729,7 @@ function ReviewDetail({ initial }: { initial: ActionProposal }) {
       {!enabled && <Text style={s.small}>此工作台未启用。</Text>}
       <ErrorNotice error={error || action.error} />
       {!!action.result && (
-        <Card style={{ marginTop: 16, backgroundColor: colors.green, padding: 18 }}>
+        <Card style={{ marginTop: 10, backgroundColor: colors.green, padding: 12, borderRadius: 16 }}>
           <Text selectable style={s.text}>
             {resultSummary(action.result)}
           </Text>
@@ -709,17 +737,8 @@ function ReviewDetail({ initial }: { initial: ActionProposal }) {
       )}
       {pending ? (
         <>
-          <Text style={[s.small, { marginVertical: 17 }]}>
-            Review expires{" "}
-            {new Date(action.expiresAt).toLocaleString(undefined, {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-              timeZoneName: "short",
-            })}
-            . Your approval applies only to the details shown above.
+          <Text style={[s.small, { marginTop: 10, marginBottom: 8 }]}>
+            {approvalExpirySentence(expiresLabel)}
           </Text>
           <View style={[s.row, { gap: 10, flexWrap: "wrap" }]}>
             <Button primary icon={Check} busy={busy} disabled={!enabled} onPress={() => void decide("approve")}>
@@ -740,7 +759,7 @@ function ReviewDetail({ initial }: { initial: ActionProposal }) {
           </View>
         </>
       ) : (
-        <Button style={{ alignSelf: "flex-start", marginTop: 19 }} onPress={close}>
+        <Button style={{ alignSelf: "flex-start", marginTop: 10 }} onPress={close}>
           完成
         </Button>
       )}
@@ -752,8 +771,8 @@ function arrayText(value: unknown) {
 }
 function ReviewLine({ label, value }: { label: string; value: string }) {
   return (
-    <View style={{ gap: 4 }}>
-      <Text style={s.label}>{label}</Text>
+    <View style={{ gap: 2 }}>
+      <Text style={[s.small, { fontWeight: "600" }]}>{label}</Text>
       <Text selectable style={s.text}>
         {value}
       </Text>

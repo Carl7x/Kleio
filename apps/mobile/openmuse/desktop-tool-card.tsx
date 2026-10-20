@@ -1,12 +1,13 @@
-import { Monitor, Play } from "lucide-react-native";
+import { Monitor } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { AppState, Image, Platform, Text, View } from "react-native";
 import { z } from "zod";
 import type { ComputerSnapshot } from "../../../packages/openmuse-domain/src/computer";
 import { useComputerDraft } from "./computer-drafts";
 import { DesktopStream } from "./desktop-stream";
-import { StreamCard } from "./chat-stream";
-import { Button, colors, ErrorNotice, s } from "./ui";
+import { ReceiptAction, StreamCard } from "./chat-stream";
+import { desktopReceiptActions } from "./chat-stream-rules";
+import { colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
 const resultSchema = z.object({
@@ -90,9 +91,15 @@ export function DesktopToolCard({
     }
   }
   const offline = latest && !!snapshot && !running;
+  const hasDetails = Boolean(value?.error || error || (latest && snapshot));
+  const receipts = desktopReceiptActions({ offline, starting });
+  function openDesktop() {
+    setTab("桌面");
+    open({ type: "computer" });
+  }
   return (
     <StreamCard
-      collapsible
+      collapsible={hasDetails}
       wide
       state={value?.error || error ? "error" : loading ? "running" : offline ? "paused" : "done"}
       title="桌面"
@@ -106,47 +113,52 @@ export function DesktopToolCard({
               : (value?.action ?? "桌面步骤")
       }
       icon={<Monitor size={16} color={value?.error ? colors.danger : colors.blueDark} />}
-    >
-      <ErrorNotice error={value?.error || error} />
-      {latest && snapshot && !running ? (
-        <View style={{ backgroundColor: "#FAFAFB", borderRadius: 12, padding: 16, gap: 10 }}>
-          <Text style={s.small}>
-            电脑离线。启动后可查看桌面；之前打开的应用已关闭。
-          </Text>
-          <Button small icon={Play} disabled={starting} onPress={() => void start()}>
-            {starting ? "启动中…" : "启动电脑"}
-          </Button>
+      action={
+        <View style={{ gap: 6, alignItems: "flex-end" }}>
+          {receipts.map((item) => (
+            <ReceiptAction
+              key={item.kind}
+              label={item.label}
+              disabled={item.kind === "start-computer" && starting}
+              onPress={() => {
+                if (item.kind === "start-computer") {
+                  void start();
+                  return;
+                }
+                openDesktop();
+              }}
+            />
+          ))}
         </View>
-      ) : latest && running ? (
-        Platform.OS === "web" ? (
-          <DesktopStream running />
-        ) : (
-          <>
-            {!!value?.receiptId && (
-              <Image
-                accessibilityLabel="最新桌面截图"
-                source={{
-                  uri: api.url(`/api/computer/desktop/screenshot?receipt=${value.receiptId}`),
-                  headers: { Authorization: `Bearer ${api.token}` },
-                }}
-                style={{ width: "100%", aspectRatio: 1.6, borderRadius: 12 }}
-                resizeMode="contain"
-              />
-            )}
-            <DesktopStream running embed={false} />
-          </>
-        )
+      }
+    >
+      {hasDetails ? (
+        <>
+          <ErrorNotice error={value?.error || error} />
+          {latest && snapshot && !running ? (
+            <Text style={s.small}>电脑离线。启动后可查看桌面；之前打开的应用已关闭。</Text>
+          ) : latest && running ? (
+            Platform.OS === "web" ? (
+              <DesktopStream running />
+            ) : (
+              <>
+                {!!value?.receiptId && (
+                  <Image
+                    accessibilityLabel="最新桌面截图"
+                    source={{
+                      uri: api.url(`/api/computer/desktop/screenshot?receipt=${value.receiptId}`),
+                      headers: { Authorization: `Bearer ${api.token}` },
+                    }}
+                    style={{ width: "100%", aspectRatio: 1.6, borderRadius: 12 }}
+                    resizeMode="contain"
+                  />
+                )}
+                <DesktopStream running embed={false} />
+              </>
+            )
+          ) : null}
+        </>
       ) : null}
-      <Button
-        small
-        icon={Monitor}
-        onPress={() => {
-          setTab("桌面");
-          open({ type: "computer" });
-        }}
-      >
-        在「桌面」页打开
-      </Button>
     </StreamCard>
   );
 }

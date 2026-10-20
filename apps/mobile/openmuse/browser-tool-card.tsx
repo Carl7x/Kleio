@@ -1,9 +1,10 @@
-import { Globe2, Hand, RotateCw } from "lucide-react-native";
+import { Globe2, RotateCw } from "lucide-react-native";
 import { createContext, useContext, useEffect, useState } from "react";
 import { AppState, Image, Text, View } from "react-native";
 import { z } from "zod";
 import type { BrowserSession } from "../../../packages/openmuse-domain/src";
-import { SkeletonLine, StreamCard } from "./chat-stream";
+import { ReceiptAction, SkeletonLine, StreamCard } from "./chat-stream";
+import { browserReceiptAction } from "./chat-stream-rules";
 import { Button, colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
@@ -92,7 +93,9 @@ export function BrowserToolCard({
     : !loading && !visited
       ? "浏览器未返回页面。请再试一次。"
       : "";
-  const browserState = failure ? "error" : working ? "running" : loading ? "paused" : visited ? "done" : "paused";
+  const browserState =
+    failure || error ? "error" : working ? "running" : loading ? "paused" : visited ? "done" : "paused";
+  const receipt = browserReceiptAction({ loading, hasVisit: Boolean(visited) });
   return (
     <StreamCard
       collapsible
@@ -108,6 +111,15 @@ export function BrowserToolCard({
               : siteLabel(visited?.url)
       }
       icon={<Globe2 size={16} color={failure ? colors.danger : colors.blueDark} />}
+      action={
+        receipt ? (
+          <ReceiptAction
+            label={receipt.label}
+            disabled={!browser || running}
+            onPress={() => browser && open({ type: "browser", browser })}
+          />
+        ) : null
+      }
     >
       {preview ? (
         <Image
@@ -144,16 +156,6 @@ export function BrowserToolCard({
         </View>
       )}
       <ErrorNotice error={failure || error} />
-      {!loading && visited && (
-        <Button
-          icon={Hand}
-          disabled={!browser || running}
-          onPress={() => browser && open({ type: "browser", browser })}
-          style={{ backgroundColor: "#F9F9FA", minHeight: 38, paddingVertical: 8 }}
-        >
-          接管控制
-        </Button>
-      )}
       {!!error && (
         <Button small icon={RotateCw} onPress={() => setRetry((attempt) => attempt + 1)}>
           重新连接预览

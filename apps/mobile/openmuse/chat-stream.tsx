@@ -1,6 +1,13 @@
 import { ChevronDown } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AccessibilityInfo, Animated, Pressable, Text, View } from "react-native";
+import {
+  AccessibilityInfo,
+  ActivityIndicator,
+  Animated,
+  Pressable,
+  Text,
+  View,
+} from "react-native";
 import {
   SCROLL_FADE_PX,
   type StreamState,
@@ -109,6 +116,7 @@ export function StreamCard({
   tint,
   wide,
   collapsible = false,
+  action,
   children,
 }: {
   state: StreamState;
@@ -119,6 +127,8 @@ export function StreamCard({
   wide?: boolean;
   /** Fold finished work behind the heading. Running, pending, and error stay open until the person toggles. */
   collapsible?: boolean;
+  /** Primary control. Stays beside the heading when the card is folded. */
+  action?: ReactNode;
   children?: ReactNode;
 }) {
   const canFold = collapsible && children != null && children !== false;
@@ -137,13 +147,13 @@ export function StreamCard({
     if (touched.current) return;
     setOpen(toolCardStartsOpen(state));
   }, [canFold, state]);
-  const heading = (
-    <View style={[s.row, { gap: 8, alignItems: "flex-start" }]}>
+  const summary = (
+    <View style={[s.row, { gap: 8, alignItems: "center", flex: 1 }]}>
       <View style={{ flex: 1 }}>
         <EventHeading state={state} title={title} detail={detail} icon={icon} />
       </View>
       {canFold ? (
-        <View style={{ marginTop: 3, transform: [{ rotate: open ? "0deg" : "-90deg" }] }}>
+        <View style={{ transform: [{ rotate: open ? "0deg" : "-90deg" }] }}>
           <ChevronDown size={16} color={colors.muted} />
         </View>
       ) : null}
@@ -155,7 +165,7 @@ export function StreamCard({
         width: "100%",
         maxWidth: wide ? 640 : 440,
         paddingHorizontal: 14,
-        paddingVertical: canFold && !open ? 10 : 13,
+        paddingVertical: canFold && !open ? 8 : 12,
         gap: canFold && !open ? 0 : 10,
         backgroundColor: tint ?? colors.card,
         borderRadius: 16,
@@ -165,24 +175,69 @@ export function StreamCard({
         borderLeftColor: streamInk(state),
       }}
     >
-      {canFold ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: open }}
-          accessibilityLabel={`${open ? "收起" : "展开"}：${title}`}
-          onPress={() => {
-            touched.current = true;
-            setOpen((value) => !value);
-          }}
-          hitSlop={4}
-        >
-          {heading}
-        </Pressable>
-      ) : (
-        heading
-      )}
+      <View style={[s.row, { gap: 6, alignItems: "center" }]}>
+        {canFold ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: open }}
+            accessibilityLabel={`${open ? "收起" : "展开"}：${title}`}
+            onPress={() => {
+              touched.current = true;
+              setOpen((value) => !value);
+            }}
+            hitSlop={4}
+            style={{ flex: 1 }}
+          >
+            {summary}
+          </Pressable>
+        ) : (
+          summary
+        )}
+        {action ? <View style={{ flexShrink: 0 }}>{action}</View> : null}
+      </View>
       {!canFold || open ? children : null}
     </View>
+  );
+}
+
+/** Compact control that sits on a tool-card receipt. The heading toggle does not include it. */
+export function ReceiptAction({
+  label,
+  onPress,
+  disabled,
+  busy,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  busy?: boolean;
+}) {
+  const locked = Boolean(disabled || busy);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: locked, busy: !!busy }}
+      disabled={locked}
+      onPress={onPress}
+      hitSlop={6}
+      style={({ pressed }) => ({
+        minHeight: 32,
+        justifyContent: "center",
+        paddingHorizontal: 8,
+        borderRadius: 10,
+        backgroundColor: pressed && !locked ? colors.sky : "#F4F7F9",
+        opacity: locked ? 0.5 : 1,
+      })}
+    >
+      {busy ? (
+        <ActivityIndicator color={colors.blueDark} size="small" />
+      ) : (
+        <Text numberOfLines={1} style={{ color: colors.blueDark, fontSize: 13, fontWeight: "600" }}>
+          {label}
+        </Text>
+      )}
+    </Pressable>
   );
 }
 

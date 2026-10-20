@@ -34,7 +34,7 @@ import type {
   RunEvent,
 } from "../../../packages/openmuse-domain/src/agent";
 import { useAgentWorkspace } from "./agent-workspace";
-import { QuietDots, StreamCard } from "./chat-stream";
+import { QuietDots, ReceiptAction, StreamCard } from "./chat-stream";
 import { ActivityScreen, ConnectionsScreen } from "./screens";
 import {
   Button,
@@ -495,12 +495,17 @@ export function TaskDetail({ taskId }: { taskId: string }) {
               state="pending"
               tint={colors.lavender}
               title="待你审阅"
-              detail="继续前请核对具体操作与账户。这一步还没有执行。"
+              detail="核对账户与内容后再继续。这一步还没有执行。"
+              action={
+                <ReceiptAction
+                  label="审阅操作"
+                  busy={busy}
+                  disabled={!capabilities?.google}
+                  onPress={() => void review()}
+                />
+              }
             >
-              {!capabilities?.google && <Text style={s.small}>此工作台未启用。</Text>}
-              <Button primary busy={busy} disabled={!capabilities?.google} onPress={() => void review()}>
-                审阅操作
-              </Button>
+              {!capabilities?.google ? <Text style={s.small}>此工作台未启用。</Text> : null}
             </StreamCard>
           )}
           {task.status === "waiting_input" && (

@@ -3,8 +3,9 @@ import { useContext } from "react";
 import { Text } from "react-native";
 import { z } from "zod";
 import { BrowserRunContext } from "./browser-tool-card";
-import { StreamCard } from "./chat-stream";
-import { Button, colors, ErrorNotice, s } from "./ui";
+import { ReceiptAction, StreamCard } from "./chat-stream";
+import { mailReceiptAction } from "./chat-stream-rules";
+import { colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
 const messageSchema = z.object({
@@ -92,6 +93,7 @@ export function MailToolCard({
     return (
       <StreamCard state="paused" title="此会话中没有消息" icon={<Mail size={16} color={colors.muted} />} />
     );
+  const receipt = mailReceiptAction({ search: false, failed: false, hasMessage: true });
   return (
     <StreamCard
       collapsible
@@ -99,15 +101,20 @@ export function MailToolCard({
       title={message.sender}
       detail={`邮件 · ${parsed.data.messages.length} 封 · ${message.subject}`}
       icon={<Mail size={16} color={colors.blueDark} />}
+      action={
+        receipt ? (
+          <ReceiptAction
+            label={receipt.label}
+            onPress={() => open({ type: "mail", mail: message })}
+          />
+        ) : null
+      }
     >
       <Text style={s.heading}>{message.subject}</Text>
       <Text style={s.muted} numberOfLines={3}>
         {message.body}
       </Text>
       {parsed.data.truncated && <Text style={s.small}>显示此会话的摘录。</Text>}
-      <Button small icon={Mail} onPress={() => open({ type: "mail", mail: message })}>
-        打开邮件
-      </Button>
     </StreamCard>
   );
 }
