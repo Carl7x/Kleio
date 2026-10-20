@@ -4,6 +4,7 @@ import { Pressable, Text, View } from "react-native";
 import type { Artifact, BrowserSession } from "../../../packages/openmuse-domain/src";
 import type { AgentArtifact, AgentTask } from "../../../packages/openmuse-domain/src/agent";
 import { ArtifactCard, TaskCard } from "./agent-ui";
+import { formFieldLabel } from "./chat-stream-rules";
 import { BrowserThreadCard } from "./computer";
 import { Button, Card, colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
@@ -17,9 +18,9 @@ export function FileThreadCard({ file }: { file: Artifact }) {
       onPress={() => open({ type: "file", file })}
       style={{ width: "100%", maxWidth: 440 }}
     >
-      <Card style={{ padding: 18, backgroundColor: "#F0F1F2", gap: 18 }}>
-        <View style={{ borderRadius: 12, padding: 22, backgroundColor: "#FFF", gap: 14 }}>
-          <Text style={[s.heading, { fontSize: 18 }]}>{file.name.replace(/\.pdf$/i, "")}</Text>
+      <Card style={{ padding: 14, backgroundColor: "#F0F1F2", gap: 12 }}>
+        <View style={{ borderRadius: 12, padding: 16, backgroundColor: "#FFF", gap: 10 }}>
+          <Text style={[s.heading, { fontSize: 16 }]}>{file.name.replace(/\.pdf$/i, "")}</Text>
           {file.fields?.length ? (
             file.fields.slice(0, 4).map((field) => (
               <View
@@ -31,9 +32,7 @@ export function FileThreadCard({ file }: { file: Artifact }) {
                   paddingBottom: 9,
                 }}
               >
-                <Text style={[s.small, { fontSize: 9 }]}>
-                  {field.name.replace(/_/g, " ").toUpperCase()}
-                </Text>
+                <Text style={s.small}>{formFieldLabel(field.name)}</Text>
                 <Text style={[s.text, { fontSize: 12 }]}>{field.value || "—"}</Text>
               </View>
             ))
@@ -43,7 +42,7 @@ export function FileThreadCard({ file }: { file: Artifact }) {
             </Text>
           )}
         </View>
-        <View style={[s.row, { gap: 13 }]}>
+        <View style={[s.row, { gap: 10 }]}>
           <View style={{ backgroundColor: "#FC2359", padding: 9, borderRadius: 9 }}>
             <FileText size={23} color="#FFF" />
           </View>

@@ -383,6 +383,183 @@ export function choiceRowQuiet(selectedId: string | null, optionId: string): boo
   return selectedId !== null && selectedId !== optionId;
 }
 
+/**
+ * Folded tool cards sit close to the stream. Open cards keep a short title and a
+ * quieter subtitle; the chevron is chrome, not a second heading.
+ */
+export const toolCardChrome = {
+  padX: 12,
+  padYFolded: 7,
+  padYOpen: 10,
+  bodyGap: 8,
+  radius: 14,
+  rail: 2,
+  titleSize: 14,
+  titleLine: 20,
+  detailSize: 12,
+  detailLine: 17,
+  chevron: 14,
+} as const;
+
+/** Empty-thread rows match the tool-card radius, with a shorter tap target. */
+export const suggestionRowChrome = {
+  minHeight: 42,
+  padX: 12,
+  padY: 8,
+  radius: 14,
+  fontSize: 14,
+  lineHeight: 20,
+  chevron: 14,
+} as const;
+
+export type EmptyThreadSuggestion = {
+  label: string;
+  prompt?: string;
+  section?: "goals";
+};
+
+/** Three existing empty-thread affordances. Copy stays Kleio-neutral; the third still opens 目标. */
+export function emptyThreadSuggestions(): readonly EmptyThreadSuggestion[] {
+  return [
+    {
+      label: "看看今天有什么新鲜事",
+      prompt: "帮我看看今天有什么值得知道的新鲜事",
+    },
+    {
+      label: "读一下一篇网页",
+      prompt: "帮我读一篇网页，并说说重点",
+    },
+    { label: "盯着某个网站", section: "goals" },
+  ];
+}
+
+export function browserAddressHint(): string {
+  return "输入网址，例如 example.com。";
+}
+
+export function mailThreadSubtitle(count: number): string {
+  return `会话里 ${count} 封`;
+}
+
+export function mailRecipientLine(recipients: readonly string[]): string {
+  const list = recipients.map((item) => item.trim()).filter(Boolean);
+  if (!list.length) return "还没有收件人";
+  return `发给 ${list.join("、")}`;
+}
+
+export function mailDraftDetail(recipients: readonly string[], savedWhen: string): string {
+  return `${mailRecipientLine(recipients)} · ${savedWhen} 保存`;
+}
+
+export function mailListTabLabel(tab: "unread" | "drafts", count: number): string {
+  return tab === "unread" ? `未读 · ${count}` : `草稿 · ${count}`;
+}
+
+export function attachmentCountLabel(count: number): string {
+  return `${count} 个附件`;
+}
+
+const FILE_SOURCE_ZH: Record<string, string> = {
+  upload: "上传",
+  uploaded: "上传",
+  user: "上传",
+  mail: "邮件",
+  email: "邮件",
+  gmail: "邮件",
+  inbox: "邮件",
+  attachment: "附件",
+  browser: "浏览器",
+  download: "下载",
+  web: "浏览器",
+  filled: "已填写",
+  filled_copy: "已填写副本",
+};
+
+/** Known file origins become short Chinese. Other values, including names, stay as stored. */
+export function fileSourceLabel(source: string): string {
+  const key = source.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return FILE_SOURCE_ZH[key] ?? source;
+}
+
+/** PDF field names stay as stored. Underscores become spaces; we do not shout them in capitals. */
+export function formFieldLabel(name: string): string {
+  return name.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+}
+
+export function fileDetailLine(input: {
+  pageCount: number;
+  bytes?: number;
+  source?: string;
+  /** attachment adds “PDF 附件”. meta is pages and size only. The default row ends in PDF. */
+  kind?: "pdf" | "attachment" | "meta";
+}): string {
+  const parts = [`${input.pageCount} 页`];
+  if (typeof input.bytes === "number" && Number.isFinite(input.bytes)) {
+    parts.push(`${Math.max(1, Math.round(input.bytes / 1024))} KB`);
+  }
+  if (input.kind === "attachment") parts.push("PDF 附件");
+  else if (input.kind === "meta") {
+    if (input.source) parts.push(fileSourceLabel(input.source));
+  } else if (input.source) parts.push(fileSourceLabel(input.source));
+  else parts.push("PDF");
+  return parts.join(" · ");
+}
+
+export function fileAddedLine(when: string, filledCopy: boolean): string {
+  return filledCopy ? `添加于 ${when} · 已填写副本` : `添加于 ${when}`;
+}
+
+export function unsupportedFieldNote(name: string): string {
+  return `${formFieldLabel(name)} · 这种字段还填不了`;
+}
+
+const BROWSER_STATUS_ZH: Record<string, string> = {
+  idle: "空闲",
+  active: "使用中",
+  closed: "已关闭",
+  error: "需要关注",
+};
+
+/** Browser session chip. Unknown values reuse the operation chip, which stays non-English. */
+export function browserStatusLabel(status: string): string {
+  const key = status.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return BROWSER_STATUS_ZH[key] ?? operationStatusLabel(status);
+}
+
+export function browserSessionSubtitle(status: string, updatedWhen: string): string {
+  return `${browserStatusLabel(status)} · ${updatedWhen} 更新`;
+}
+
+export function browserOpenLabel(status: string): string {
+  if (status === "closed") return "重新打开";
+  if (status === "error") return "重新连接";
+  return "打开";
+}
+
+export function pdfDownloadsAddedNotice(count: number): string {
+  if (count <= 0) return "本次会话没有新的 PDF 下载。";
+  return count === 1 ? "1 份 PDF 已放进文件。" : `${count} 份 PDF 已放进文件。`;
+}
+
+const DESKTOP_STEP_ZH: Record<string, string> = {
+  click: "点了一下",
+  type: "输入文字",
+  scroll: "滚动页面",
+  screenshot: "看了一眼屏幕",
+  key: "按了按键",
+  move: "移动指针",
+  drag: "拖了一下",
+  open: "打开了窗口",
+  wait: "等了一下",
+};
+
+/** Short desktop verbs become spoken Chinese. Longer notes stay as the tool returned them. */
+export function desktopStepLabel(action: string | undefined): string {
+  if (!action?.trim()) return "桌面步骤";
+  const key = action.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return DESKTOP_STEP_ZH[key] ?? action;
+}
+
 /** Long user turns collapse in the bubble so the stream stays scannable. */
 export function userMessageOverflows(text: string): boolean {
   if (text.length > USER_BUBBLE_COLLAPSE_CHARS) return true;

@@ -30,8 +30,27 @@ import {
   shouldCommitComposerEnter,
   surfaceFadeAlphas,
   toolCardStartsOpen,
+  attachmentCountLabel,
+  browserAddressHint,
+  browserOpenLabel,
+  browserSessionSubtitle,
+  browserStatusLabel,
+  desktopStepLabel,
+  emptyThreadSuggestions,
+  fileAddedLine,
+  fileDetailLine,
+  fileSourceLabel,
+  formFieldLabel,
+  mailDraftDetail,
+  mailListTabLabel,
+  mailRecipientLine,
+  mailThreadSubtitle,
+  pdfDownloadsAddedNotice,
+  suggestionRowChrome,
+  toolCardChrome,
   turnSpacing,
   turnTimeLabel,
+  unsupportedFieldNote,
   userMessageOverflows,
   withAlpha,
 } from "./chat-stream-rules.ts";
@@ -236,6 +255,71 @@ test("approval copy stays in Chinese and matches the chat shell", () => {
   assert.equal(approvalEndNote(false), "");
   assert.equal(approvalAttachmentLine("合同.pdf", "abc123456789"), "合同.pdf · 版本 23456789");
   assert.doesNotMatch(approvalAttachmentLine("合同.pdf", "abc123456789"), /version/i);
+});
+
+test("mail, file, and browser detail rows stay in short Chinese", () => {
+  assert.equal(mailThreadSubtitle(1), "会话里 1 封");
+  assert.equal(mailThreadSubtitle(3), "会话里 3 封");
+  assert.equal(mailRecipientLine(["a@example.com", " b@example.com "]), "发给 a@example.com、b@example.com");
+  assert.equal(mailRecipientLine(["  "]), "还没有收件人");
+  assert.equal(mailDraftDetail(["a@example.com"], "10月20日"), "发给 a@example.com · 10月20日 保存");
+  assert.equal(mailListTabLabel("unread", 2), "未读 · 2");
+  assert.equal(mailListTabLabel("drafts", 0), "草稿 · 0");
+  assert.equal(attachmentCountLabel(1), "1 个附件");
+  assert.equal(fileSourceLabel("Gmail"), "邮件");
+  assert.equal(fileSourceLabel("filled copy"), "已填写副本");
+  assert.equal(fileSourceLabel("合同扫描"), "合同扫描");
+  assert.equal(formFieldLabel("full_name"), "full name");
+  assert.equal(fileDetailLine({ pageCount: 2, kind: "attachment" }), "2 页 · PDF 附件");
+  assert.equal(
+    fileDetailLine({ pageCount: 4, bytes: 2048, source: "browser" }),
+    "4 页 · 2 KB · 浏览器",
+  );
+  assert.equal(fileDetailLine({ pageCount: 1, bytes: 100, kind: "meta" }), "1 页 · 1 KB");
+  assert.equal(fileDetailLine({ pageCount: 3 }), "3 页 · PDF");
+  assert.equal(fileAddedLine("10月20日", false), "添加于 10月20日");
+  assert.equal(fileAddedLine("10月20日", true), "添加于 10月20日 · 已填写副本");
+  assert.equal(unsupportedFieldNote("signature_field"), "signature field · 这种字段还填不了");
+  assert.equal(browserStatusLabel("active"), "使用中");
+  assert.equal(browserStatusLabel("closed"), "已关闭");
+  assert.equal(browserStatusLabel("error"), "需要关注");
+  assert.equal(browserStatusLabel("idle"), "空闲");
+  assert.equal(browserStatusLabel("mystery"), "状态待更新");
+  assert.equal(browserSessionSubtitle("active", "14:03"), "使用中 · 14:03 更新");
+  assert.equal(browserOpenLabel("active"), "打开");
+  assert.equal(browserOpenLabel("closed"), "重新打开");
+  assert.equal(browserOpenLabel("error"), "重新连接");
+  assert.equal(pdfDownloadsAddedNotice(0), "本次会话没有新的 PDF 下载。");
+  assert.equal(pdfDownloadsAddedNotice(1), "1 份 PDF 已放进文件。");
+  assert.equal(pdfDownloadsAddedNotice(2), "2 份 PDF 已放进文件。");
+  assert.equal(desktopStepLabel(undefined), "桌面步骤");
+  assert.equal(desktopStepLabel("click"), "点了一下");
+  assert.equal(desktopStepLabel("已打开表格"), "已打开表格");
+  const detailCopy = [
+    mailThreadSubtitle(2),
+    mailDraftDetail(["a@example.com"], "今天"),
+    fileDetailLine({ pageCount: 1, bytes: 1024, source: "upload" }),
+    browserSessionSubtitle("closed", "昨天"),
+    browserAddressHint(),
+  ].join("\n");
+  assert.doesNotMatch(detailCopy, /message|pages|updated|attachment|download|hacker|copilotkit|ycombinator/i);
+});
+
+test("empty thread keeps three Kleio suggestions and drops demo stubs", () => {
+  const suggestions = emptyThreadSuggestions();
+  assert.equal(suggestions.length, 3);
+  assert.equal(suggestions[2]?.section, "goals");
+  assert.equal(suggestions.filter((item) => item.prompt).length, 2);
+  const copy = suggestions.map((item) => `${item.label} ${item.prompt ?? ""}`).join("\n");
+  assert.match(copy, /新鲜事/);
+  assert.match(copy, /网页/);
+  assert.match(copy, /盯着某个网站/);
+  assert.doesNotMatch(copy, /hacker|copilotkit|ycombinator|news\./i);
+  assert.equal(toolCardChrome.padYFolded < toolCardChrome.padYOpen, true);
+  assert.equal(toolCardChrome.titleSize > toolCardChrome.detailSize, true);
+  assert.equal(toolCardChrome.chevron, 14);
+  assert.equal(suggestionRowChrome.radius, toolCardChrome.radius);
+  assert.equal(browserAddressHint(), "输入网址，例如 example.com。");
 });
 
 test("long user messages collapse; short ones stay open", () => {

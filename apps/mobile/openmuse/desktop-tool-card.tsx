@@ -6,7 +6,7 @@ import type { ComputerSnapshot } from "../../../packages/openmuse-domain/src/com
 import { useComputerDraft } from "./computer-drafts";
 import { DesktopStream } from "./desktop-stream";
 import { ReceiptAction, StreamCard } from "./chat-stream";
-import { desktopReceiptActions } from "./chat-stream-rules";
+import { desktopReceiptActions, desktopStepLabel } from "./chat-stream-rules";
 import { colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
@@ -110,7 +110,7 @@ export function DesktopToolCard({
             ? "桌面步骤失败"
             : offline
               ? "电脑离线"
-              : (value?.action ?? "桌面步骤")
+              : desktopStepLabel(value?.action)
       }
       icon={<Monitor size={16} color={value?.error ? colors.danger : colors.blueDark} />}
       action={

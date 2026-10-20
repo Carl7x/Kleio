@@ -12,6 +12,7 @@ import { AppState, Image, Pressable, Text, View } from "react-native";
 import type { BrowserSession } from "../../../packages/openmuse-domain/src";
 import type { ComputerSnapshot } from "../../../packages/openmuse-domain/src/computer";
 import { browserAddress } from "./browser-address";
+import { fileDetailLine } from "./chat-stream-rules";
 import { useComputerDraft } from "./computer-drafts";
 import { computerStatus } from "./computer-status";
 import { LinuxWorkspace } from "./computer-workspace";
@@ -246,7 +247,7 @@ export function ComputerSheet() {
                 key={file.id}
                 icon={FileText}
                 title={file.name}
-                detail={`${file.pageCount} pages · PDF`}
+                detail={fileDetailLine({ pageCount: file.pageCount })}
                 onPress={() => open({ type: "file", file })}
               />
             ))}
