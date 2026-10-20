@@ -1,3 +1,4 @@
+import { TEST_CONTEXT_CAPABILITIES, TEST_MODEL_CAPACITY } from '../../runtime/context-test-fixture.ts';
 /** Keyless regression checks use the installed pinned runtime and local model. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,7 +16,7 @@ import { RuntimeError, type ExecutionInput } from '../../runtime/contracts.ts';
 import { loadProductSchemaValidator } from '../src/headless.ts';
 
 const installed = existsSync(fileURLToPath(new URL('../.runtime/node_modules/@deepseek-ai/dsh/lib/bin.js', import.meta.url)));
-const modelOptions = { baseURL: 'http://127.0.0.1:1/v1', id: 'local-model', apiKey: 'local-placeholder' };
+const modelOptions = { ...TEST_MODEL_CAPACITY, baseURL: 'http://127.0.0.1:1/v1', id: 'local-model', apiKey: 'local-placeholder' };
 function completionSignal() {
   let resolve!: (input: ExecutionInput) => void;
   let reject!: (error: unknown) => void;
@@ -42,7 +43,7 @@ test('actual conversation tools prepare and reach the pinned ACP model with memo
   const store = new RuntimeStore(':memory:');
   let completion = completionSignal();
   const host = new RuntimeHost(store, {
-    id: engine.id,
+    id: engine.id, contextCapabilities: TEST_CONTEXT_CAPABILITIES,
     async execute(input, context) {
       try {
         for (const tool of input.tools) schema.assertSchema(tool.inputSchema);

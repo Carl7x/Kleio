@@ -8,10 +8,11 @@ import type { MemoryClaim } from '../../packages/personal-memory/runtime.ts';
 import { WorkRuntimeError, type WorkNotification, type WorkTask } from '../../packages/personal-tasks/runtime.ts';
 import { RuntimeError } from '../../packages/runtime/contracts.ts';
 import type { RuntimeHost } from '../../packages/runtime/host.ts';
+import { currentAgentIdentity, saveAgentIdentity } from '../../packages/runtime/identity.ts';
+import { projectNotification } from './notification-projection.ts';
 
 const capabilities = { research: true, reminders: true, goals: false, tracking: false, ideas: false, google: false, browser: false, computer: false, pdf: false, finance: false, taskPause: false, taskResume: false, taskRetry: false, taskCancel: true, taskInput: false };
-const identityDefault: AgentIdentity = { name: 'Kleio', tone: 'warm', avatar: 'sky', showChatUpdates: true };
-const identity = (host: RuntimeHost): AgentIdentity => host.store.getSetting('openmuse.identity', identityDefault);
+const identity = (host: RuntimeHost): AgentIdentity => currentAgentIdentity(host.store, host.config.dataDirectory);
 const memory = (claim: MemoryClaim): AgentMemory & { version: number } => ({ id: claim.id, text: claim.text, source: claim.provenance?.label ?? 'Conversation', createdAt: claim.createdAt, version: claim.version });
 const notification = (value: WorkNotification): AgentNotification => ({ id: value.id, taskId: value.taskId, title: value.title, body: value.text, createdAt: value.createdAt, read: value.readAt !== null });
 const unsupported = (): never => { throw new RuntimeError('unsupported', 'This capability is not available in the Kleio runtime.', 409); };
@@ -91,9 +92,10 @@ function mainThread(host: RuntimeHost): string {
 
 /** OpenMuse presentation contracts plus L0 research / periodic follow-up control. */
 export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
+  const displayedNotification = (value: WorkNotification) => projectNotification(value, text => host.memory.redactBlocked(text));
   app.get('/api/workspace', c => {
     const workspace: Workspace = { mode: 'live', profile: { name: 'You', email: '' }, mail: [], events: [], files: [], browsers: [], actions: [],
-      activity: host.work.notifications().map(item => ({ id: item.id, title: item.title, detail: item.text, date: item.createdAt, status: item.readAt ? 'read' : 'unread' })),
+      activity: host.work.notifications().map(displayedNotification).map(item => ({ id: item.id, title: item.title, detail: item.text, date: item.createdAt, status: item.readAt ? 'read' : 'unread' })),
       connections: [{ id: 'google', name: 'Google', status: 'unconfigured', capabilities: [] },
         { id: 'browser', name: 'Browser', status: 'unconfigured', capabilities: [] }, { id: 'computer', name: 'Computer', status: 'unconfigured', capabilities: [] }],
       runtime: { provider: 'model', configured: Boolean(host.config.model.apiKey), openbotConfigured: false, richThreads: true, capabilities } };
@@ -120,7 +122,7 @@ export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
   app.get('/api/agent', c => {
     const details = host.work.list().map(work => taskDetail(host, work));
     const snapshot: AgentWorkspace = { tasks: details.map(value => value.task), goals: [], monitors: [], ideas: [], memories: host.memory.list().map(memory),
-      artifacts: details.flatMap(value => value.artifacts), notifications: host.work.notifications().map(notification), identity: identity(host), worker: { running: true } };
+      artifacts: details.flatMap(value => value.artifacts), notifications: host.work.notifications().map(displayedNotification).map(notification), identity: identity(host), worker: { running: true } };
     return c.json(snapshot);
   });
   app.post('/api/agent/tasks', async c => {
@@ -148,14 +150,15 @@ export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
         kind: 'fact', evidence: [{ messageId: id, quote: body.text }], scope: 'personal' }], relationships: [] }));
     const added = host.memory.list().find(claim => claim.key === key);
     if (!added || captured.status !== 'applied') throw new RuntimeError('invalid_memory', 'The native memory service could not save this statement.', 409);
-    return c.json(memory(host.memory.correct(added.id, { text: added.text, expectedVersion: added.version,
-      source: { messageId: id, label: body.source ?? 'Authenticated user addition' } })), 201);
+    // Ingestion already committed the new fact. A same-text correction was a no-op,
+    // and must not turn ordinary addition into context revocation.
+    return c.json(memory(added), 201);
   });
   app.post('/api/agent/memories/:id', async c => {
     const body = z.object({ text: z.string().trim().min(1).max(1600), source: z.string().trim().min(1).max(160).optional(), expectedVersion: z.number().int().positive().optional() }).parse(await c.req.json());
     const current = host.memory.list().find(claim => claim.id === c.req.param('id'));
     if (!current) throw new RuntimeError('not_found', 'Active memory not found', 404);
-    return c.json(memory(host.memory.correct(current.id, { text: body.text, expectedVersion: body.expectedVersion ?? current.version, source: { label: body.source ?? 'Authenticated user edit' } })));
+    return c.json(memory(host.correct(current.id, { text: body.text, expectedVersion: body.expectedVersion ?? current.version, source: { label: body.source ?? 'Authenticated user edit' } })));
   });
   app.get('/api/agent/memories/:id/history', c => c.json(host.memory.history(c.req.param('id'))));
   app.post('/api/agent/memories/:id/forget', async c => {
@@ -165,13 +168,14 @@ export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
   });
   app.post('/api/agent/identity', async c => {
     const body = z.object({ name: z.string().trim().min(1).max(80), tone: z.enum(['warm', 'concise', 'thoughtful']), avatar: z.enum(['sky', 'sand', 'lilac']).optional(), showChatUpdates: z.boolean().optional() }).parse(await c.req.json());
-    const value: AgentIdentity = { ...identity(host), name: body.name, tone: body.tone,
-      ...(body.avatar !== undefined ? { avatar: body.avatar } : {}), ...(body.showChatUpdates !== undefined ? { showChatUpdates: body.showChatUpdates } : {}) };
-    host.store.setSetting('openmuse.identity', value);
-    return c.json(value);
+    return c.json(saveAgentIdentity(host.store, host.config.dataDirectory, {
+      name: body.name, tone: body.tone,
+      ...(body.avatar !== undefined ? { avatar: body.avatar } : {}),
+      ...(body.showChatUpdates !== undefined ? { showChatUpdates: body.showChatUpdates } : {}),
+    }));
   });
-  app.get('/api/agent/notifications', c => c.json(host.work.notifications().map(notification)));
-  app.post('/api/agent/notifications/:id/read', c => c.json(notification(host.work.readNotification(c.req.param('id')))));
+  app.get('/api/agent/notifications', c => c.json(host.work.notifications().map(displayedNotification).map(notification)));
+  app.post('/api/agent/notifications/:id/read', c => c.json(notification(displayedNotification(host.work.readNotification(c.req.param('id'))))));
   const computer: ComputerSnapshot = { enabled: false, provider: 'docker', status: 'unconfigured', workspacePath: '/workspace', network: 'disabled', message: 'Computer control is not configured.', commands: [] };
   app.get('/api/computer', c => c.json(computer));
   app.get('/api/computer/files', c => c.json({ path: c.req.query('path') ?? '/workspace', entries: [] }));

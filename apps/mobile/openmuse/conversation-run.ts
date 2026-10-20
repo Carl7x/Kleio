@@ -1,6 +1,9 @@
 type RunError = { error: unknown; code?: string; context?: { agentId?: string } };
 
 /** A RUN_ERROR event from the thread's saved history, not a failure of this call. */
+/** Background synchronization errors show in the banner without failing a foreground turn. */
+export const conversationSyncError = "conversation_sync_error";
+
 export const replayedRunError = "agent_run_error_event";
 
 /** The thread is busy with another run, so the server refused this one before starting it. */
@@ -47,7 +50,7 @@ export async function runConversationTurn(
   let failure: ConversationTurnError | undefined;
   const subscription = subscribe((event) => {
     if (event.context?.agentId && event.context.agentId !== agentId) return;
-    if (event.code && ignore.includes(event.code)) return;
+    if (event.code === conversationSyncError || (event.code && ignore.includes(event.code))) return;
     const error = event.error instanceof Error ? event.error : new Error(String(event.error));
     // The first report is the specific one; CopilotKit follows it with a generic agent_run_failed.
     failure ??= new ConversationTurnError(error, isThreadLocked(event) ? threadLocked : event.code);

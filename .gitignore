@@ -27,3 +27,6 @@ docs/validation-*.json
 /apps/mobile/ios/
 /apps/mobile/android/
 /reference/
+.DS_Store
+.tmp/
+*.mailloc

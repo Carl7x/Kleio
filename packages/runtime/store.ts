@@ -4,8 +4,11 @@ import { RuntimeError, type ExecutionKind } from './contracts.ts';
 
 export interface Conversation { id: string; title: string; createdAt: string; archived?: boolean; isMain?: boolean }
 export interface Message { id: string; sequence: number; conversationId: string; role: 'user' | 'assistant'; content: string; createdAt: string; executionId: string; status: string }
-export interface Execution { id: string; kind: ExecutionKind; conversationId: string | null; messageId: string | null; status: string; text: string; error: string | null; createdAt: string; updatedAt: string }
+export interface ContextFailure { code: string; retryable: false; requestSequence?: number; estimatedInputTokens?: number; confirmedActionIds: string[] }
+export interface ConfirmedContextAction { actionId: string; operation: 'forget' | 'correct'; id: string; version: number; saved: true }
+export interface Execution { workId?: string; commitCancelled?: boolean; contextActions?: ConfirmedContextAction[]; writeToolsStarted?: string[]; contextFailure?: ContextFailure; id: string; kind: ExecutionKind; conversationId: string | null; messageId: string | null; status: string; text: string; error: string | null; createdAt: string; updatedAt: string }
 export interface ProductEvent { sequence: number; executionId: string; type: string; data: Record<string, unknown>; createdAt: string }
+export interface ConversationChange { version: 1; conversationId: string; sequence: number }
 type Row = Record<string, unknown>;
 const record = <T>(row: Row | undefined): T | undefined => row ? JSON.parse(String(row.record)) as T : undefined;
 function terms(value: string): string[] {
@@ -55,6 +58,12 @@ export class RuntimeStore {
   messages(id: string): Message[] {
     this.conversation(id);
     return this.db.prepare('SELECT sequence,record FROM kr_messages WHERE conversation_id=? ORDER BY sequence').all(id).map(row => ({ ...record<Message>(row)!, sequence: Number(row.sequence) }));
+  }
+  /** Durable invalidation watermark, not a message delivery or read receipt. */
+  conversationChange(id: string): ConversationChange {
+    this.conversation(id);
+    const row = this.db.prepare('SELECT MAX(sequence) AS sequence FROM kr_messages WHERE conversation_id=?').get(id)!;
+    return { version: 1, conversationId: id, sequence: Number(row.sequence ?? 0) };
   }
   submit(conversationId: string, content: string, requestId: string): Execution {
     return this.transaction(() => {

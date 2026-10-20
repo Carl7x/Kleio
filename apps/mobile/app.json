@@ -13,8 +13,10 @@
         "NSLocalNetworkUsageDescription": "连接你的电脑上的 Kleio，查看对话和后台工作。",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
-        }
-      }
+        },
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "deploymentTarget": "17.0"
     },
     "android": {
       "package": "app.kleio.mobile"
@@ -25,8 +27,23 @@
       "output": "single"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "enableSceneSupport": true
+          }
+        }
+      ],
+      "expo-dev-client",
       "expo-secure-store",
       "expo-sharing"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "21b0d5c0-360e-4b8f-9fe7-5814a119f7c8"
+      }
+    },
+    "owner": "kyle2027"
   }
 }

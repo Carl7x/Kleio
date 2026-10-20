@@ -17,7 +17,7 @@ export async function clientFetch(path: string, init: RequestInit = {}): Promise
   if (!nativeURL) throw new Error('请先连接你的 Kleio。');
   const headers = new Headers(init.headers);
   if (nativeToken) headers.set('Authorization', 'Bearer ' + nativeToken);
-  const fetcher = /^\/api\/executions\/[^/]+\/stream\?/.test(path) ? expoFetch : globalThis.fetch;
+  const fetcher = /^\/api\/(?:executions|conversations)\/[^/]+\/stream\?/.test(path) ? expoFetch : globalThis.fetch;
   return fetcher(nativeURL + path, {
     method: init.method, headers, signal: init.signal ?? undefined,
     body: typeof init.body === 'string' ? init.body : undefined,

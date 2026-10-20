@@ -1,3 +1,4 @@
+import { TEST_CONTEXT_CAPABILITIES, TEST_MODEL_CAPACITY } from './context-test-fixture.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -13,7 +14,7 @@ import { RuntimeStore } from './store.ts';
 function hostFor(engine: Engine) {
   const directory = mkdtempSync(join(tmpdir(), 'kleio-host-'));
   const store = new RuntimeStore(':memory:');
-  const config: RuntimeConfig = { port: 4317, token: 'test-token-0123456789abcd', dataDirectory: directory, model: { baseURL: 'https://api.deepseek.com', id: 'test', apiKey: '' }, memoryIdleMs: 120_000 };
+  const config: RuntimeConfig = { port: 4317, token: 'test-token-0123456789abcd', dataDirectory: directory, model: { ...TEST_MODEL_CAPACITY, baseURL: 'https://api.deepseek.com', id: 'test', apiKey: '' }, memoryIdleMs: 120_000 };
   const host = new RuntimeHost(store, engine, config);
   return { host, store, directory, config };
 }
@@ -35,7 +36,7 @@ test('explicit remember writes before a success claim, and forget leaves unrelat
   let sawRememberRule = false;
   const engine: Engine = {
     id: 'fake',
-    async execute(input, ctx) {
+    contextCapabilities: TEST_CONTEXT_CAPABILITIES, async execute(input, ctx) {
       if (input.kind !== 'conversation') return { text: '{}' };
       if (input.prompt.startsWith('我平时')) return { text: '好的' };
       if (input.prompt.startsWith('请记住')) {
@@ -98,7 +99,7 @@ test('clear durable preference without remember verbs writes; negation still blo
   let sawModelJudgedRemember = false;
   const engine: Engine = {
     id: 'fake',
-    async execute(input, ctx) {
+    contextCapabilities: TEST_CONTEXT_CAPABILITIES, async execute(input, ctx) {
       if (input.prompt.includes('不要记住')) {
         await assert.rejects(
           () => ctx.callTool('memory_remember', { key: '饮品偏好', text: '我喜欢桂花乌龙', kind: 'preference', authorizationQuote: '不要记住我喜欢桂花乌龙' }),
@@ -134,7 +135,7 @@ test('forgotten wording is removed from the next research and review injection',
   const seen: ExecutionInput[] = [];
   const engine: Engine = {
     id: 'fake',
-    async execute(input) {
+    contextCapabilities: TEST_CONTEXT_CAPABILITIES, async execute(input) {
       seen.push(input);
       if (input.kind === 'research') return { text: '研究结论：我喜欢桂花乌龙，产地福州。' };
       if (input.kind === 'review') return { text: JSON.stringify({ decision: 'silent', text: '无变化' }) };

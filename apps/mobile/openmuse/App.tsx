@@ -21,6 +21,8 @@ import {
   Text,
   useWindowDimensions,
   View,
+  Keyboard,
+  Platform,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import type { Section, Workspace } from "../../../packages/openmuse-domain/src";
@@ -285,6 +287,19 @@ function WorkspaceShell({
                   ? GoalsScreen
                   : AppsScreen;
   const utility = ["mail", "calendar", "browser", "files"].includes(section);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, () => setKeyboardOpen(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardOpen(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   return (
     <>
       <WorkspaceTools />
@@ -424,6 +439,7 @@ function WorkspaceShell({
               paddingTop: 10,
               paddingBottom: desktop ? 22 : 7,
               alignItems: "center",
+              display: keyboardOpen && !desktop ? "none" : "flex",
             }}
           >
             <View

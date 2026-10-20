@@ -9,6 +9,8 @@ import type { RuntimeHost } from '../../packages/runtime/host.ts';
 import { BrowserSessions, mountWeb } from './web.ts';
 import { DeviceSessions, localAddresses } from './devices.ts';
 import { mountOpenMuse } from './openmuse.ts';
+import { projectNotification } from './notification-projection.ts';
+import { streamConversationChanges } from './conversation-stream.ts';
 
 export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono {
   const app = new Hono(); const token = Buffer.from('Bearer ' + host.config.token);
@@ -92,6 +94,12 @@ export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono 
     return c.json(host.store.updateConversation(c.req.param('id'), { ...(body.title !== undefined ? { title: body.title } : {}), ...(body.archived !== undefined ? { archived: body.archived } : {}) }));
   });
   app.get('/api/conversations/:id/messages', c => c.json(host.store.messages(c.req.param('id'))));
+  app.get('/api/conversations/:id/stream', c => {
+    const id = c.req.param('id'); host.store.conversation(id);
+    const cursor = z.string().regex(/^\d+$/u).parse(c.req.header('last-event-id') ?? c.req.query('after') ?? '0');
+    const after = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).parse(Number(cursor));
+    return streamSSE(c, stream => streamConversationChanges(stream, host.store, id, after, c.req.raw.signal));
+  });
   app.post('/api/conversations/:id/messages', async c => {
     const body = z.object({ text: z.string().trim().min(1).max(24000), requestId: z.string().min(1).max(200) }).parse(await c.req.json());
     return c.json(host.submit(c.req.param('id'), body.text, body.requestId), 202);
@@ -118,7 +126,7 @@ export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono 
   app.get('/api/memory/:id/history', c => c.json(host.memory.history(c.req.param('id'))));
   app.patch('/api/memory/:id', async c => {
     const body = z.object({ text: z.string().min(1).max(4000), expectedVersion: z.number().int().positive() }).parse(await c.req.json());
-    return c.json(host.memory.correct(c.req.param('id'), { ...body, source: { label: 'Authenticated user edit' } }));
+    return c.json(host.correct(c.req.param('id'), { ...body, source: { label: 'Authenticated user edit' } }));
   });
   app.delete('/api/memory/:id', async c => {
     const body = z.object({ expectedVersion: z.number().int().positive() }).parse(await c.req.json());
@@ -143,9 +151,9 @@ export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono 
   });
   app.get('/api/notifications', c => {
     const conversationId = c.req.query('conversationId');
-    return c.json(host.work.notifications({ unreadOnly: c.req.query('unread') === 'true', ...(conversationId !== undefined ? { conversationId } : {}) }).map(item => ({ ...item, text: host.memory.redactBlocked(item.text) })));
+    return c.json(host.work.notifications({ unreadOnly: c.req.query('unread') === 'true', ...(conversationId !== undefined ? { conversationId } : {}) }).map(item => projectNotification(item, text => host.memory.redactBlocked(text))));
   });
-  app.post('/api/notifications/:id/read', c => c.json(host.work.readNotification(c.req.param('id'))));
+  app.post('/api/notifications/:id/read', c => c.json(projectNotification(host.work.readNotification(c.req.param('id')), text => host.memory.redactBlocked(text))));
   app.patch('/api/settings', async c => {
     const body = z.object({ memoryEnabled: z.boolean().optional(), timezone: z.string().max(80).optional() }).parse(await c.req.json());
     if (body.timezone) new Intl.DateTimeFormat('en', { timeZone: body.timezone });
