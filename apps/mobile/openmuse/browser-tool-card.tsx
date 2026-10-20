@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { AppState, Image, Text, View } from "react-native";
 import { z } from "zod";
 import type { BrowserSession } from "../../../packages/openmuse-domain/src";
-import { StreamCard } from "./chat-stream";
+import { SkeletonLine, StreamCard } from "./chat-stream";
 import { Button, colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
@@ -124,10 +124,7 @@ export function BrowserToolCard({
           {working ? (
             <View style={{ gap: 8 }}>
               {(["90%", "74%", "84%"] as const).map((width) => (
-                <View
-                  key={width}
-                  style={{ height: 7, width, borderRadius: 4, backgroundColor: "#E3E9ED" }}
-                />
+                <SkeletonLine key={width} width={width} />
               ))}
             </View>
           ) : visited ? (

@@ -184,6 +184,51 @@ export function QuietDots({ label }: { label?: string }) {
 
 const USER_PREVIEW_LINES = 6;
 
+/** Placeholder line. A light sheen crosses it for 2s unless motion is reduced. */
+export function SkeletonLine({ width = "84%" }: { width?: number | `${number}%` }) {
+  const reduce = useReduceMotion();
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduce) {
+      anim.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.timing(anim, { toValue: 1, duration: 2000, useNativeDriver: true }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [anim, reduce]);
+  const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [-64, 220] });
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no"
+      style={{
+        height: 7,
+        width,
+        borderRadius: 4,
+        backgroundColor: "#E3E9ED",
+        overflow: "hidden",
+      }}
+    >
+      {reduce ? null : (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: -4,
+            bottom: -4,
+            width: 36,
+            backgroundColor: "rgba(255,255,255,0.72)",
+            transform: [{ translateX }, { rotate: "15deg" }],
+          }}
+        />
+      )}
+    </View>
+  );
+}
+
 /** A pinned surface fade. It does not take taps. */
 export function SurfaceFade({
   color,
