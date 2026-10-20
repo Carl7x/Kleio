@@ -43,12 +43,14 @@ import {
   approvalStatusLabel,
   attachmentCountLabel,
   browserStatusLabel,
+  calendarAccessSuffix,
   fileDetailLine,
   fileSourceLabel,
   mailDraftDetail,
   mailListTabLabel,
   operationStatusLabel,
   reviewGateLabel,
+  richThreadValue,
 } from "./chat-stream-rules";
 import { browserAddress } from "./browser-address";
 import { localDateTime, startOfZonedDay, zonedInstant } from "./date-time";
@@ -712,7 +714,7 @@ export function CalendarScreen() {
       <View style={[s.between, { gap: 12, flexWrap: "wrap" }]}>
         <View style={[s.row, { gap: 8 }]}>
           <Text style={s.title}>
-            {anchor.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+            {anchor.toLocaleDateString("zh-CN", { month: "long", year: "numeric" })}
           </Text>
           <IconButton
             icon={ChevronLeft}
@@ -741,7 +743,7 @@ export function CalendarScreen() {
                 onPress={() => setCalendarId(c.id)}
               >
                 {c.name}
-                {["owner", "writer"].includes(c.accessRole) ? "" : " · read only"}
+                {calendarAccessSuffix(c.accessRole)}
               </Button>
             ))}
           </View>
@@ -771,7 +773,7 @@ export function CalendarScreen() {
                   backgroundColor: key === date ? colors.sky : "transparent",
                 }}
               >
-                <Text style={s.small}>{day.toLocaleDateString("en-US", { weekday: "short" })}</Text>
+                <Text style={s.small}>{day.toLocaleDateString("zh-CN", { weekday: "short" })}</Text>
                 <Text
                   style={[
                     s.title,
@@ -1395,7 +1397,7 @@ export function ConnectionsScreen({ query = "" }: { query?: string }) {
               />
               <SettingsLine
                 label="富线程"
-                value={w.runtime.richThreads ? "CopilotKit Intelligence" : "未连接"}
+                value={richThreadValue(w.runtime.richThreads === true)}
               />
               <Button
                 small

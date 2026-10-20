@@ -35,7 +35,12 @@ import type {
 } from "../../../packages/openmuse-domain/src/agent";
 import { useAgentWorkspace } from "./agent-workspace";
 import { QuietDots, ReceiptAction, StreamCard } from "./chat-stream";
-import { fileDetailLine, knownOperationStatus } from "./chat-stream-rules";
+import {
+  fileDetailLine,
+  knownOperationStatus,
+  monitorCadenceLine,
+  monitorCheckLine,
+} from "./chat-stream-rules";
 import { ActivityScreen, ConnectionsScreen } from "./screens";
 import {
   Button,
@@ -1716,11 +1721,13 @@ function MonitorCard({ monitor, onOpenTask }: { monitor: Monitor; onOpenTask?: (
             : `价格低于 ${monitor.value}`}
       </Text>
       <Text style={s.small}>
-        Every {monitor.intervalMinutes} min · {monitor.checks} checks
+        {monitorCadenceLine(monitor.intervalMinutes, monitor.checks)}
       </Text>
       <Text style={s.small}>
-        Last check: {stamp(monitor.lastCheckedAt)}
-        {monitor.status === "active" ? `\nNext check: ${stamp(monitor.nextCheckAt)}` : ""}
+        {monitorCheckLine(
+          stamp(monitor.lastCheckedAt),
+          monitor.status === "active" ? stamp(monitor.nextCheckAt) : undefined,
+        )}
       </Text>
       {!!monitor.lastValue && (
         <Text selectable numberOfLines={5} style={s.muted}>
