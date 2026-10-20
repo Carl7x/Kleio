@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "node scripts/runtime.mjs start",
-    "build": "tsc -p tsconfig.runtime.json --noEmit",
+    "build": "tsc -p tsconfig.runtime.json --noEmit && node packages/personal-agent-ui/build.mjs",
     "setup:dsh": "npm install --prefix packages/harness-dsh/.runtime --ignore-scripts --save-exact @deepseek-ai/dsh@0.2.1-alpha.2",
     "setup:native": "pnpm setup:dsh",
     "start": "node scripts/runtime.mjs start",
