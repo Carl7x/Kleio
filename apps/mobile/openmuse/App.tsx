@@ -36,6 +36,7 @@ import {
 import { AgentWorkspaceProvider, useAgentWorkspace } from "./agent-workspace";
 import { API_URL, createSession, MuseApi } from "./api";
 import { ChatScreen, WorkspaceTools } from "./chat";
+import { QuietDots } from "./chat-stream";
 import { ComputerEntry } from "./computer";
 import { ComputerDraftProvider } from "./computer-drafts";
 import { Details } from "./details";
@@ -408,7 +409,7 @@ function WorkspaceShell({
                   {threadsError ? (
                     <Button onPress={retryThreads}>重试主对话</Button>
                   ) : threadsLoading ? (
-                    <ActivityIndicator color={colors.blueDark} />
+                    <QuietDots label="正在打开对话" />
                   ) : null}
                   {!threadsLoading && selection.id !== mainId && (
                     <Text style={[s.small, { textAlign: "center", marginBottom: 8 }]}>

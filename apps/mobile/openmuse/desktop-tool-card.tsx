@@ -1,11 +1,12 @@
 import { Monitor, Play } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, AppState, Image, Platform, Text, View } from "react-native";
+import { AppState, Image, Platform, Text, View } from "react-native";
 import { z } from "zod";
 import type { ComputerSnapshot } from "../../../packages/openmuse-domain/src/computer";
 import { useComputerDraft } from "./computer-drafts";
 import { DesktopStream } from "./desktop-stream";
-import { Button, Card, colors, ErrorNotice, s } from "./ui";
+import { StreamCard } from "./chat-stream";
+import { Button, colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
 const resultSchema = z.object({
@@ -88,26 +89,23 @@ export function DesktopToolCard({
       setStarting(false);
     }
   }
+  const offline = latest && !!snapshot && !running;
   return (
-    <Card
-      style={{ padding: 13, backgroundColor: "#EEEEF0", gap: 12, width: "100%", maxWidth: 640 }}
+    <StreamCard
+      wide
+      state={value?.error || error ? "error" : loading ? "running" : offline ? "paused" : "done"}
+      title="桌面"
+      detail={
+        loading
+          ? "正在使用桌面…"
+          : value?.error
+            ? "桌面步骤失败"
+            : offline
+              ? "电脑离线"
+              : (value?.action ?? "桌面步骤")
+      }
+      icon={<Monitor size={16} color={value?.error ? colors.danger : colors.blueDark} />}
     >
-      <View style={[s.row, { gap: 10 }]}>
-        <View style={[s.iconBox, { width: 36, height: 36, borderRadius: 10 }]}>
-          <Monitor size={21} color={colors.blueDark} />
-        </View>
-        <View style={{ flex: 1, gap: 1 }}>
-          <Text style={[s.text, { fontWeight: "600" }]}>桌面</Text>
-          <Text numberOfLines={1} style={[s.small, { fontSize: 12 }]}>
-            {loading
-              ? "正在使用桌面…"
-              : value?.error
-                ? "桌面步骤失败"
-                : (value?.action ?? "桌面步骤")}
-          </Text>
-        </View>
-        {loading && <ActivityIndicator size="small" color={colors.blueDark} />}
-      </View>
       <ErrorNotice error={value?.error || error} />
       {latest && snapshot && !running ? (
         <View style={{ backgroundColor: "#FAFAFB", borderRadius: 12, padding: 16, gap: 10 }}>
@@ -148,6 +146,6 @@ export function DesktopToolCard({
       >
         在「桌面」页打开
       </Button>
-    </Card>
+    </StreamCard>
   );
 }

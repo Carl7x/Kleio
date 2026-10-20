@@ -1,9 +1,10 @@
 import { Search } from "lucide-react-native";
 import { useContext, useState } from "react";
-import { ActivityIndicator, Linking, Text, View } from "react-native";
+import { Linking, Text } from "react-native";
 import { z } from "zod";
 import { BrowserRunContext } from "./browser-tool-card";
-import { Card, colors, ErrorNotice, s } from "./ui";
+import { StreamCard } from "./chat-stream";
+import { colors, ErrorNotice, s } from "./ui";
 
 const resultSchema = z.object({
   results: z.array(z.object({ url: z.url({ protocol: /^https?$/ }), title: z.string().nullish() })),
@@ -34,28 +35,21 @@ export function SearchToolCard({ result, loading }: { result: unknown; loading: 
     ? [...new Map(parsed.data.results.map((source) => [source.url, source])).values()]
     : [];
   const count = sources.length;
+  const title = failure
+    ? "搜索失败"
+    : working
+      ? "正在搜索网页…"
+      : loading
+        ? "搜索已停止"
+        : count
+          ? `找到 ${count} 个来源`
+          : "未找到来源";
   return (
-    <Card
-      style={{ padding: 14, gap: 10, backgroundColor: "#EEEEF0", maxWidth: 440, width: "100%" }}
+    <StreamCard
+      state={failure ? "error" : working ? "running" : loading ? "paused" : "done"}
+      title={title}
+      icon={<Search size={16} color={failure ? colors.danger : colors.blueDark} />}
     >
-      <View style={[s.row, { gap: 10 }]}>
-        {working ? (
-          <ActivityIndicator size="small" color={colors.blueDark} />
-        ) : (
-          <Search size={18} color={colors.blueDark} />
-        )}
-        <Text style={s.text}>
-          {failure
-            ? "搜索失败"
-            : working
-              ? "正在搜索网页…"
-              : loading
-                ? "搜索已停止"
-                : count
-                  ? `找到 ${count} 个来源`
-                  : "未找到来源"}
-        </Text>
-      </View>
       {!loading && parsed.success && (
         <>
           {sources.map((source) => (
@@ -84,6 +78,6 @@ export function SearchToolCard({ result, loading }: { result: unknown; loading: 
         </>
       )}
       <ErrorNotice error={failure || linkError} />
-    </Card>
+    </StreamCard>
   );
 }

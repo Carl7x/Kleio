@@ -399,7 +399,7 @@ export function LinkRow({
     </Pressable>
   );
 }
-/** OpenMuse's original capybara, shared by every assistant surface. */
+/** Circular Kleio portrait. Older avatar files stay in assets and are unused. */
 export function Mascot({
   size = 42,
   variant = "sky",
@@ -413,21 +413,19 @@ export function Mascot({
     lilac: "#F1ECF9",
   }[variant];
   return (
-    <View accessibilityLabel="Kleio 卡皮巴拉" style={{ width: size, height: size }}>
-      <View
-        style={{
-          position: "absolute",
-          top: size * 0.15,
-          left: size * 0.12,
-          width: size * 0.76,
-          height: size * 0.76,
-          borderRadius: size,
-          backgroundColor: palette,
-        }}
-      />
+    <View
+      accessibilityLabel="Kleio"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        overflow: "hidden",
+        backgroundColor: palette,
+      }}
+    >
       <Image
-        source={require("../assets/capybara.png")}
-        resizeMode="contain"
+        source={require("../assets/kleio-dog-q.png")}
+        resizeMode="cover"
         style={{ width: size, height: size }}
         accessible={false}
       />

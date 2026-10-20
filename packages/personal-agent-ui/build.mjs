@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { mkdir, readFile } from 'node:fs/promises';
+import { access, mkdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const localRequire = createRequire(import.meta.url);
@@ -12,6 +12,11 @@ catch (error) {
 }
 const root = fileURLToPath(new URL('.', import.meta.url));
 const runtime = fileURLToPath(new URL('../harness-dsh/.runtime/node_modules', import.meta.url));
+try {
+  await access(new URL('../harness-dsh/.runtime/node_modules/@deepseek-ai/dsh-session/package.json', import.meta.url));
+} catch {
+  throw new Error('DSH runtime is not installed, so the client bundle cannot be resolved. Run `pnpm setup:native` before `pnpm build`.');
+}
 const manifest = JSON.parse(await readFile(new URL('package.json', import.meta.url), 'utf8'));
 await mkdir(new URL('dist/', import.meta.url), { recursive: true });
 await esbuild.build({

@@ -1,9 +1,10 @@
-import { Check, Globe2, Hand, RotateCw } from "lucide-react-native";
+import { Globe2, Hand, RotateCw } from "lucide-react-native";
 import { createContext, useContext, useEffect, useState } from "react";
-import { ActivityIndicator, AppState, Image, Text, View } from "react-native";
+import { AppState, Image, Text, View } from "react-native";
 import { z } from "zod";
 import type { BrowserSession } from "../../../packages/openmuse-domain/src";
-import { Button, Card, colors, ErrorNotice, s } from "./ui";
+import { SkeletonLine, StreamCard } from "./chat-stream";
+import { Button, colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
 export const BrowserRunContext = createContext({ running: false, active: false });
@@ -91,32 +92,22 @@ export function BrowserToolCard({
     : !loading && !visited
       ? "浏览器未返回页面。请再试一次。"
       : "";
+  const browserState = failure ? "error" : working ? "running" : loading ? "paused" : visited ? "done" : "paused";
   return (
-    <Card
-      style={{ padding: 13, backgroundColor: "#EEEEF0", gap: 12, width: "100%", maxWidth: 440 }}
+    <StreamCard
+      state={browserState}
+      title="浏览器"
+      detail={
+        working
+          ? "正在阅读页面…"
+          : loading
+            ? "浏览已暂停"
+            : failure
+              ? "无法阅读该页面"
+              : siteLabel(visited?.url)
+      }
+      icon={<Globe2 size={16} color={failure ? colors.danger : colors.blueDark} />}
     >
-      <View style={[s.row, { gap: 10 }]}>
-        <View style={[s.iconBox, { width: 36, height: 36, borderRadius: 10 }]}>
-          <Globe2 size={21} color={colors.blueDark} />
-        </View>
-        <View style={{ flex: 1, gap: 1 }}>
-          <Text style={[s.text, { fontWeight: "600" }]}>浏览器</Text>
-          <Text numberOfLines={1} style={[s.small, { fontSize: 12 }]}>
-            {working
-              ? "正在阅读页面…"
-              : loading
-                ? "浏览已暂停"
-                : failure
-                  ? "无法阅读该页面"
-                  : siteLabel(visited?.url)}
-          </Text>
-        </View>
-        {working ? (
-          <ActivityIndicator size="small" color={colors.blueDark} />
-        ) : visited ? (
-          <Check size={17} color="#47896C" accessibilityLabel="页面已读" />
-        ) : null}
-      </View>
       {preview ? (
         <Image
           accessibilityLabel={`浏览器预览：${visited?.title}`}
@@ -133,10 +124,7 @@ export function BrowserToolCard({
           {working ? (
             <View style={{ gap: 8 }}>
               {(["90%", "74%", "84%"] as const).map((width) => (
-                <View
-                  key={width}
-                  style={{ height: 7, width, borderRadius: 4, backgroundColor: "#E3E9ED" }}
-                />
+                <SkeletonLine key={width} width={width} />
               ))}
             </View>
           ) : visited ? (
@@ -170,6 +158,6 @@ export function BrowserToolCard({
           重新连接预览
         </Button>
       )}
-    </Card>
+    </StreamCard>
   );
 }

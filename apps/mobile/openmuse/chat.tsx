@@ -22,7 +22,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { z } from "zod";
-import { ArtifactCard } from "./agent-ui";
+import { ArtifactCard, statusLabel } from "./agent-ui";
 import { useAgentWorkspace } from "./agent-workspace";
 import { AssistantResponse } from "./assistant-response";
 import { BackgroundUpdates } from "./background-updates";
@@ -41,7 +41,26 @@ import { confirmedJevSelection, displayJevUserMessage, latestJevPanelId } from "
 import { JevInteractionContext, JevToolCard } from "./jev-tool-card";
 import { MailToolCard } from "./mail-tool-card";
 import { SearchToolCard } from "./search-tool-card";
-import { FileThreadCard, TaskThreadCard } from "./thread-artifacts";
+import { FileThreadCard } from "./thread-artifacts";
+import {
+  backgroundStreamState,
+  backgroundToolKind,
+  composerBorderColor,
+  composerBoxShadow,
+  composerChrome,
+  listedBackgroundTasks,
+  SCROLL_FADE_PX,
+} from "./chat-stream-rules";
+import {
+  AssistantTurn,
+  ChatStatusScreen,
+  EventHeading,
+  QuietDots,
+  shouldCommitComposerEnter,
+  StreamCard,
+  SurfaceFade,
+  UserBubble,
+} from "./chat-stream";
 import { type Selection, useMuseThread } from "./threads";
 import { Button, Card, CheckRow, colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
@@ -176,17 +195,54 @@ function ServerToolCard({
   const task = parsed.success
     ? data?.tasks.find((item) => item.id === parsed.data.id || item.id === parsed.data.taskId)
     : undefined;
-  if (task) return <TaskThreadCard task={task} />;
+  const toolError = parsed.success ? parsed.data.error : undefined;
+  const background = backgroundToolKind(name);
+  // A status check or handoff is a receipt. The task sheet stays on 动态 and in notifications.
+  if (background) {
+    if (toolError) {
+      return (
+        <StreamCard state="error" title={background === "delegate" ? "没能交给后台" : "没能查看后台"}>
+          <ErrorNotice error={toolError} />
+        </StreamCard>
+      );
+    }
+    if (loading) {
+      return (
+        <StreamCard
+          state="running"
+          title={background === "delegate" ? "正在交给后台…" : "正在查看后台…"}
+          detail="这条回复继续写。待办不在这里展开。"
+        />
+      );
+    }
+    if (task) {
+      return (
+        <StreamCard
+          state={backgroundStreamState(task.status)}
+          title={background === "delegate" ? "已交给后台" : "后台进展"}
+          detail={`${task.title} · ${statusLabel(task.status)}`}
+        />
+      );
+    }
+    const listed = listedBackgroundTasks(value);
+    return (
+      <StreamCard
+        state="done"
+        title={listed ? `后台有 ${listed} 项` : "后台没有新的待办"}
+        detail="完整列表在「动态」和通知里。"
+      />
+    );
+  }
+  const failed = Boolean(toolError);
   return (
-    <Card style={{ padding: 16, gap: 10 }}>
-      <Text style={s.heading}>{loading ? `正在保存 ${name.toLowerCase()}…` : name}</Text>
-      {parsed.success && parsed.data.error ? (
-        <ErrorNotice error={parsed.data.error} />
-      ) : (
-        <Text style={s.muted}>
-          {loading ? "正在等待服务器。" : "打开工作台查看已保存的结果。"}
-        </Text>
-      )}
+    <StreamCard
+      state={failed ? "error" : loading ? "running" : "done"}
+      title={loading ? `正在保存${name}…` : name}
+      detail={
+        failed ? undefined : loading ? "正在等待服务器。" : "打开工作台查看已保存的结果。"
+      }
+    >
+      {toolError ? <ErrorNotice error={toolError} /> : null}
       <Button
         small
         onPress={() =>
@@ -199,9 +255,9 @@ function ServerToolCard({
           )
         }
       >
-        View {name.toLowerCase()}
+        {`查看${name}`}
       </Button>
-    </Card>
+    </StreamCard>
   );
 }
 export function ChatScreen({
@@ -224,6 +280,7 @@ export function ChatScreen({
   const renderToolCall = useRenderToolCall();
   const [draft, setDraft] = useState("");
   const [focused, setFocused] = useState(false);
+  const [composerHovered, setComposerHovered] = useState(false);
   const [inputHeight, setInputHeight] = useState(44);
   const [showResults, setShowResults] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -234,6 +291,9 @@ export function ChatScreen({
   const [picking, setPicking] = useState(false);
   const [attachments, setAttachments] = useState<string[]>([]);
   const list = useRef<ScrollView>(null);
+  const inputRef = useRef<TextInput>(null);
+  const composerRef = useRef<View>(null);
+  const composing = useRef(false);
   const [queue] = useState(() => new ConversationQueue());
   const choiceCompletions = useRef(
     new Map<string, { resolve: () => void; reject: (error: unknown) => void }>(),
@@ -241,6 +301,7 @@ export function ChatScreen({
   const outbox = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot);
   const followLatest = useRef(true);
   const [awayFromLatest, setAwayFromLatest] = useState(false);
+  const [scrolledFromTop, setScrolledFromTop] = useState(false);
   const runLock = useRef(false);
   const [saveError, setSaveError] = useState("");
   const [historyError, setHistoryError] = useState("");
@@ -273,6 +334,49 @@ export function ChatScreen({
       hideSub.remove();
     };
   }, [insets.bottom]);
+  // react-native-web drops onComposition* props, so listen on the host node.
+  // Enter during IME composition must not send a partial draft.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const node = inputRef.current as unknown as {
+      addEventListener?: (type: string, listener: () => void) => void;
+      removeEventListener?: (type: string, listener: () => void) => void;
+    } | null;
+    const listen = node?.addEventListener;
+    const unlisten = node?.removeEventListener;
+    if (!listen || !unlisten) return;
+    const start = () => {
+      composing.current = true;
+    };
+    const end = () => {
+      composing.current = false;
+    };
+    listen("compositionstart", start);
+    listen("compositionend", end);
+    return () => {
+      unlisten("compositionstart", start);
+      unlisten("compositionend", end);
+    };
+  }, []);
+  // View types omit mouse events. On the web, hover thickens the composer ring.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const node = composerRef.current as unknown as {
+      addEventListener?: (type: string, listener: () => void) => void;
+      removeEventListener?: (type: string, listener: () => void) => void;
+    } | null;
+    const listen = node?.addEventListener;
+    const unlisten = node?.removeEventListener;
+    if (!listen || !unlisten) return;
+    const enter = () => setComposerHovered(true);
+    const leave = () => setComposerHovered(false);
+    listen("mouseenter", enter);
+    listen("mouseleave", leave);
+    return () => {
+      unlisten("mouseenter", enter);
+      unlisten("mouseleave", leave);
+    };
+  }, []);
   useEffect(() => {
     if (!isReady) return;
     let active = true;
@@ -503,16 +607,20 @@ export function ChatScreen({
     .filter((call) => call.function.name === "use_desktop")
     .at(-1)?.id;
   const replying = busy || agent.isRunning;
+  const chrome = composerChrome({ focused, hovered: composerHovered });
   return (
     <View style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>
       <ScrollView
         ref={list}
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ gap: 13, paddingTop: 15, paddingBottom: 20, flexGrow: 1 }}
         onScroll={({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }) => {
           const nearEnd = contentSize.height - contentOffset.y - layoutMeasurement.height < 100;
           followLatest.current = nearEnd;
           setAwayFromLatest(visible.length > 0 && !nearEnd);
+          setScrolledFromTop(contentOffset.y > 8);
         }}
         scrollEventThrottle={100}
         onContentSizeChange={() => {
@@ -521,7 +629,15 @@ export function ChatScreen({
         }}
         keyboardShouldPersistTaps="handled"
       >
-        {!!historyError && (
+        {!!historyError && !visible.length && (
+          <ChatStatusScreen title="这段对话没有载入" detail="已保存的消息未被改动。">
+            <ErrorNotice error={historyError} />
+            <Button onPress={() => setHistoryAttempt((attempt) => attempt + 1)}>
+              重试加载对话
+            </Button>
+          </ChatStatusScreen>
+        )}
+        {!!historyError && visible.length > 0 && (
           <>
             <ErrorNotice error={historyError} />
             <Button onPress={() => setHistoryAttempt((attempt) => attempt + 1)}>
@@ -529,30 +645,27 @@ export function ChatScreen({
             </Button>
           </>
         )}
-        {!visible.length ? (
-          <View
-            style={{
-              flexGrow: 1,
-              flexShrink: 0,
-              justifyContent: "center",
-              alignItems: "center",
-              paddingVertical: 34,
-              gap: 15,
-            }}
+        {!historyError && !loaded && !visible.length && (
+          <ChatStatusScreen
+            busy
+            title="正在接上这段对话"
+            detail="已保存的消息会原样出现在这里。"
+          />
+        )}
+        {!historyError && loaded && syncing && !visible.length && (
+          <ChatStatusScreen
+            busy
+            title="正在同步尚未结束的回复"
+            detail="同步完成前，新消息会排在输入框上方。"
+          />
+        )}
+        {!historyError && loaded && !syncing && !visible.length ? (
+          <ChatStatusScreen
+            hero
+            title="一点帮助，生活多一点空间。"
+            detail="告诉我你在想什么。我可以做计划、调用你的应用，并用电脑来帮忙。"
           >
-            <Text
-              style={{
-                fontSize: 28,
-                letterSpacing: -1,
-                color: colors.text,
-                textAlign: "center",
-                maxWidth: 350,
-              }}
-            >
-              一点帮助，生活多一点空间。
-            </Text>
-            <Text style={[s.muted, { maxWidth: 320, textAlign: "center", lineHeight: 23 }]}>告诉我你在想什么。我可以做计划、调用你的应用，并用电脑来帮忙。</Text>
-            <View style={{ width: "100%", maxWidth: 360, marginTop: 14, gap: 8 }}>
+            <View style={{ width: "100%", maxWidth: 360, marginTop: 6, gap: 8 }}>
               {[
                 {
                   text: "在 Hacker News 找点有趣的",
@@ -569,8 +682,12 @@ export function ChatScreen({
                 </Button>
               ))}
             </View>
-          </View>
-        ) : (
+          </ChatStatusScreen>
+        ) : null}
+        {syncing && visible.length > 0 && !replying && (
+          <QuietDots label="正在同步尚未结束的回复" />
+        )}
+        {visible.length > 0 &&
           visible.map((message) => {
             const user = message.role === "user";
             const text =
@@ -583,36 +700,25 @@ export function ChatScreen({
                   : message.content
                 : "";
             const toolCalls = "toolCalls" in message ? message.toolCalls || [] : [];
+            const wide = !user || toolCalls.length > 0;
             return (
               <View
                 key={message.id}
                 style={{
-                  alignSelf: user ? "flex-end" : "flex-start",
-                  maxWidth: user ? "85%" : "95%",
-                  width: toolCalls.length ? "95%" : undefined,
-                  gap: 8,
+                  alignSelf: wide ? "stretch" : "flex-end",
+                  maxWidth: wide ? "100%" : "85%",
+                  width: wide ? "100%" : undefined,
+                  gap: 10,
                 }}
               >
-                {!!text && (
-                  <View
-                    style={{
-                      paddingHorizontal: 16,
-                      paddingVertical: 13,
-                      borderRadius: 22,
-                      borderBottomRightRadius: user ? 7 : 22,
-                      borderBottomLeftRadius: user ? 22 : 7,
-                      backgroundColor: user ? colors.blue : "#EEEEF0",
-                    }}
-                  >
-                    {user ? (
-                      <Text selectable style={[s.text, { fontSize: 16, lineHeight: 24 }]}>
-                        {text}
-                      </Text>
-                    ) : (
+                {!!text &&
+                  (user ? (
+                    <UserBubble text={text} />
+                  ) : (
+                    <AssistantTurn>
                       <AssistantResponse content={text} />
-                    )}
-                  </View>
-                )}
+                    </AssistantTurn>
+                  ))}
                 <JevInteractionContext.Provider
                   value={{
                     threadId,
@@ -659,8 +765,7 @@ export function ChatScreen({
                 </JevInteractionContext.Provider>
               </View>
             );
-          })
-        )}
+          })}
         {!!latestDesktop && (
           <DesktopToolCard
             live
@@ -717,36 +822,7 @@ export function ChatScreen({
             )}
           </>
         )}
-        {(!richThreads || selection.id === mainId) && <BackgroundUpdates />}
-        {(busy || agent.isRunning) && (
-          <View
-            accessibilityLabel="智能体工作中"
-            style={[
-              s.row,
-              {
-                alignSelf: "flex-start",
-                gap: 7,
-                paddingHorizontal: 19,
-                paddingVertical: 18,
-                backgroundColor: "#EEEEF0",
-                borderRadius: 28,
-              },
-            ]}
-          >
-            {[0.4, 0.75, 0.5].map((opacity) => (
-              <View
-                key={opacity}
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: colors.muted,
-                  opacity,
-                }}
-              />
-            ))}
-          </View>
-        )}
+        {replying && <QuietDots label="正在回复" />}
         <ErrorNotice error={error} />
         {!!error && (
           <Button
@@ -765,6 +841,17 @@ export function ChatScreen({
           </Button>
         )}
       </ScrollView>
+      {scrolledFromTop ? (
+        <View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
+          <SurfaceFade color={colors.canvas} edge="top" size={SCROLL_FADE_PX} />
+        </View>
+      ) : null}
+      {awayFromLatest ? (
+        <View pointerEvents="none" style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
+          <SurfaceFade color={colors.canvas} edge="bottom" size={SCROLL_FADE_PX} />
+        </View>
+      ) : null}
+      </View>
       {awayFromLatest && (
         <Button
           small
@@ -779,6 +866,7 @@ export function ChatScreen({
           最新消息
         </Button>
       )}
+      {(!richThreads || selection.id === mainId) && <BackgroundUpdates />}
       <KeyboardAvoidingView
         // Manual keyboardPadding handles iOS + Android; avoid double-lift from behavior="padding".
         behavior={undefined}
@@ -797,10 +885,25 @@ export function ChatScreen({
           </Button>
         )}
         {!!outbox.pending.length && (
-          <View style={{ padding: 12, gap: 6 }}>
-            <Text style={s.small}>
-              {outbox.paused ? "排队中的消息" : "下一条"} · Keep the app open until sent
-            </Text>
+          <View
+            style={{
+              marginBottom: 8,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              gap: 8,
+              borderRadius: 16,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.line,
+              borderLeftWidth: 3,
+              borderLeftColor: outbox.paused ? colors.muted : colors.blueDark,
+            }}
+          >
+            <EventHeading
+              state={outbox.paused ? "paused" : "running"}
+              title={outbox.paused ? "有消息在排队" : "下一条即将发送"}
+              detail="发送前请保持应用打开。"
+            />
             {outbox.pending.map((message) => (
               <View key={message.id} style={[s.row, { gap: 8 }]}>
                 <Text numberOfLines={2} style={[s.muted, { flex: 1 }]}>
@@ -870,17 +973,25 @@ export function ChatScreen({
           </Card>
         )}
         <View
+          ref={composerRef}
           style={{
             backgroundColor: "#FFF",
-            borderRadius: 32,
-            borderWidth: 1,
-            borderColor: focused ? "#C7E4F9" : "#EEF0F2",
+            borderRadius: 20,
             padding: 8,
-            shadowColor: "#18384B",
-            shadowOpacity: focused ? 0.1 : 0.06,
-            shadowRadius: 20,
-            shadowOffset: { width: 0, height: 4 },
-            elevation: 4,
+            ...(Platform.OS === "web"
+              ? {
+                  borderWidth: 0,
+                  boxShadow: composerBoxShadow(chrome),
+                }
+              : {
+                  borderWidth: 1,
+                  borderColor: composerBorderColor(chrome),
+                  shadowColor: "#18384B",
+                  shadowOpacity: chrome === "focus" ? 0.08 : chrome === "hover" ? 0.06 : 0.035,
+                  shadowRadius: chrome === "rest" ? 20 : 24,
+                  shadowOffset: { width: 0, height: 4 },
+                  elevation: chrome === "focus" ? 3 : 2,
+                }),
           }}
         >
           {attachments.length > 0 && (
@@ -937,7 +1048,11 @@ export function ChatScreen({
               </Text>
             </Pressable>
             <TextInput
+              ref={inputRef}
               accessibilityLabel="给 Kleio 发消息"
+              accessibilityHint={
+                Platform.OS === "web" ? "Enter 发送，Shift+Enter 换行" : undefined
+              }
               value={draft}
               onChangeText={setDraft}
               onContentSizeChange={(event) =>
@@ -974,13 +1089,24 @@ export function ChatScreen({
               onKeyPress={
                 Platform.OS === "web"
                   ? (event) => {
+                      const native = event.nativeEvent as {
+                        key: string;
+                        shiftKey?: boolean;
+                        isComposing?: boolean;
+                        keyCode?: number;
+                      };
                       if (
-                        event.nativeEvent.key === "Enter" &&
-                        !("shiftKey" in event.nativeEvent && event.nativeEvent.shiftKey)
-                      ) {
-                        event.preventDefault();
-                        send();
-                      }
+                        !shouldCommitComposerEnter({
+                          key: native.key,
+                          shiftKey: native.shiftKey,
+                          isComposing: native.isComposing,
+                          keyCode: native.keyCode,
+                          composing: composing.current,
+                        })
+                      )
+                        return;
+                      event.preventDefault();
+                      send();
                     }
                   : undefined
               }

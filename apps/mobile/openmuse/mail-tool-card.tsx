@@ -1,9 +1,10 @@
 import { Mail, Search } from "lucide-react-native";
 import { useContext } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { Text } from "react-native";
 import { z } from "zod";
 import { BrowserRunContext } from "./browser-tool-card";
-import { Button, Card, colors, ErrorNotice, s } from "./ui";
+import { StreamCard } from "./chat-stream";
+import { Button, colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
 const messageSchema = z.object({
@@ -40,62 +41,64 @@ export function MailToolCard({
     }
   }
   const error = z.object({ error: z.string() }).safeParse(value);
-  if (error.success) return <ErrorNotice error={error.data.error} />;
+  if (error.success)
+    return (
+      <StreamCard state="error" title="无法读取邮件" icon={<Mail size={16} color={colors.danger} />}>
+        <ErrorNotice error={error.data.error} />
+      </StreamCard>
+    );
   if (loading)
     return (
-      <View style={[s.row, { gap: 10, padding: 14 }]}>
-        {active ? (
-          <ActivityIndicator size="small" color={colors.blueDark} />
-        ) : (
-          <Mail size={16} color={colors.muted} />
-        )}
-        <Text style={s.muted}>
-          {!active ? "邮件阅读已暂停" : search ? "正在查看收件箱…" : "正在阅读邮件…"}
-        </Text>
-      </View>
+      <StreamCard
+        state={active ? "running" : "paused"}
+        title={!active ? "邮件阅读已暂停" : search ? "正在查看收件箱…" : "正在阅读邮件…"}
+        icon={<Mail size={16} color={colors.blueDark} />}
+      />
     );
   if (search) {
     const parsed = z
       .object({ matches: z.array(z.object({ id: z.string() })), truncated: z.boolean() })
       .safeParse(value);
     if (!parsed.success)
-      return <ErrorNotice error="邮箱未返回可读结果。" />;
+      return (
+        <StreamCard state="error" title="无法读取邮件" icon={<Search size={16} color={colors.danger} />}>
+          <ErrorNotice error="邮箱未返回可读结果。" />
+        </StreamCard>
+      );
     const count = parsed.data.matches.length;
     return (
-      <View style={[s.row, { gap: 9, padding: 12 }]}>
-        <Search size={16} color={colors.muted} />
-        <Text style={s.muted}>
-          {count
-            ? `Found ${parsed.data.truncated ? "at least " : ""}${count} ${count === 1 ? "email" : "emails"}`
-            : "没有匹配的邮件"}
-        </Text>
-      </View>
+      <StreamCard
+        state={count ? "done" : "paused"}
+        title={
+          count
+            ? `找到${parsed.data.truncated ? "至少 " : " "}${count} 封邮件`
+            : "没有匹配的邮件"
+        }
+        icon={<Search size={16} color={colors.blueDark} />}
+      />
     );
   }
   const parsed = z
     .object({ messages: z.array(messageSchema), truncated: z.boolean() })
     .safeParse(value);
-  if (!parsed.success) return <ErrorNotice error="无法显示该邮件。" />;
+  if (!parsed.success)
+    return (
+      <StreamCard state="error" title="无法显示该邮件" icon={<Mail size={16} color={colors.danger} />}>
+        <ErrorNotice error="无法显示该邮件。" />
+      </StreamCard>
+    );
   const message = parsed.data.messages.at(-1);
-  if (!message) return <Text style={s.muted}>此会话中没有消息。</Text>;
+  if (!message)
+    return (
+      <StreamCard state="paused" title="此会话中没有消息" icon={<Mail size={16} color={colors.muted} />} />
+    );
   return (
-    <Card
-      style={{ padding: 18, gap: 14, backgroundColor: "#F0EFF2", maxWidth: 440, width: "100%" }}
+    <StreamCard
+      state="done"
+      title={message.sender}
+      detail={`邮件 · ${parsed.data.messages.length} 封`}
+      icon={<Mail size={16} color={colors.blueDark} />}
     >
-      <View style={[s.row, { gap: 10 }]}>
-        <View style={[s.iconBox, { backgroundColor: "#E9F5FC" }]}>
-          <Mail size={20} color={colors.blueDark} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.text, { fontWeight: "600" }]}>{message.sender}</Text>
-          <Text style={s.small}>
-            Email ·{" "}
-            {parsed.data.messages.length === 1
-              ? "1 封邮件"
-              : `${parsed.data.messages.length} messages`}
-          </Text>
-        </View>
-      </View>
       <Text style={s.heading}>{message.subject}</Text>
       <Text style={s.muted} numberOfLines={3}>
         {message.body}
@@ -104,6 +107,6 @@ export function MailToolCard({
       <Button small icon={Mail} onPress={() => open({ type: "mail", mail: message })}>
         打开邮件
       </Button>
-    </Card>
+    </StreamCard>
   );
 }
