@@ -1,4 +1,4 @@
-import { KleioHeadlessProvider } from "./kleio-headless";
+import { KleioHeadlessProvider, useThreads } from "./kleio-headless";
 import { StatusBar } from "expo-status-bar";
 import {
   Bell,
@@ -28,7 +28,6 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import type { Section, Workspace } from "../../../packages/openmuse-domain/src";
 import {
   AgentActivityScreen,
-  AgentStatus,
   AppsScreen,
   GoalsScreen,
   IdeasScreen,
@@ -36,7 +35,8 @@ import {
 import { AgentWorkspaceProvider, useAgentWorkspace } from "./agent-workspace";
 import { API_URL, createSession, MuseApi } from "./api";
 import { ChatScreen, WorkspaceTools } from "./chat";
-import { QuietDots } from "./chat-stream";
+import { ChatStatusScreen, ThreadTitleBar } from "./chat-stream";
+import { chatShellStatus, sideThreadTitle, threadStatusCopy } from "./chat-stream-rules";
 import { ComputerEntry } from "./computer";
 import { ComputerDraftProvider } from "./computer-drafts";
 import { Details } from "./details";
@@ -240,7 +240,7 @@ function WorkspaceShell({
   prompt?: { id: number; text: string };
 }) {
   const { workspace, section, navigate, open } = useWorkspace();
-  const { data } = useAgentWorkspace();
+  const { data, error: agentLinkError } = useAgentWorkspace();
   const {
     selection,
     visited,
@@ -250,6 +250,12 @@ function WorkspaceShell({
     retry: retryThreads,
     enabled: richThreads,
   } = useMuseThread();
+  const catalog = useThreads({
+    agentId: "default",
+    enabled: richThreads,
+    includeArchived: true,
+    limit: 20,
+  });
   const [threadsOpen, setThreadsOpen] = useState(false);
   const { width } = useWindowDimensions();
   const desktop = width >= 900;
@@ -261,15 +267,23 @@ function WorkspaceShell({
       (task) => task.status === "waiting_approval" || task.status === "waiting_input",
     ) || data?.tasks.find((task) => task.status === "running");
   const agentName = data?.identity.name || "Kleio";
-  const status = activeTask
-    ? activeTask.status === "waiting_approval"
-      ? `待你审阅 · ${activeTask.title}`
-      : activeTask.status === "waiting_input"
-        ? `需要你补充 · ${activeTask.title}`
-        : activeTask.plan.find((step) => step.status === "running")?.title || activeTask.title
-    : data?.tasks.some((task) => task.status === "queued")
-      ? "正在接下一项任务…"
-      : "有需要时我就在";
+  const runningTitle =
+    activeTask &&
+    activeTask.status !== "waiting_approval" &&
+    activeTask.status !== "waiting_input"
+      ? activeTask.plan.find((step) => step.status === "running")?.title || activeTask.title
+      : null;
+  const status = chatShellStatus({
+    approval: activeTask?.status === "waiting_approval" ? activeTask.title : null,
+    needsInput: activeTask?.status === "waiting_input" ? activeTask.title : null,
+    running: runningTitle,
+    queued: !activeTask && !!data?.tasks.some((task) => task.status === "queued"),
+    connecting: !data && !agentLinkError,
+    connectFailed: !!agentLinkError && !data,
+    reconnecting: !!agentLinkError && !!data?.worker.running,
+    offline: !!data && !data.worker.running,
+  });
+  const openingCopy = threadStatusCopy(threadsError ? "opening-failed" : "opening");
   const title = titles[section] || titles.apps;
   const Screen =
     section === "mail"
@@ -344,7 +358,7 @@ function WorkspaceShell({
                 </Text>
                 <Text
                   numberOfLines={1}
-                  style={{ fontSize: 11, color: colors.muted, marginBottom: 6 }}
+                  style={{ fontSize: 12, lineHeight: 16, color: colors.muted, marginBottom: 4 }}
                 >
                   {status}
                 </Text>
@@ -373,6 +387,9 @@ function WorkspaceShell({
               )}
             </View>
           </View>
+          {section === "chat" ? (
+            <View style={{ height: 1, backgroundColor: colors.line }} />
+          ) : null}
           <View style={{ flex: 1, minHeight: 0 }}>
             {section !== "chat" && (
               <ScrollView
@@ -402,20 +419,25 @@ function WorkspaceShell({
                 paddingHorizontal: desktop ? 42 : 17,
               }}
             >
-              <AgentStatus />
-              {richThreads ? (
+              {richThreads && (threadsError || threadsLoading) ? (
+                <ChatStatusScreen
+                  busy={openingCopy.busy}
+                  tone={openingCopy.tone}
+                  title={openingCopy.title}
+                  detail={openingCopy.detail}
+                  note={threadsError || undefined}
+                  actionLabel={threadsError ? openingCopy.actionLabel : undefined}
+                  onAction={threadsError ? retryThreads : undefined}
+                />
+              ) : richThreads ? (
                 <>
-                  <ErrorNotice error={threadsError} />
-                  {threadsError ? (
-                    <Button onPress={retryThreads}>重试主对话</Button>
-                  ) : threadsLoading ? (
-                    <QuietDots label="正在打开对话" />
+                  {selection.id !== mainId ? (
+                    <ThreadTitleBar
+                      {...sideThreadTitle(
+                        catalog.threads.find((item) => item.id === selection.id)?.name,
+                      )}
+                    />
                   ) : null}
-                  {!threadsLoading && selection.id !== mainId && (
-                    <Text style={[s.small, { textAlign: "center", marginBottom: 8 }]}>
-                      旁路对话
-                    </Text>
-                  )}
                   {visited.map((thread) => (
                     <View
                       key={thread.id}

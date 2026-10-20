@@ -128,10 +128,212 @@ export function composerPlaceholder(input: {
   ready: boolean;
   loaded: boolean;
   historyFailed: boolean;
+  /** Background worker is down. Drafting still works; the line says so. */
+  offline?: boolean;
+  /** The last workspace read failed. Connection copy wins over a loading line. */
+  reconnecting?: boolean;
 }): string {
+  if (input.reconnecting) return "正在重新连接…";
   if (!input.ready) return "正在连接…";
+  if (input.offline) return "Kleio 暂时离线";
   if (!input.loaded) return input.historyFailed ? "对话暂时不可用" : "正在加载对话…";
   return "跟 Kleio 说";
+}
+
+/**
+ * One line under the portrait. A person who must act comes first.
+ * Offline and reconnect stay quieter than an approval, and louder than idle.
+ */
+export function chatShellStatus(input: {
+  approval?: string | null;
+  needsInput?: string | null;
+  running?: string | null;
+  queued?: boolean;
+  connecting?: boolean;
+  reconnecting?: boolean;
+  connectFailed?: boolean;
+  offline?: boolean;
+}): string {
+  if (input.approval?.trim()) return `待你审阅 · ${input.approval.trim()}`;
+  if (input.needsInput?.trim()) return `需要你补充 · ${input.needsInput.trim()}`;
+  if (input.offline) return "暂时离线";
+  if (input.connectFailed) return "没能连上";
+  if (input.reconnecting) return "正在重新连接";
+  if (input.connecting) return "正在连接";
+  if (input.running?.trim()) return input.running.trim();
+  if (input.queued) return "正在接下一项任务…";
+  return "有需要时我就在";
+}
+
+/** Side threads name themselves. The main thread keeps the portrait as its title. */
+export function sideThreadTitle(name?: string): { title: string; detail: string } {
+  const title = name?.trim() || "旁路对话";
+  return { title, detail: "和主对话分开" };
+}
+
+/** Title row and centered status type, in the same sizes as bubbles and tool cards. */
+export const threadChrome = {
+  titleSize: 15,
+  titleLine: 20,
+  detailSize: 12,
+  detailLine: 16,
+  barPadBottom: 2,
+  statusTitle: 20,
+  statusTitleLine: 26,
+  statusHero: 24,
+  statusHeroLine: 31,
+  statusGap: 8,
+} as const;
+
+export type ThreadStatusKind =
+  | "opening"
+  | "opening-failed"
+  | "connecting"
+  | "reconnecting"
+  | "connect-failed"
+  | "offline"
+  | "loading"
+  | "syncing"
+  | "history-failed"
+  | "history-partial"
+  | "empty-side"
+  | "run-failed";
+
+export type ThreadStatusTone = "neutral" | "paused" | "error";
+
+export type ThreadStatusCopy = {
+  title: string;
+  detail: string;
+  actionLabel?: string;
+  busy: boolean;
+  tone: ThreadStatusTone;
+};
+
+const THREAD_STATUS: Record<ThreadStatusKind, ThreadStatusCopy> = {
+  opening: {
+    title: "正在打开对话",
+    detail: "主对话会先出现在这里。",
+    busy: true,
+    tone: "neutral",
+  },
+  "opening-failed": {
+    title: "主对话没有打开",
+    detail: "已保存的消息未被改动。",
+    actionLabel: "重试",
+    busy: false,
+    tone: "error",
+  },
+  connecting: {
+    title: "正在连接",
+    detail: "连上之后，对话会从这里继续。",
+    busy: true,
+    tone: "neutral",
+  },
+  reconnecting: {
+    title: "正在重新连接",
+    detail: "这段对话还在。",
+    actionLabel: "再试一次",
+    busy: false,
+    tone: "neutral",
+  },
+  "connect-failed": {
+    title: "没能连上 Kleio",
+    detail: "已保存的对话还在。",
+    actionLabel: "再试一次",
+    busy: false,
+    tone: "error",
+  },
+  offline: {
+    title: "Kleio 暂时离线",
+    detail: "已保存的对话还在。恢复后从这里继续。",
+    actionLabel: "重新连接",
+    busy: false,
+    tone: "paused",
+  },
+  loading: {
+    title: "正在接上这段对话",
+    detail: "已保存的消息会原样出现在这里。",
+    busy: true,
+    tone: "neutral",
+  },
+  syncing: {
+    title: "正在同步尚未结束的回复",
+    detail: "同步完成前，新消息会排在输入框上方。",
+    busy: true,
+    tone: "neutral",
+  },
+  "history-failed": {
+    title: "这段对话没有载入",
+    detail: "已保存的消息未被改动。",
+    actionLabel: "重试加载",
+    busy: false,
+    tone: "error",
+  },
+  "history-partial": {
+    title: "这段对话没有完整载入",
+    detail: "已保存的消息未被改动。",
+    actionLabel: "重试加载",
+    busy: false,
+    tone: "error",
+  },
+  "empty-side": {
+    title: "这条对话还是空的",
+    detail: "写一句就开始。",
+    busy: false,
+    tone: "neutral",
+  },
+  "run-failed": {
+    title: "这次回复没有完成",
+    detail: "可以再试一次。",
+    actionLabel: "重试回复",
+    busy: false,
+    tone: "error",
+  },
+};
+
+/** Short Chinese for one thread status. Callers add the server note separately. */
+export function threadStatusCopy(kind: ThreadStatusKind): ThreadStatusCopy {
+  return { ...THREAD_STATUS[kind] };
+}
+
+export type ThreadPlace =
+  | { place: "screen"; kind: ThreadStatusKind }
+  | { place: "banner"; kind: ThreadStatusKind }
+  | { place: "cue"; kind: "syncing" }
+  | { place: "hero" }
+  | { place: "messages" };
+
+/**
+ * One status in the thread. A full screen only when there is nothing to read.
+ * With messages, a single banner or cue — history, then offline, then reconnect.
+ */
+export function threadSurface(input: {
+  historyFailed: boolean;
+  loaded: boolean;
+  syncing: boolean;
+  hasMessages: boolean;
+  replying: boolean;
+  side: boolean;
+  connectFailed: boolean;
+  reconnecting: boolean;
+  offline: boolean;
+}): ThreadPlace {
+  if (!input.hasMessages) {
+    if (input.historyFailed) return { place: "screen", kind: "history-failed" };
+    if (!input.loaded) return { place: "screen", kind: "loading" };
+    if (input.syncing) return { place: "screen", kind: "syncing" };
+    if (input.connectFailed) return { place: "screen", kind: "connect-failed" };
+    if (input.offline) return { place: "screen", kind: "offline" };
+    if (input.reconnecting) return { place: "screen", kind: "reconnecting" };
+    if (input.side) return { place: "screen", kind: "empty-side" };
+    return { place: "hero" };
+  }
+  if (input.historyFailed) return { place: "banner", kind: "history-partial" };
+  if (input.offline) return { place: "banner", kind: "offline" };
+  if (input.connectFailed) return { place: "banner", kind: "connect-failed" };
+  if (input.reconnecting) return { place: "banner", kind: "reconnecting" };
+  if (input.syncing && !input.replying) return { place: "cue", kind: "syncing" };
+  return { place: "messages" };
 }
 
 /** Running, pending, and failed work stays open. A finished or paused card starts as a one-line receipt. */

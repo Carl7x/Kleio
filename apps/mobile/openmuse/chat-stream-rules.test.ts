@@ -43,8 +43,13 @@ import {
   browserOpenLabel,
   browserSessionSubtitle,
   browserStatusLabel,
+  chatShellStatus,
   desktopStepLabel,
   emptyThreadSuggestions,
+  sideThreadTitle,
+  threadChrome,
+  threadStatusCopy,
+  threadSurface,
   fileAddedLine,
   fileDetailLine,
   fileSourceLabel,
@@ -374,6 +379,110 @@ test("empty thread keeps three Kleio suggestions and drops demo stubs", () => {
   assert.equal(toolCardChrome.chevron, 14);
   assert.equal(suggestionRowChrome.radius, toolCardChrome.radius);
   assert.equal(browserAddressHint(), "输入网址，例如 example.com。");
+});
+
+test("thread status copy stays short, Chinese, and has one action when a person can do something", () => {
+  const kinds = [
+    "opening",
+    "opening-failed",
+    "connecting",
+    "reconnecting",
+    "connect-failed",
+    "offline",
+    "loading",
+    "syncing",
+    "history-failed",
+    "history-partial",
+    "empty-side",
+    "run-failed",
+  ] as const;
+  const lines = kinds.map((kind) => {
+    const copy = threadStatusCopy(kind);
+    assert.ok(copy.title.length > 0 && copy.title.length <= 16);
+    assert.ok(copy.detail.length > 0 && copy.detail.length <= 28);
+    return `${copy.title} ${copy.detail} ${copy.actionLabel ?? ""}`;
+  });
+  assert.equal(threadStatusCopy("opening").busy, true);
+  assert.equal(threadStatusCopy("opening-failed").actionLabel, "重试");
+  assert.equal(threadStatusCopy("offline").tone, "paused");
+  assert.equal(threadStatusCopy("offline").actionLabel, "重新连接");
+  assert.equal(threadStatusCopy("history-failed").actionLabel, "重试加载");
+  assert.equal(threadStatusCopy("empty-side").actionLabel, undefined);
+  assert.equal(threadStatusCopy("run-failed").actionLabel, "重试回复");
+  assert.doesNotMatch(lines.join("\n"), /\b(retry|offline|loading|error|connect|failed|thread|message)\b/i);
+  assert.equal(threadChrome.statusTitle < threadChrome.statusHero, true);
+  assert.equal(threadChrome.titleSize, 15);
+});
+
+test("an empty thread picks one status, and messages keep a single banner", () => {
+  const quiet = {
+    historyFailed: false,
+    loaded: true,
+    syncing: false,
+    hasMessages: false,
+    replying: false,
+    side: false,
+    connectFailed: false,
+    reconnecting: false,
+    offline: false,
+  };
+  assert.deepEqual(threadSurface(quiet), { place: "hero" });
+  assert.deepEqual(threadSurface({ ...quiet, side: true }), { place: "screen", kind: "empty-side" });
+  assert.deepEqual(threadSurface({ ...quiet, loaded: false }), { place: "screen", kind: "loading" });
+  assert.deepEqual(threadSurface({ ...quiet, loaded: false, historyFailed: true }), {
+    place: "screen",
+    kind: "history-failed",
+  });
+  assert.deepEqual(threadSurface({ ...quiet, syncing: true }), { place: "screen", kind: "syncing" });
+  assert.deepEqual(threadSurface({ ...quiet, offline: true, reconnecting: true }), {
+    place: "screen",
+    kind: "offline",
+  });
+  assert.deepEqual(threadSurface({ ...quiet, connectFailed: true }), {
+    place: "screen",
+    kind: "connect-failed",
+  });
+  assert.deepEqual(threadSurface({ ...quiet, hasMessages: true, historyFailed: true, offline: true }), {
+    place: "banner",
+    kind: "history-partial",
+  });
+  assert.deepEqual(threadSurface({ ...quiet, hasMessages: true, offline: true, syncing: true }), {
+    place: "banner",
+    kind: "offline",
+  });
+  assert.deepEqual(
+    threadSurface({ ...quiet, hasMessages: true, syncing: true, replying: false }),
+    { place: "cue", kind: "syncing" },
+  );
+  assert.deepEqual(
+    threadSurface({ ...quiet, hasMessages: true, syncing: true, replying: true }),
+    { place: "messages" },
+  );
+  assert.deepEqual(threadSurface({ ...quiet, hasMessages: true }), { place: "messages" });
+});
+
+test("shell status and side-thread titles stay one short line", () => {
+  assert.equal(chatShellStatus({ approval: "寄合同" }), "待你审阅 · 寄合同");
+  assert.equal(chatShellStatus({ approval: "寄合同", offline: true }), "待你审阅 · 寄合同");
+  assert.equal(chatShellStatus({ needsInput: "地址" }), "需要你补充 · 地址");
+  assert.equal(chatShellStatus({ offline: true, reconnecting: true }), "暂时离线");
+  assert.equal(chatShellStatus({ connectFailed: true }), "没能连上");
+  assert.equal(chatShellStatus({ reconnecting: true }), "正在重新连接");
+  assert.equal(chatShellStatus({ connecting: true }), "正在连接");
+  assert.equal(chatShellStatus({ running: "整理行程" }), "整理行程");
+  assert.equal(chatShellStatus({ queued: true }), "正在接下一项任务…");
+  assert.equal(chatShellStatus({}), "有需要时我就在");
+  assert.deepEqual(sideThreadTitle("  "), { title: "旁路对话", detail: "和主对话分开" });
+  assert.deepEqual(sideThreadTitle("旅行"), { title: "旅行", detail: "和主对话分开" });
+  assert.equal(composerPlaceholder({ ready: true, loaded: true, historyFailed: false, offline: true }), "Kleio 暂时离线");
+  assert.equal(
+    composerPlaceholder({ ready: true, loaded: false, historyFailed: false, reconnecting: true }),
+    "正在重新连接…",
+  );
+  assert.doesNotMatch(
+    [chatShellStatus({ offline: true }), sideThreadTitle().title, sideThreadTitle().detail].join("\n"),
+    /\b(offline|thread|side|reconnect)\b/i,
+  );
 });
 
 test("long user messages collapse; short ones stay open", () => {

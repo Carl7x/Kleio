@@ -40,6 +40,7 @@ import {
   knownOperationStatus,
   monitorCadenceLine,
   monitorCheckLine,
+  threadStatusCopy,
 } from "./chat-stream-rules";
 import { ActivityScreen, ConnectionsScreen } from "./screens";
 import {
@@ -93,21 +94,20 @@ function activeTask(task: AgentTask) {
 export function AgentStatus() {
   const { data, error, refresh } = useAgentWorkspace();
   if (data?.worker.running && !error) return null;
+  const connecting = threadStatusCopy("connecting");
+  const failed = threadStatusCopy(data ? "reconnecting" : "connect-failed");
+  const offline = threadStatusCopy("offline");
   return (
     <View style={{ gap: 8 }}>
-      <ErrorNotice error={error ? `智能体更新不可用。${error}` : ""} />
+      <ErrorNotice error={error ? `${failed.title}。${error}` : ""} />
       {!!error && (
         <Button small onPress={() => void refresh().catch(() => {})}>
-          重新连接智能体
+          {failed.actionLabel}
         </Button>
       )}
-      {!data && !error && <QuietDots label="正在连接 Kleio" />}
+      {!data && !error && <QuietDots label={connecting.title} />}
       {data && !data.worker.running && (
-        <StreamCard
-          state="paused"
-          title="工作进程离线"
-          detail="已保存的工作会在重连后继续。"
-        />
+        <StreamCard state="paused" title={offline.title} detail={offline.detail} />
       )}
     </View>
   );
