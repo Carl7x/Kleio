@@ -51,6 +51,7 @@ import {
   composerSendFace,
   listedBackgroundTasks,
   liveTurnCue,
+  savedResultReceiptAction,
   SCROLL_FADE_PX,
 } from "./chat-stream-rules";
 import {
@@ -58,6 +59,7 @@ import {
   ChatStatusScreen,
   EventHeading,
   QuietDots,
+  ReceiptAction,
   shouldCommitComposerEnter,
   StreamCard,
   SurfaceFade,
@@ -240,33 +242,33 @@ function ServerToolCard({
     );
   }
   const failed = Boolean(toolError);
-  const showAction = !loading && !failed;
+  const receipt = savedResultReceiptAction({ name, loading, failed });
   return (
     <StreamCard
-      collapsible={failed || showAction}
+      collapsible={failed}
       state={failed ? "error" : loading ? "running" : "done"}
       title={loading ? `正在保存${name}…` : name}
       detail={
         failed ? undefined : loading ? "正在等待服务器。" : "打开工作台查看已保存的结果。"
       }
+      action={
+        receipt ? (
+          <ReceiptAction
+            label={receipt.label}
+            onPress={() =>
+              navigate(
+                name === "目标" || name === "盯梢"
+                  ? "goals"
+                  : name === "记忆"
+                    ? "apps"
+                    : "activity",
+              )
+            }
+          />
+        ) : null
+      }
     >
       {toolError ? <ErrorNotice error={toolError} /> : null}
-      {showAction ? (
-        <Button
-          small
-          onPress={() =>
-            navigate(
-              name === "目标" || name === "盯梢"
-                ? "goals"
-                : name === "记忆"
-                  ? "apps"
-                  : "activity",
-            )
-          }
-        >
-          {`查看${name}`}
-        </Button>
-      ) : null}
     </StreamCard>
   );
 }
@@ -851,7 +853,7 @@ export function ChatScreen({
           </View>
         )}
         {liveCue === "writing" && (
-          <View style={[s.row, { gap: 8, alignSelf: "flex-start", paddingVertical: 4 }]}>
+          <View style={[s.row, { gap: 8, alignSelf: "flex-start", paddingVertical: 2 }]}>
             <Mascot size={28} />
             <Text style={s.muted}>正在写回复</Text>
           </View>
@@ -1044,6 +1046,8 @@ export function ChatScreen({
                         gap: 4,
                         maxWidth: "100%",
                         backgroundColor: colors.sky,
+                        borderWidth: 1,
+                        borderColor: colors.line,
                         borderRadius: 8,
                         paddingHorizontal: 8,
                         paddingVertical: 4,

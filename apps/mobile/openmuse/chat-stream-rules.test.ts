@@ -1,15 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  approvalAttachmentLine,
+  approvalCalendarName,
+  approvalEndNote,
+  approvalExpirySentence,
+  approvalKindLabel,
+  approvalProposeLabel,
+  approvalStatusLabel,
   backgroundStreamState,
   backgroundToolKind,
+  browserReceiptAction,
   choiceRowQuiet,
   composerBorderColor,
   composerBoxShadow,
   composerChrome,
   composerSendFace,
+  desktopReceiptActions,
   listedBackgroundTasks,
   liveTurnCue,
+  mailReceiptAction,
+  savedResultReceiptAction,
+  searchReceiptAction,
   shouldCommitComposerEnter,
   surfaceFadeAlphas,
   toolCardStartsOpen,
@@ -103,6 +115,68 @@ test("a settled choice keeps only the chosen row in full", () => {
   assert.equal(choiceRowQuiet(null, "a"), false);
   assert.equal(choiceRowQuiet("a", "a"), false);
   assert.equal(choiceRowQuiet("a", "b"), true);
+});
+
+test("folded tool cards keep the primary action on the receipt", () => {
+  assert.equal(mailReceiptAction({ search: false, failed: false, hasMessage: true })?.label, "打开邮件");
+  assert.equal(mailReceiptAction({ search: false, failed: false, hasMessage: true })?.staysOnReceipt, true);
+  assert.equal(mailReceiptAction({ search: true, failed: false, hasMessage: true }), null);
+  assert.equal(mailReceiptAction({ search: false, failed: true, hasMessage: true }), null);
+  assert.equal(searchReceiptAction({ loading: false, failed: false, sourceCount: 1 })?.label, "打开来源");
+  assert.equal(searchReceiptAction({ loading: false, failed: false, sourceCount: 3 })?.label, "打开首个来源");
+  assert.equal(searchReceiptAction({ loading: true, failed: false, sourceCount: 3 }), null);
+  assert.equal(searchReceiptAction({ loading: false, failed: true, sourceCount: 3 }), null);
+  assert.equal(searchReceiptAction({ loading: false, failed: false, sourceCount: 0 }), null);
+  assert.equal(browserReceiptAction({ loading: false, hasVisit: true })?.label, "接管控制");
+  assert.equal(browserReceiptAction({ loading: true, hasVisit: true }), null);
+  assert.equal(browserReceiptAction({ loading: false, hasVisit: false }), null);
+  assert.deepEqual(
+    desktopReceiptActions({ offline: false, starting: false }).map((item) => item.label),
+    ["在「桌面」页打开"],
+  );
+  assert.deepEqual(
+    desktopReceiptActions({ offline: true, starting: false }).map((item) => item.label),
+    ["启动电脑", "在「桌面」页打开"],
+  );
+  assert.deepEqual(
+    desktopReceiptActions({ offline: true, starting: true }).map((item) => item.label),
+    ["启动中…", "在「桌面」页打开"],
+  );
+  assert.equal(desktopReceiptActions({ offline: true, starting: false }).every((item) => item.staysOnReceipt), true);
+  assert.equal(savedResultReceiptAction({ name: "记忆", loading: false, failed: false })?.label, "查看记忆");
+  assert.equal(savedResultReceiptAction({ name: "目标", loading: false, failed: false })?.label, "查看目标");
+  assert.equal(savedResultReceiptAction({ name: "盯梢", loading: false, failed: false })?.label, "查看盯梢");
+  assert.equal(savedResultReceiptAction({ name: "记忆", loading: true, failed: false }), null);
+  assert.equal(savedResultReceiptAction({ name: "记忆", loading: false, failed: true }), null);
+});
+
+test("approval copy stays in Chinese and matches the chat shell", () => {
+  assert.equal(approvalStatusLabel("awaiting_review"), "待你审阅");
+  assert.equal(approvalStatusLabel("executing"), "正在执行");
+  assert.equal(approvalStatusLabel("succeeded"), "已完成");
+  assert.equal(approvalStatusLabel("failed"), "未完成");
+  assert.equal(approvalStatusLabel("denied"), "未继续");
+  assert.equal(approvalStatusLabel("expired"), "已过期");
+  assert.equal(approvalStatusLabel("awaiting review"), "状态待更新");
+  assert.equal(approvalKindLabel("email.send"), "发送邮件");
+  assert.equal(approvalKindLabel("calendar.create"), "新建日程");
+  assert.equal(approvalKindLabel("calendar.update"), "更改日程");
+  assert.equal(approvalKindLabel("calendar.delete"), "删除日程");
+  assert.equal(approvalKindLabel("email · send"), "这项操作");
+  assert.equal(approvalProposeLabel(false), "提交审阅");
+  assert.equal(approvalProposeLabel(true), "审阅变更");
+  assert.equal(
+    approvalExpirySentence("2026年10月20日 17:03"),
+    "请在 2026年10月20日 17:03 前确认。这次确认只对上面这些内容有效。",
+  );
+  assert.doesNotMatch(approvalExpirySentence("明天"), /review|approval|expires/i);
+  assert.equal(approvalCalendarName("primary"), "主日历");
+  assert.equal(approvalCalendarName(""), "主日历");
+  assert.equal(approvalCalendarName("family"), "family");
+  assert.equal(approvalEndNote(true), "（不含这一天）");
+  assert.equal(approvalEndNote(false), "");
+  assert.equal(approvalAttachmentLine("合同.pdf", "abc123456789"), "合同.pdf · 版本 23456789");
+  assert.doesNotMatch(approvalAttachmentLine("合同.pdf", "abc123456789"), /version/i);
 });
 
 test("long user messages collapse; short ones stay open", () => {
