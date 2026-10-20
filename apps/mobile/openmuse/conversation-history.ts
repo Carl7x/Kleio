@@ -3,8 +3,8 @@ import type { Execution, Message as SavedMessage, ProductEvent } from "../src/ap
 export type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
 export type ToolMessage = { id: string; role: "tool"; toolCallId: string; content: string };
 export type Message =
-  | { id: string; role: "user"; content: string }
-  | { id: string; role: "assistant"; content: string; toolCalls?: ToolCall[] }
+  | { id: string; role: "user"; content: string; createdAt?: string }
+  | { id: string; role: "assistant"; content: string; toolCalls?: ToolCall[]; createdAt?: string }
   | ToolMessage;
 type AssistantMessage = Extract<Message, { role: "assistant" }>;
 
@@ -16,8 +16,13 @@ export function executionMessages(execution: Execution, events: readonly Product
   let current: AssistantMessage | undefined;
   let afterTool = false;
   const tools = new Map<string, ToolCall>();
-  const makeMessage = (sequence: number) => {
-    const next: AssistantMessage = { id: `${execution.id}:assistant:${sequence}`, role: "assistant", content: "" };
+  const makeMessage = (sequence: number, createdAt?: string) => {
+    const next: AssistantMessage = {
+      id: `${execution.id}:assistant:${sequence}`,
+      role: "assistant",
+      content: "",
+      ...(createdAt ? { createdAt } : {}),
+    };
     messages.push(next);
     current = next;
     return next;
@@ -25,20 +30,20 @@ export function executionMessages(execution: Execution, events: readonly Product
   for (const event of [...events].sort((a, b) => a.sequence - b.sequence)) {
     const data = event.data;
     if (event.type === "text.delta" && typeof data.text === "string" && data.text) {
-      if (!current || afterTool) makeMessage(event.sequence);
+      if (!current || afterTool) makeMessage(event.sequence, event.createdAt);
       current!.content += data.text;
       afterTool = false;
     } else if (event.type === "tool.started" && typeof data.callId === "string" && typeof data.name === "string") {
       if (tools.has(data.callId)) continue;
       const call: ToolCall = { id: data.callId, type: "function", function: { name: displayToolName(data.name), arguments: JSON.stringify(data.args ?? {}) } };
-      if (!current) makeMessage(event.sequence);
+      if (!current) makeMessage(event.sequence, event.createdAt);
       current!.toolCalls = [...(current!.toolCalls ?? []), call];
       tools.set(call.id, call);
       afterTool = true;
     } else if ((event.type === "tool.completed" || event.type === "tool.failed") && typeof data.callId === "string") {
       if (!tools.has(data.callId) && typeof data.name === "string") {
         const call: ToolCall = { id: data.callId, type: "function", function: { name: displayToolName(data.name), arguments: "{}" } };
-        if (!current) makeMessage(event.sequence);
+        if (!current) makeMessage(event.sequence, event.createdAt);
         current!.toolCalls = [...(current!.toolCalls ?? []), call];
         tools.set(call.id, call);
       }
@@ -50,7 +55,7 @@ export function executionMessages(execution: Execution, events: readonly Product
   // Older saved turns without text events still retain their completed answer.
   if (!messages.some(item => item.role === "assistant" && item.content)) {
     const text = execution.text || fallback;
-    if (text) makeMessage(Number.MAX_SAFE_INTEGER).content = text;
+    if (text) makeMessage(Number.MAX_SAFE_INTEGER, execution.createdAt).content = text;
   }
   return messages;
 }
@@ -82,7 +87,7 @@ export function projectConversationMessages(input: {
     if (seenMessages.has(item.id)) continue;
     seenMessages.add(item.id);
     if (item.role === "user") {
-      output.push({id:item.id,role:"user",content:item.content});
+      output.push({ id: item.id, role: "user", content: item.content, createdAt: item.createdAt });
       // In-flight and unpersisted failed attempts keep the existing user anchor.
       executions.filter(turn => turn.kind === "conversation" && !anchored.has(turn.id)
         && (turn.messageId === item.id || turn.id === item.executionId))
@@ -94,9 +99,22 @@ export function projectConversationMessages(input: {
       else if (item.status === "completed" && !seenExecutions.has(item.executionId)) {
         // Only a saved delivery is visible; background execution text/events are not.
         seenExecutions.add(item.executionId);
-        output.push({id:item.id,role:"assistant",content:item.content});
+        output.push({ id: item.id, role: "assistant", content: item.content, createdAt: item.createdAt });
       }
     }
   }
   return output;
+}
+
+/** Legacy transcript saves keep id, role, and content. Presentation stamps stay off that payload. */
+export function withoutTurnStamps(messages: readonly Message[]): Message[] {
+  return messages.map((message) => {
+    if (message.role === "tool" || message.createdAt === undefined) return message;
+    if (message.role === "user") {
+      const { createdAt: _stamp, ...rest } = message;
+      return rest;
+    }
+    const { createdAt: _stamp, ...rest } = message;
+    return rest;
+  });
 }

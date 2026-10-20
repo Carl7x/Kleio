@@ -7,7 +7,7 @@ import {
   useRenderTool,
   useRenderToolCall,
 } from "./kleio-headless";
-import { ArrowDown, ArrowUp, FileText, RotateCcw, Square, X } from "lucide-react-native";
+import { ArrowDown, ArrowUp, FileText, Square, X } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Keyboard,
@@ -42,7 +42,9 @@ import { JevInteractionContext, JevToolCard } from "./jev-tool-card";
 import { MailToolCard } from "./mail-tool-card";
 import { SearchToolCard } from "./search-tool-card";
 import { FileThreadCard } from "./thread-artifacts";
+import { withoutTurnStamps } from "./conversation-history";
 import {
+  assistantIdentityIndex,
   backgroundStreamState,
   backgroundToolKind,
   composerBorderColor,
@@ -50,24 +52,30 @@ import {
   composerChrome,
   composerSendFace,
   listedBackgroundTasks,
+  liveCueLabel,
   liveTurnCue,
   operationStatusLabel,
   savedResultReceiptAction,
   SCROLL_FADE_PX,
+  turnSpacing,
+  turnTimeLabel,
 } from "./chat-stream-rules";
 import {
+  AssistantIdentity,
   AssistantTurn,
   ChatStatusScreen,
   EventHeading,
-  QuietDots,
   ReceiptAction,
   shouldCommitComposerEnter,
   StreamCard,
+  StreamCue,
+  SuggestionRow,
   SurfaceFade,
+  ThreadNotice,
   UserBubble,
 } from "./chat-stream";
 import { type Selection, useMuseThread } from "./threads";
-import { Button, Card, CheckRow, colors, ErrorNotice, Mascot, s } from "./ui";
+import { Button, Card, CheckRow, colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
 const displayParameters = z.record(z.string(), z.unknown());
@@ -449,7 +457,8 @@ export function ChatScreen({
     return () => agent.setConversationActive(false);
   }, [agent, active, historyAttempt, isReady, richThreads, selection.existing]);
   const saveHistory = useCallback(async () => {
-    if (!richThreads) await api.request("/api/conversation", { messages: agent.messages }, "PUT");
+    if (!richThreads)
+      await api.request("/api/conversation", { messages: withoutTurnStamps(agent.messages) }, "PUT");
     setSaveError("");
   }, [agent, api, richThreads]);
   /** Runs one turn; "held" means a queued message was refused by a lock and put back on hold. */
@@ -461,7 +470,13 @@ export function ChatScreen({
       queuedTurn.current = Boolean(message);
       setBusy(true);
       setError("");
-      if (message) agent.addMessage({ id: message.id, role: "user", content: message.text });
+      if (message)
+        agent.addMessage({
+          id: message.id,
+          role: "user",
+          content: message.text,
+          createdAt: new Date().toISOString(),
+        });
       try {
         await runConversationTurn(
           agentId,
@@ -615,6 +630,12 @@ export function ChatScreen({
       ? messages[latestUserIndex].content
       : null;
   const visible = messages.filter((m) => m.role === "user" || m.role === "assistant");
+  const rhythm = visible.map((item) => ({
+    role: item.role,
+    present:
+      (typeof item.content === "string" && item.content.trim().length > 0) ||
+      ("toolCalls" in item && (item.toolCalls?.length ?? 0) > 0),
+  }));
   const latestDesktop = messages
     .flatMap((m) => ("toolCalls" in m ? m.toolCalls || [] : []))
     .filter((call) => call.function.name === "use_desktop")
@@ -640,7 +661,7 @@ export function ChatScreen({
         ref={list}
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ gap: 13, paddingTop: 15, paddingBottom: 20, flexGrow: 1 }}
+        contentContainerStyle={{ gap: 12, paddingTop: 12, paddingBottom: 18, flexGrow: 1 }}
         onScroll={({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }) => {
           const nearEnd = contentSize.height - contentOffset.y - layoutMeasurement.height < 100;
           followLatest.current = nearEnd;
@@ -656,19 +677,21 @@ export function ChatScreen({
       >
         {!!historyError && !visible.length && (
           <ChatStatusScreen title="这段对话没有载入" detail="已保存的消息未被改动。">
-            <ErrorNotice error={historyError} />
-            <Button onPress={() => setHistoryAttempt((attempt) => attempt + 1)}>
-              重试加载对话
-            </Button>
+            <ThreadNotice
+              title="没能完成加载"
+              detail={historyError}
+              actionLabel="重试加载对话"
+              onAction={() => setHistoryAttempt((attempt) => attempt + 1)}
+            />
           </ChatStatusScreen>
         )}
         {!!historyError && visible.length > 0 && (
-          <>
-            <ErrorNotice error={historyError} />
-            <Button onPress={() => setHistoryAttempt((attempt) => attempt + 1)}>
-              重试加载对话
-            </Button>
-          </>
+          <ThreadNotice
+            title="这段对话没有完整载入"
+            detail={historyError}
+            actionLabel="重试加载对话"
+            onAction={() => setHistoryAttempt((attempt) => attempt + 1)}
+          />
         )}
         {!historyError && !loaded && !visible.length && (
           <ChatStatusScreen
@@ -690,7 +713,7 @@ export function ChatScreen({
             title="一点帮助，生活多一点空间。"
             detail="告诉我你在想什么。我可以做计划、调用你的应用，并用电脑来帮忙。"
           >
-            <View style={{ width: "100%", maxWidth: 360, marginTop: 6, gap: 8 }}>
+            <View style={{ width: "100%", maxWidth: 360, marginTop: 4, gap: 8 }}>
               {[
                 {
                   text: "在 Hacker News 找点有趣的",
@@ -702,43 +725,46 @@ export function ChatScreen({
                 },
                 { text: "盯着某个网站", action: () => navigate("goals") },
               ].map((item) => (
-                <Button key={item.text} onPress={item.action}>
-                  {item.text}
-                </Button>
+                <SuggestionRow key={item.text} label={item.text} onPress={item.action} />
               ))}
             </View>
           </ChatStatusScreen>
         ) : null}
         {syncing && visible.length > 0 && !replying && (
-          <QuietDots label="正在同步尚未结束的回复" />
+          <StreamCue identity label="正在同步尚未结束的回复" />
         )}
-        {visible.length > 0 &&
-          visible.map((message) => {
-            const user = message.role === "user";
-            const text =
-              typeof message.content === "string"
-                ? user
-                  ? displayJevUserMessage(
-                      message.content,
-                      messages.slice(0, messages.indexOf(message)),
-                    )
-                  : message.content
-                : "";
-            const toolCalls = "toolCalls" in message ? message.toolCalls || [] : [];
-            const wide = !user || toolCalls.length > 0;
-            return (
+        {(visible.length > 0 || liveCue) && (
+          <View>
+            {visible.map((message, index) => {
+              const user = message.role === "user";
+              const text =
+                typeof message.content === "string"
+                  ? user
+                    ? displayJevUserMessage(
+                        message.content,
+                        messages.slice(0, messages.indexOf(message)),
+                      )
+                    : message.content
+                  : "";
+              const toolCalls = "toolCalls" in message ? message.toolCalls || [] : [];
+              const wide = !user || toolCalls.length > 0;
+              const time = turnTimeLabel("createdAt" in message ? message.createdAt : undefined);
+              const showIdentity = assistantIdentityIndex(rhythm, index);
+              return (
               <View
                 key={message.id}
                 style={{
+                  marginTop: turnSpacing(index === 0 ? null : visible[index - 1]?.role ?? null, message.role),
                   alignSelf: wide ? "stretch" : "flex-end",
                   maxWidth: wide ? "100%" : "85%",
                   width: wide ? "100%" : undefined,
-                  gap: 10,
+                  gap: 6,
                 }}
               >
+                {showIdentity ? <AssistantIdentity time={time} /> : null}
                 {!!text &&
                   (user ? (
-                    <UserBubble text={text} />
+                    <UserBubble text={text} time={time} />
                   ) : (
                     <AssistantTurn>
                       <AssistantResponse content={text} />
@@ -791,6 +817,13 @@ export function ChatScreen({
               </View>
             );
           })}
+        {liveCue ? (
+          <View style={{ marginTop: visible.length ? (liveCue === "writing" ? 8 : 12) : 0 }}>
+            <StreamCue identity={liveCue === "thinking"} label={liveCueLabel(liveCue)} />
+          </View>
+        ) : null}
+          </View>
+        )}
         {!!latestDesktop && (
           <DesktopToolCard
             live
@@ -847,34 +880,20 @@ export function ChatScreen({
             )}
           </>
         )}
-        {liveCue === "thinking" && (
-          <View style={[s.row, { gap: 8, alignSelf: "flex-start", paddingVertical: 2 }]}>
-            <Mascot size={28} />
-            <QuietDots label="正在思考" />
-          </View>
-        )}
-        {liveCue === "writing" && (
-          <View style={[s.row, { gap: 8, alignSelf: "flex-start", paddingVertical: 2 }]}>
-            <Mascot size={28} />
-            <Text style={s.muted}>正在写回复</Text>
-          </View>
-        )}
-        <ErrorNotice error={error} />
         {!!error && (
-          <Button
-            style={{ alignSelf: "flex-start" }}
-            icon={RotateCcw}
-            disabled={busy || agent.isRunning || !loaded || syncing || !isReady || !agent.canRetry}
-            onPress={() => {
+          <ThreadNotice
+            title="这次回复没有完成"
+            detail={error}
+            actionLabel="重试回复"
+            actionDisabled={busy || agent.isRunning || !loaded || syncing || !isReady || !agent.canRetry}
+            onAction={() => {
               void run()
                 .then(() => {
                   if (!queue.getSnapshot().paused) flush();
                 })
                 .catch((e) => setError(e instanceof Error ? e.message : String(e)));
             }}
-          >
-            重试回复
-          </Button>
+          />
         )}
       </ScrollView>
       {scrolledFromTop ? (

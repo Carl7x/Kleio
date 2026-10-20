@@ -323,6 +323,61 @@ export function liveTurnCue(input: {
   return text.trim() ? "writing" : "thinking";
 }
 
+/** Quiet labels for the in-progress row. The pill carries the motion; the words stay short. */
+export function liveCueLabel(cue: LiveCue): string {
+  return cue === "thinking" ? "正在思考" : "正在写回复";
+}
+
+/** Same-role fragments sit close. A new speaker opens a turn. */
+export const TURN_FOLLOW_PX = 6;
+export const TURN_BREAK_PX = 16;
+
+export function turnSpacing(previousRole: string | null, role: string): number {
+  if (!previousRole) return 0;
+  return previousRole === role ? TURN_FOLLOW_PX : TURN_BREAK_PX;
+}
+
+/**
+ * The Kleio line leads the first visible fragment of a reply.
+ * An empty placeholder does not count, so a thought cue can carry the portrait instead.
+ */
+export function assistantIdentityIndex(
+  turns: ReadonlyArray<{ role: string; present: boolean }>,
+  index: number,
+): boolean {
+  const turn = turns[index];
+  if (!turn || turn.role !== "assistant" || !turn.present) return false;
+  for (let cursor = index - 1; cursor >= 0; cursor--) {
+    if (turns[cursor].role === "user") return true;
+    if (turns[cursor].role === "assistant" && turns[cursor].present) return false;
+  }
+  return true;
+}
+
+/** Clock under a bubble. Same calendar day is HH:mm. Older turns add 月日. Invalid stamps stay hidden. */
+export function turnTimeLabel(value: string | undefined, now = Date.now()): string | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return null;
+  const date = new Date(parsed);
+  const current = new Date(now);
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const hour = (parts.find((part) => part.type === "hour")?.value ?? "").padStart(2, "0");
+  const minute = (parts.find((part) => part.type === "minute")?.value ?? "").padStart(2, "0");
+  if (!/^\d{2}$/.test(hour) || !/^\d{2}$/.test(minute)) return null;
+  const clock = `${hour}:${minute}`;
+  const sameDay =
+    date.getFullYear() === current.getFullYear() &&
+    date.getMonth() === current.getMonth() &&
+    date.getDate() === current.getDate();
+  if (sameDay) return clock;
+  return `${date.getMonth() + 1}月${date.getDate()}日 ${clock}`;
+}
+
 /** After a choice lands, the other rows keep their labels and drop the rest of the card. */
 export function choiceRowQuiet(selectedId: string | null, optionId: string): boolean {
   return selectedId !== null && selectedId !== optionId;
