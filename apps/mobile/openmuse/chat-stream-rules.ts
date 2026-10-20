@@ -175,9 +175,64 @@ const APPROVAL_STATUS_ZH: Record<string, string> = {
   expired: "已过期",
 };
 
-/** Status chip on the approval sheet. Unknown values stay non-English. */
+/** Status chip on the approval sheet. Unknown values stay non-English. Exact keys only. */
 export function approvalStatusLabel(status: string): string {
   return APPROVAL_STATUS_ZH[status] ?? "状态待更新";
+}
+
+/**
+ * Short chips for raw operation statuses in the chat stream, tool cards, and the
+ * activity list. Spaces and hyphens fold into the same key. Approval-sheet "failed"
+ * stays "未完成" via approvalStatusLabel; a running task that fails stays "失败".
+ */
+const OPERATION_STATUS_ZH: Record<string, string> = {
+  running: "进行中",
+  in_progress: "进行中",
+  active: "进行中",
+  completed: "已完成",
+  succeeded: "已完成",
+  failed: "失败",
+  cancelled: "已取消",
+  canceled: "已取消",
+  pending: "待处理",
+  waiting: "等待中",
+  queued: "排队中",
+  scheduled: "已安排",
+  paused: "已暂停",
+  stopped: "已停止",
+  interrupted: "已中断",
+  timed_out: "已超时",
+  review: "待你审阅",
+  needs_review: "待你审阅",
+  awaiting_review: "待你审阅",
+  waiting_approval: "待你审阅",
+  needs_input: "需要你补充",
+  waiting_input: "需要你补充",
+  executing: "正在执行",
+  outcome_unknown: "结果未知",
+  denied: "未继续",
+  expired: "已过期",
+  read: "已读",
+  unread: "未读",
+};
+
+export function operationStatusKey(status: string): string {
+  return status.trim().toLowerCase().replace(/[\s-]+/g, "_");
+}
+
+/** Mapped chip, or undefined when this string is not an operation status. */
+export function knownOperationStatus(status: string): string | undefined {
+  return OPERATION_STATUS_ZH[operationStatusKey(status)];
+}
+
+/** Short Chinese chip. Unknown values stay non-English. */
+export function operationStatusLabel(status: string): string {
+  return knownOperationStatus(status) ?? "状态待更新";
+}
+
+/** Activity-list gate. Same phrase as the approval sheet. */
+export function reviewGateLabel(count: number): string {
+  return `待你审阅 · ${count}`;
 }
 
 const APPROVAL_KIND_ZH: Record<string, string> = {

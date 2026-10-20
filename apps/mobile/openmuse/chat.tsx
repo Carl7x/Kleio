@@ -22,7 +22,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { z } from "zod";
-import { ArtifactCard, statusLabel } from "./agent-ui";
+import { ArtifactCard } from "./agent-ui";
 import { useAgentWorkspace } from "./agent-workspace";
 import { AssistantResponse } from "./assistant-response";
 import { BackgroundUpdates } from "./background-updates";
@@ -51,6 +51,7 @@ import {
   composerSendFace,
   listedBackgroundTasks,
   liveTurnCue,
+  operationStatusLabel,
   savedResultReceiptAction,
   SCROLL_FADE_PX,
 } from "./chat-stream-rules";
@@ -228,7 +229,7 @@ function ServerToolCard({
         <StreamCard
           state={backgroundStreamState(task.status)}
           title={background === "delegate" ? "已交给后台" : "后台进展"}
-          detail={`${task.title} · ${statusLabel(task.status)}`}
+          detail={`${task.title} · ${operationStatusLabel(task.status)}`}
         />
       );
     }
