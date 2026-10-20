@@ -2,6 +2,27 @@
 
 export type StreamState = "running" | "paused" | "done" | "error" | "pending";
 
+/** Chat-stream tools that must not expand into a task sheet. Activity and notifications keep the full card. */
+export function backgroundToolKind(name: string): "delegate" | "status" | null {
+  if (name === "任务") return "delegate";
+  if (name === "智能体进展") return "status";
+  return null;
+}
+
+export function listedBackgroundTasks(value: unknown): number {
+  if (!value || typeof value !== "object" || !("tasks" in value)) return 0;
+  const tasks = (value as { tasks?: unknown }).tasks;
+  return Array.isArray(tasks) ? tasks.length : 0;
+}
+
+export function backgroundStreamState(status: string): StreamState {
+  if (status === "failed") return "error";
+  if (status === "succeeded" || status === "cancelled" || status === "completed") return "done";
+  if (status === "running" || status === "queued" || status === "scheduled") return "running";
+  if (status === "waiting_approval" || status === "waiting_input") return "pending";
+  return "paused";
+}
+
 export const USER_BUBBLE_COLLAPSE_CHARS = 280;
 export const USER_BUBBLE_COLLAPSE_LINES = 6;
 

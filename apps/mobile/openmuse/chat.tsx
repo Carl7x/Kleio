@@ -22,7 +22,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { z } from "zod";
-import { ArtifactCard } from "./agent-ui";
+import { ArtifactCard, statusLabel } from "./agent-ui";
 import { useAgentWorkspace } from "./agent-workspace";
 import { AssistantResponse } from "./assistant-response";
 import { BackgroundUpdates } from "./background-updates";
@@ -41,7 +41,8 @@ import { confirmedJevSelection, displayJevUserMessage, latestJevPanelId } from "
 import { JevInteractionContext, JevToolCard } from "./jev-tool-card";
 import { MailToolCard } from "./mail-tool-card";
 import { SearchToolCard } from "./search-tool-card";
-import { FileThreadCard, TaskThreadCard } from "./thread-artifacts";
+import { FileThreadCard } from "./thread-artifacts";
+import { backgroundStreamState, backgroundToolKind, listedBackgroundTasks } from "./chat-stream-rules";
 import {
   AssistantTurn,
   ChatStatusScreen,
@@ -185,8 +186,45 @@ function ServerToolCard({
   const task = parsed.success
     ? data?.tasks.find((item) => item.id === parsed.data.id || item.id === parsed.data.taskId)
     : undefined;
-  if (task) return <TaskThreadCard task={task} />;
-  const failed = parsed.success && parsed.data.error;
+  const toolError = parsed.success ? parsed.data.error : undefined;
+  const background = backgroundToolKind(name);
+  // A status check or handoff is a receipt. The task sheet stays on 动态 and in notifications.
+  if (background) {
+    if (toolError) {
+      return (
+        <StreamCard state="error" title={background === "delegate" ? "没能交给后台" : "没能查看后台"}>
+          <ErrorNotice error={toolError} />
+        </StreamCard>
+      );
+    }
+    if (loading) {
+      return (
+        <StreamCard
+          state="running"
+          title={background === "delegate" ? "正在交给后台…" : "正在查看后台…"}
+          detail="这条回复继续写。待办不在这里展开。"
+        />
+      );
+    }
+    if (task) {
+      return (
+        <StreamCard
+          state={backgroundStreamState(task.status)}
+          title={background === "delegate" ? "已交给后台" : "后台进展"}
+          detail={`${task.title} · ${statusLabel(task.status)}`}
+        />
+      );
+    }
+    const listed = listedBackgroundTasks(value);
+    return (
+      <StreamCard
+        state="done"
+        title={listed ? `后台有 ${listed} 项` : "后台没有新的待办"}
+        detail="完整列表在「动态」和通知里。"
+      />
+    );
+  }
+  const failed = Boolean(toolError);
   return (
     <StreamCard
       state={failed ? "error" : loading ? "running" : "done"}
@@ -195,7 +233,7 @@ function ServerToolCard({
         failed ? undefined : loading ? "正在等待服务器。" : "打开工作台查看已保存的结果。"
       }
     >
-      {failed ? <ErrorNotice error={parsed.data.error} /> : null}
+      {toolError ? <ErrorNotice error={toolError} /> : null}
       <Button
         small
         onPress={() =>
@@ -749,7 +787,6 @@ export function ChatScreen({
             )}
           </>
         )}
-        {(!richThreads || selection.id === mainId) && <BackgroundUpdates />}
         {replying && <QuietDots label="正在回复" />}
         <ErrorNotice error={error} />
         {!!error && (
@@ -783,6 +820,7 @@ export function ChatScreen({
           最新消息
         </Button>
       )}
+      {(!richThreads || selection.id === mainId) && <BackgroundUpdates />}
       <KeyboardAvoidingView
         // Manual keyboardPadding handles iOS + Android; avoid double-lift from behavior="padding".
         behavior={undefined}
