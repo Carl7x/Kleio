@@ -42,7 +42,15 @@ import { JevInteractionContext, JevToolCard } from "./jev-tool-card";
 import { MailToolCard } from "./mail-tool-card";
 import { SearchToolCard } from "./search-tool-card";
 import { FileThreadCard } from "./thread-artifacts";
-import { backgroundStreamState, backgroundToolKind, listedBackgroundTasks } from "./chat-stream-rules";
+import {
+  backgroundStreamState,
+  backgroundToolKind,
+  composerBorderColor,
+  composerBoxShadow,
+  composerChrome,
+  listedBackgroundTasks,
+  SCROLL_FADE_PX,
+} from "./chat-stream-rules";
 import {
   AssistantTurn,
   ChatStatusScreen,
@@ -50,6 +58,7 @@ import {
   QuietDots,
   shouldCommitComposerEnter,
   StreamCard,
+  SurfaceFade,
   UserBubble,
 } from "./chat-stream";
 import { type Selection, useMuseThread } from "./threads";
@@ -271,6 +280,7 @@ export function ChatScreen({
   const renderToolCall = useRenderToolCall();
   const [draft, setDraft] = useState("");
   const [focused, setFocused] = useState(false);
+  const [composerHovered, setComposerHovered] = useState(false);
   const [inputHeight, setInputHeight] = useState(44);
   const [showResults, setShowResults] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -282,6 +292,7 @@ export function ChatScreen({
   const [attachments, setAttachments] = useState<string[]>([]);
   const list = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
+  const composerRef = useRef<View>(null);
   const composing = useRef(false);
   const [queue] = useState(() => new ConversationQueue());
   const choiceCompletions = useRef(
@@ -290,6 +301,7 @@ export function ChatScreen({
   const outbox = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot);
   const followLatest = useRef(true);
   const [awayFromLatest, setAwayFromLatest] = useState(false);
+  const [scrolledFromTop, setScrolledFromTop] = useState(false);
   const runLock = useRef(false);
   const [saveError, setSaveError] = useState("");
   const [historyError, setHistoryError] = useState("");
@@ -344,6 +356,25 @@ export function ChatScreen({
     return () => {
       unlisten("compositionstart", start);
       unlisten("compositionend", end);
+    };
+  }, []);
+  // View types omit mouse events. On the web, hover thickens the composer ring.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const node = composerRef.current as unknown as {
+      addEventListener?: (type: string, listener: () => void) => void;
+      removeEventListener?: (type: string, listener: () => void) => void;
+    } | null;
+    const listen = node?.addEventListener;
+    const unlisten = node?.removeEventListener;
+    if (!listen || !unlisten) return;
+    const enter = () => setComposerHovered(true);
+    const leave = () => setComposerHovered(false);
+    listen("mouseenter", enter);
+    listen("mouseleave", leave);
+    return () => {
+      unlisten("mouseenter", enter);
+      unlisten("mouseleave", leave);
     };
   }, []);
   useEffect(() => {
@@ -576,16 +607,20 @@ export function ChatScreen({
     .filter((call) => call.function.name === "use_desktop")
     .at(-1)?.id;
   const replying = busy || agent.isRunning;
+  const chrome = composerChrome({ focused, hovered: composerHovered });
   return (
     <View style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>
       <ScrollView
         ref={list}
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ gap: 13, paddingTop: 15, paddingBottom: 20, flexGrow: 1 }}
         onScroll={({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }) => {
           const nearEnd = contentSize.height - contentOffset.y - layoutMeasurement.height < 100;
           followLatest.current = nearEnd;
           setAwayFromLatest(visible.length > 0 && !nearEnd);
+          setScrolledFromTop(contentOffset.y > 8);
         }}
         scrollEventThrottle={100}
         onContentSizeChange={() => {
@@ -806,6 +841,17 @@ export function ChatScreen({
           </Button>
         )}
       </ScrollView>
+      {scrolledFromTop ? (
+        <View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
+          <SurfaceFade color={colors.canvas} edge="top" size={SCROLL_FADE_PX} />
+        </View>
+      ) : null}
+      {awayFromLatest ? (
+        <View pointerEvents="none" style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
+          <SurfaceFade color={colors.canvas} edge="bottom" size={SCROLL_FADE_PX} />
+        </View>
+      ) : null}
+      </View>
       {awayFromLatest && (
         <Button
           small
@@ -927,17 +973,25 @@ export function ChatScreen({
           </Card>
         )}
         <View
+          ref={composerRef}
           style={{
             backgroundColor: "#FFF",
-            borderRadius: 28,
-            borderWidth: 1,
-            borderColor: focused ? "#9ED0F2" : colors.line,
+            borderRadius: 20,
             padding: 8,
-            shadowColor: "#18384B",
-            shadowOpacity: focused ? 0.1 : 0.06,
-            shadowRadius: 20,
-            shadowOffset: { width: 0, height: 4 },
-            elevation: 4,
+            ...(Platform.OS === "web"
+              ? {
+                  borderWidth: 0,
+                  boxShadow: composerBoxShadow(chrome),
+                }
+              : {
+                  borderWidth: 1,
+                  borderColor: composerBorderColor(chrome),
+                  shadowColor: "#18384B",
+                  shadowOpacity: chrome === "focus" ? 0.08 : chrome === "hover" ? 0.06 : 0.035,
+                  shadowRadius: chrome === "rest" ? 20 : 24,
+                  shadowOffset: { width: 0, height: 4 },
+                  elevation: chrome === "focus" ? 3 : 2,
+                }),
           }}
         >
           {attachments.length > 0 && (

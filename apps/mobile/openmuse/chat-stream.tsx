@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AccessibilityInfo, Animated, Pressable, Text, View } from "react-native";
-import { type StreamState, userMessageOverflows } from "./chat-stream-rules";
+import {
+  SCROLL_FADE_PX,
+  type StreamState,
+  surfaceFadeAlphas,
+  USER_BUBBLE_FADE_PX,
+  userMessageOverflows,
+  withAlpha,
+} from "./chat-stream-rules";
 import { colors, s } from "./ui";
 
 export { shouldCommitComposerEnter, userMessageOverflows } from "./chat-stream-rules";
@@ -177,10 +184,33 @@ export function QuietDots({ label }: { label?: string }) {
 
 const USER_PREVIEW_LINES = 6;
 
+/** A pinned surface fade. It does not take taps. */
+export function SurfaceFade({
+  color,
+  edge,
+  size = SCROLL_FADE_PX,
+}: {
+  color: string;
+  edge: "top" | "bottom";
+  size?: number;
+}) {
+  return (
+    <View pointerEvents="none" style={{ height: size, width: "100%" }}>
+      {surfaceFadeAlphas(edge).map((alpha, index) => (
+        <View
+          key={index}
+          style={{ flex: 1, backgroundColor: withAlpha(color, alpha) }}
+        />
+      ))}
+    </View>
+  );
+}
+
 /** User turn: tinted bubble. Assistant prose stays on the canvas, outside this component. */
 export function UserBubble({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   const overflows = userMessageOverflows(text);
+  const collapsed = overflows && !open;
   return (
     <View
       style={{
@@ -191,13 +221,23 @@ export function UserBubble({ text }: { text: string }) {
         backgroundColor: colors.blue,
       }}
     >
-      <Text
-        selectable
-        numberOfLines={!overflows || open ? undefined : USER_PREVIEW_LINES}
-        style={[s.text, { fontSize: 16, lineHeight: 24 }]}
-      >
-        {text}
-      </Text>
+      <View>
+        <Text
+          selectable
+          numberOfLines={collapsed ? USER_PREVIEW_LINES : undefined}
+          style={[s.text, { fontSize: 16, lineHeight: 24 }]}
+        >
+          {text}
+        </Text>
+        {collapsed ? (
+          <View
+            pointerEvents="none"
+            style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}
+          >
+            <SurfaceFade color={colors.blue} edge="bottom" size={USER_BUBBLE_FADE_PX} />
+          </View>
+        ) : null}
+      </View>
       {overflows ? (
         <Pressable
           accessibilityRole="button"
@@ -217,7 +257,7 @@ export function UserBubble({ text }: { text: string }) {
 
 /** Assistant text inset: no bubble, so the reply reads as the stream itself. */
 export function AssistantTurn({ children }: { children: ReactNode }) {
-  return <View style={{ paddingHorizontal: 2, paddingVertical: 2, width: "100%" }}>{children}</View>;
+  return <View style={{ paddingHorizontal: 4, paddingVertical: 2, width: "100%" }}>{children}</View>;
 }
 
 export function ChatStatusScreen({
