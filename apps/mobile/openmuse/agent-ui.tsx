@@ -821,10 +821,10 @@ function FinanceArtifact({ artifact }: { artifact: AgentArtifact }) {
             </Svg>
           </View>
           <Text style={{ color: "#D4DCFC", fontSize: 11, lineHeight: 18, marginBottom: 20 }}>
-            Read from your imported transactions.{"\n"}
+            根据你导入的交易。{"\n"}
             {String(period?.from ?? "")} — {String(period?.to ?? "")}
             {"\n"}
-            {transactions.length} transactions, categorized and summarized.
+            {transactions.length} 笔交易，已分类并汇总。
           </Text>
           <View style={[s.row, { gap: 7 }]}>
             {(
@@ -853,7 +853,7 @@ function FinanceArtifact({ artifact }: { artifact: AgentArtifact }) {
                 >
                   {amount(artifact.data[key])}
                 </Text>
-                <Text style={{ color: "#7E8289", fontSize: 8, marginTop: 4 }}>source currency</Text>
+                <Text style={{ color: "#7E8289", fontSize: 8, marginTop: 4 }}>来源币种</Text>
               </View>
             ))}
           </View>
@@ -1623,7 +1623,7 @@ function MonitorForm({ onDone }: { onDone: () => void }) {
           value={url}
           onChangeText={setUrl}
           autoCapitalize="none"
-          placeholder="https://example.com/product"
+          placeholder="输入网址"
         />
       )}
       <Text style={[s.small, { marginBottom: 10 }]}>在以下情况通知我</Text>
@@ -1814,7 +1814,7 @@ export function AppsScreen() {
   const { data, mutate } = useAgentWorkspace();
   const [query, setQuery] = useState("");
   const [settings, setSettings] = useState(true);
-  const [name, setName] = useState(data?.identity.name || "OpenMuse");
+  const [name, setName] = useState(data?.identity.name || "Kleio");
   const [tone, setTone] = useState(data?.identity.tone || "warm");
   const [avatar, setAvatar] = useState(data?.identity.avatar || "sky");
   const [showChatUpdates, setShowChatUpdates] = useState(data?.identity.showChatUpdates !== false);

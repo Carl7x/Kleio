@@ -231,7 +231,7 @@ export function LinuxWorkspace({
                   label="命令"
                   value={command}
                   onChangeText={setCommand}
-                  placeholder="pwd"
+                  placeholder="输入命令"
                   multiline
                   maxLength={16000}
                   autoCapitalize="none"
