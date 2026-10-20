@@ -1,6 +1,6 @@
 import { Search } from "lucide-react-native";
 import { useContext, useState } from "react";
-import { Linking, Text } from "react-native";
+import { Linking, Text, View } from "react-native";
 import { z } from "zod";
 import { BrowserRunContext } from "./browser-tool-card";
 import { StreamCard } from "./chat-stream";
@@ -35,6 +35,11 @@ export function SearchToolCard({ result, loading }: { result: unknown; loading: 
     ? [...new Map(parsed.data.results.map((source) => [source.url, source])).values()]
     : [];
   const count = sources.length;
+  const hasBody =
+    Boolean(failure || linkError) ||
+    (!loading &&
+      parsed.success &&
+      (count > 0 || parsed.data.truncated || parsed.data.warnings.length > 0));
   const title = failure
     ? "搜索失败"
     : working
@@ -46,12 +51,13 @@ export function SearchToolCard({ result, loading }: { result: unknown; loading: 
           : "未找到来源";
   return (
     <StreamCard
+      collapsible={hasBody}
       state={failure ? "error" : working ? "running" : loading ? "paused" : "done"}
       title={title}
       icon={<Search size={16} color={failure ? colors.danger : colors.blueDark} />}
     >
       {!loading && parsed.success && (
-        <>
+        <View style={{ gap: 6 }}>
           {sources.map((source) => (
             <Text
               key={source.url}
@@ -75,7 +81,7 @@ export function SearchToolCard({ result, loading }: { result: unknown; loading: 
               {warning}
             </Text>
           ))}
-        </>
+        </View>
       )}
       <ErrorNotice error={failure || linkError} />
     </StreamCard>

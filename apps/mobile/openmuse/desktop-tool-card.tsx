@@ -92,6 +92,7 @@ export function DesktopToolCard({
   const offline = latest && !!snapshot && !running;
   return (
     <StreamCard
+      collapsible
       wide
       state={value?.error || error ? "error" : loading ? "running" : offline ? "paused" : "done"}
       title="桌面"

@@ -9,6 +9,7 @@ import {
   selectionText,
 } from "./jev-actions";
 import { StreamCard } from "./chat-stream";
+import { choiceRowQuiet } from "./chat-stream-rules";
 import { Button, colors, ErrorNotice, s } from "./ui";
 
 type JevInteraction = {
@@ -183,17 +184,21 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
   }
 
   const decisionState = selectedId ? "done" : submitError ? "error" : stale ? "paused" : "pending";
+  const chosen = selectedId ? panel.options.find((option) => option.id === selectedId) : undefined;
+  const foldSettled = Boolean(selectedId) || stale;
   return (
     <StreamCard
+      collapsible={foldSettled}
       state={decisionState}
-      tint={selectedId ? colors.green : stale ? undefined : colors.orange}
       title={selectedId ? "已提交选择" : submitError ? "选择没有发出" : stale ? "更早的选择" : "待你选择"}
       detail={
-        panel.mode === "sample"
-          ? "示例 · 脚本化决策"
-          : panel.mode === "live"
-            ? "按当前对话里的选项决定"
-            : undefined
+        chosen
+          ? chosen.label
+          : panel.mode === "sample"
+            ? "示例 · 脚本化决策"
+            : panel.mode === "live"
+              ? "按当前对话里的选项决定"
+              : undefined
       }
     >
       <View style={{ gap: 5 }}>
@@ -203,6 +208,7 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
         )}
       </View>
       {panel.type === "clarification" ? (
+        selectedId ? null : (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
           {panel.options.map((option, index) => (
             <ChoiceButton
@@ -217,10 +223,29 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
             />
           ))}
         </View>
+        )
       ) : (
         <View>
           {panel.options.map((option, index) => {
             const chosen = selectedId === option.id;
+            const quiet = choiceRowQuiet(selectedId, option.id);
+            if (quiet) {
+              return (
+                <Text
+                  key={option.id}
+                  style={[
+                    s.muted,
+                    {
+                      paddingVertical: 8,
+                      borderTopWidth: index === 0 ? 0 : 1,
+                      borderTopColor: colors.line,
+                    },
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              );
+            }
             return (
             <View
               key={option.id}
@@ -232,7 +257,6 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
                 borderTopColor: colors.line,
                 borderRadius: 12,
                 backgroundColor: chosen ? colors.green : "transparent",
-                opacity: selectedId && !chosen ? 0.55 : 1,
               }}
             >
               <Text style={[s.text, { fontWeight: "600" }]}>{option.label}</Text>

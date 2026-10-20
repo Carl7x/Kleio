@@ -43,7 +43,7 @@ export function MailToolCard({
   const error = z.object({ error: z.string() }).safeParse(value);
   if (error.success)
     return (
-      <StreamCard state="error" title="无法读取邮件" icon={<Mail size={16} color={colors.danger} />}>
+      <StreamCard collapsible state="error" title="无法读取邮件" icon={<Mail size={16} color={colors.danger} />}>
         <ErrorNotice error={error.data.error} />
       </StreamCard>
     );
@@ -61,7 +61,7 @@ export function MailToolCard({
       .safeParse(value);
     if (!parsed.success)
       return (
-        <StreamCard state="error" title="无法读取邮件" icon={<Search size={16} color={colors.danger} />}>
+        <StreamCard collapsible state="error" title="无法读取邮件" icon={<Search size={16} color={colors.danger} />}>
           <ErrorNotice error="邮箱未返回可读结果。" />
         </StreamCard>
       );
@@ -83,7 +83,7 @@ export function MailToolCard({
     .safeParse(value);
   if (!parsed.success)
     return (
-      <StreamCard state="error" title="无法显示该邮件" icon={<Mail size={16} color={colors.danger} />}>
+      <StreamCard collapsible state="error" title="无法显示该邮件" icon={<Mail size={16} color={colors.danger} />}>
         <ErrorNotice error="无法显示该邮件。" />
       </StreamCard>
     );
@@ -94,9 +94,10 @@ export function MailToolCard({
     );
   return (
     <StreamCard
+      collapsible
       state="done"
       title={message.sender}
-      detail={`邮件 · ${parsed.data.messages.length} 封`}
+      detail={`邮件 · ${parsed.data.messages.length} 封 · ${message.subject}`}
       icon={<Mail size={16} color={colors.blueDark} />}
     >
       <Text style={s.heading}>{message.subject}</Text>

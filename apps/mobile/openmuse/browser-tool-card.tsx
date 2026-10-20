@@ -95,6 +95,7 @@ export function BrowserToolCard({
   const browserState = failure ? "error" : working ? "running" : loading ? "paused" : visited ? "done" : "paused";
   return (
     <StreamCard
+      collapsible
       state={browserState}
       title="浏览器"
       detail={

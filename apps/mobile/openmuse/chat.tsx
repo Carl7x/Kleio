@@ -48,7 +48,9 @@ import {
   composerBorderColor,
   composerBoxShadow,
   composerChrome,
+  composerSendFace,
   listedBackgroundTasks,
+  liveTurnCue,
   SCROLL_FADE_PX,
 } from "./chat-stream-rules";
 import {
@@ -62,7 +64,7 @@ import {
   UserBubble,
 } from "./chat-stream";
 import { type Selection, useMuseThread } from "./threads";
-import { Button, Card, CheckRow, colors, ErrorNotice, s } from "./ui";
+import { Button, Card, CheckRow, colors, ErrorNotice, Mascot, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
 const displayParameters = z.record(z.string(), z.unknown());
@@ -201,7 +203,11 @@ function ServerToolCard({
   if (background) {
     if (toolError) {
       return (
-        <StreamCard state="error" title={background === "delegate" ? "没能交给后台" : "没能查看后台"}>
+        <StreamCard
+          collapsible
+          state="error"
+          title={background === "delegate" ? "没能交给后台" : "没能查看后台"}
+        >
           <ErrorNotice error={toolError} />
         </StreamCard>
       );
@@ -234,8 +240,10 @@ function ServerToolCard({
     );
   }
   const failed = Boolean(toolError);
+  const showAction = !loading && !failed;
   return (
     <StreamCard
+      collapsible={failed || showAction}
       state={failed ? "error" : loading ? "running" : "done"}
       title={loading ? `正在保存${name}…` : name}
       detail={
@@ -243,20 +251,22 @@ function ServerToolCard({
       }
     >
       {toolError ? <ErrorNotice error={toolError} /> : null}
-      <Button
-        small
-        onPress={() =>
-          navigate(
-            name === "目标" || name === "盯梢"
-              ? "goals"
-              : name === "记忆"
-                ? "apps"
-                : "activity",
-          )
-        }
-      >
-        {`查看${name}`}
-      </Button>
+      {showAction ? (
+        <Button
+          small
+          onPress={() =>
+            navigate(
+              name === "目标" || name === "盯梢"
+                ? "goals"
+                : name === "记忆"
+                  ? "apps"
+                  : "activity",
+            )
+          }
+        >
+          {`查看${name}`}
+        </Button>
+      ) : null}
     </StreamCard>
   );
 }
@@ -608,6 +618,18 @@ export function ChatScreen({
     .at(-1)?.id;
   const replying = busy || agent.isRunning;
   const chrome = composerChrome({ focused, hovered: composerHovered });
+  const sendFace = composerSendFace({ draft, loaded, ready: isReady, replying });
+  const liveCue = liveTurnCue({
+    replying,
+    settledToolIds: new Set(
+      messages.flatMap((message) => (message.role === "tool" ? [message.toolCallId] : [])),
+    ),
+    turns: messages.map((message) => ({
+      role: message.role,
+      content: typeof message.content === "string" ? message.content : "",
+      toolCallIds: "toolCalls" in message ? message.toolCalls?.map((call) => call.id) : undefined,
+    })),
+  });
   return (
     <View style={{ flex: 1 }}>
       <View style={{ flex: 1 }}>
@@ -822,7 +844,18 @@ export function ChatScreen({
             )}
           </>
         )}
-        {replying && <QuietDots label="正在回复" />}
+        {liveCue === "thinking" && (
+          <View style={[s.row, { gap: 8, alignSelf: "flex-start", paddingVertical: 2 }]}>
+            <Mascot size={28} />
+            <QuietDots label="正在思考" />
+          </View>
+        )}
+        {liveCue === "writing" && (
+          <View style={[s.row, { gap: 8, alignSelf: "flex-start", paddingVertical: 4 }]}>
+            <Mascot size={28} />
+            <Text style={s.muted}>正在写回复</Text>
+          </View>
+        )}
         <ErrorNotice error={error} />
         {!!error && (
           <Button
@@ -995,7 +1028,7 @@ export function ChatScreen({
           }}
         >
           {attachments.length > 0 && (
-            <View style={[s.row, { gap: 6, flexWrap: "wrap", padding: 9 }]}>
+            <View style={[s.row, { gap: 4, flexWrap: "wrap", paddingHorizontal: 6, paddingTop: 2, paddingBottom: 4 }]}>
               {w.files
                 .filter((f) => attachments.includes(f.id))
                 .map((f) => (
@@ -1004,26 +1037,27 @@ export function ChatScreen({
                     accessibilityRole="button"
                     accessibilityLabel={`移除附件：${f.name}`}
                     onPress={() => setAttachments((ids) => ids.filter((id) => id !== f.id))}
+                    hitSlop={4}
                     style={[
                       s.row,
                       {
-                        gap: 7,
+                        gap: 4,
                         maxWidth: "100%",
                         backgroundColor: colors.sky,
-                        borderRadius: 16,
-                        paddingHorizontal: 11,
-                        paddingVertical: 8,
+                        borderRadius: 8,
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
                       },
                     ]}
                   >
-                    <FileText size={14} color={colors.blueDark} />
+                    <FileText size={12} color={colors.blueDark} />
                     <Text
                       numberOfLines={1}
-                      style={{ flexShrink: 1, fontSize: 12, color: colors.text }}
+                      style={{ flexShrink: 1, fontSize: 12, lineHeight: 16, color: colors.text }}
                     >
                       {f.name}
                     </Text>
-                    <X size={13} color={colors.muted} />
+                    <X size={12} color={colors.muted} />
                   </Pressable>
                 ))}
             </View>
@@ -1113,26 +1147,27 @@ export function ChatScreen({
             />
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={replying ? "停止回复" : "发送消息"}
-              disabled={!replying && (!draft.trim() || !loaded || !isReady)}
-              onPress={replying ? () => void stop() : send}
+              accessibilityLabel={sendFace === "stop" ? "停止回复" : "发送消息"}
+              accessibilityState={{ disabled: sendFace === "idle" }}
+              disabled={sendFace === "idle"}
+              onPress={sendFace === "stop" ? () => void stop() : send}
               style={({ pressed }) => ({
                 width: 44,
                 height: 44,
                 borderRadius: 24,
-                backgroundColor: replying || draft.trim() ? colors.blue : "#F3F5F6",
+                backgroundColor: sendFace === "idle" ? "#F3F5F6" : colors.blue,
                 alignItems: "center",
                 justifyContent: "center",
-                transform: [{ scale: pressed ? 0.94 : 1 }],
+                transform: [{ scale: pressed && sendFace !== "idle" ? 0.94 : 1 }],
               })}
             >
-              {replying ? (
+              {sendFace === "stop" ? (
                 <Square size={18} fill={colors.text} strokeWidth={0} />
               ) : (
                 <ArrowUp
                   size={25}
                   strokeWidth={1.8}
-                  color={draft.trim() ? colors.text : "#9CB5C5"}
+                  color={sendFace === "send" ? colors.text : "#9CB5C5"}
                 />
               )}
             </Pressable>
