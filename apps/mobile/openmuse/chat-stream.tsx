@@ -13,6 +13,8 @@ import {
   SCROLL_FADE_PX,
   type StreamState,
   surfaceFadeAlphas,
+  suggestionRowChrome,
+  toolCardChrome,
   toolCardStartsOpen,
   USER_BUBBLE_FADE_PX,
   userMessageOverflows,
@@ -73,7 +75,7 @@ export function StatusPip({ state }: { state: StreamState }) {
         width: 8,
         height: 8,
         borderRadius: 4,
-        marginTop: 7,
+        marginTop: 6,
         backgroundColor: streamInk(state),
         opacity,
       }}
@@ -93,13 +95,30 @@ export function EventHeading({
   icon?: ReactNode;
 }) {
   return (
-    <View style={[s.row, { gap: 10, alignItems: "flex-start" }]}>
+    <View style={[s.row, { gap: 8, alignItems: "flex-start" }]}>
       <StatusPip state={state} />
-      {icon ? <View style={{ marginTop: 2 }}>{icon}</View> : null}
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text style={[s.text, { fontWeight: "600" }]}>{title}</Text>
+      {icon ? <View style={{ marginTop: 1 }}>{icon}</View> : null}
+      <View style={{ flex: 1, gap: 1 }}>
+        <Text
+          numberOfLines={1}
+          style={{
+            color: colors.text,
+            fontSize: toolCardChrome.titleSize,
+            lineHeight: toolCardChrome.titleLine,
+            fontWeight: "600",
+          }}
+        >
+          {title}
+        </Text>
         {detail ? (
-          <Text numberOfLines={2} style={s.small}>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: colors.muted,
+              fontSize: toolCardChrome.detailSize,
+              lineHeight: toolCardChrome.detailLine,
+            }}
+          >
             {detail}
           </Text>
         ) : null}
@@ -155,7 +174,7 @@ export function StreamCard({
       </View>
       {canFold ? (
         <View style={{ transform: [{ rotate: open ? "0deg" : "-90deg" }] }}>
-          <ChevronDown size={16} color={colors.muted} />
+          <ChevronDown size={toolCardChrome.chevron} color={colors.muted} />
         </View>
       ) : null}
     </View>
@@ -165,14 +184,14 @@ export function StreamCard({
       style={{
         width: "100%",
         maxWidth: wide ? 640 : 440,
-        paddingHorizontal: 14,
-        paddingVertical: canFold && !open ? 8 : 12,
-        gap: canFold && !open ? 0 : 10,
+        paddingHorizontal: toolCardChrome.padX,
+        paddingVertical: canFold && !open ? toolCardChrome.padYFolded : toolCardChrome.padYOpen,
+        gap: canFold && !open ? 0 : toolCardChrome.bodyGap,
         backgroundColor: tint ?? colors.card,
-        borderRadius: 16,
+        borderRadius: toolCardChrome.radius,
         borderWidth: 1,
         borderColor: colors.line,
-        borderLeftWidth: 3,
+        borderLeftWidth: toolCardChrome.rail,
         borderLeftColor: streamInk(state),
       }}
     >
@@ -566,10 +585,10 @@ export function SuggestionRow({ label, onPress }: { label: string; onPress: () =
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => ({
-        minHeight: 44,
-        borderRadius: 14,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
+        minHeight: suggestionRowChrome.minHeight,
+        borderRadius: suggestionRowChrome.radius,
+        paddingHorizontal: suggestionRowChrome.padX,
+        paddingVertical: suggestionRowChrome.padY,
         backgroundColor: pressed ? colors.sky : colors.card,
         borderWidth: 1,
         borderColor: colors.line,
@@ -579,8 +598,17 @@ export function SuggestionRow({ label, onPress }: { label: string; onPress: () =
         gap: 8,
       })}
     >
-      <Text style={{ flex: 1, color: colors.text, fontSize: 15, lineHeight: 22 }}>{label}</Text>
-      <ChevronRight size={16} color={colors.muted} />
+      <Text
+        style={{
+          flex: 1,
+          color: colors.text,
+          fontSize: suggestionRowChrome.fontSize,
+          lineHeight: suggestionRowChrome.lineHeight,
+        }}
+      >
+        {label}
+      </Text>
+      <ChevronRight size={suggestionRowChrome.chevron} color={colors.muted} />
     </Pressable>
   );
 }

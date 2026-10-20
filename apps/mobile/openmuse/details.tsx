@@ -41,6 +41,15 @@ import {
   approvalKindLabel,
   approvalProposeLabel,
   approvalStatusLabel,
+  browserOpenLabel,
+  browserSessionSubtitle,
+  fileAddedLine,
+  fileDetailLine,
+  formFieldLabel,
+  mailRecipientLine,
+  mailThreadSubtitle,
+  pdfDownloadsAddedNotice,
+  unsupportedFieldNote,
 } from "./chat-stream-rules";
 import BrowserConsole from "./BrowserConsole";
 import { browserAddress, browserSite } from "./browser-address";
@@ -157,7 +166,7 @@ function MailDetail({ mail: m }: { mail: Mail }) {
   return (
     <Sheet
       title={m.subject}
-      subtitle={`${thread.length} message${thread.length === 1 ? "" : "s"} in this conversation`}
+      subtitle={mailThreadSubtitle(thread.length)}
       onClose={close}
     >
       {loading && (
@@ -172,7 +181,7 @@ function MailDetail({ mail: m }: { mail: Mail }) {
             <View style={{ gap: 4, flex: 1 }}>
               <Text style={s.heading}>{message.sender}</Text>
               <Text style={s.small}>{message.from}</Text>
-              <Text style={s.small}>To: {message.to.join(", ")}</Text>
+              <Text style={s.small}>{mailRecipientLine(message.to)}</Text>
             </View>
             <Text style={s.small}>
               {dateLabel(message.date)} · {timeLabel(message.date)}
@@ -188,7 +197,7 @@ function MailDetail({ mail: m }: { mail: Mail }) {
               <LinkRow
                 key={id}
                 title={file.name}
-                detail={`${file.pageCount} pages · PDF attachment`}
+                detail={fileDetailLine({ pageCount: file.pageCount, kind: "attachment" })}
                 icon={FileText}
                 onPress={() => open({ type: "file", file })}
               />
@@ -831,7 +840,7 @@ function FileDetail({ file: f }: { file: Artifact }) {
   return (
     <Sheet
       title={f.name}
-      subtitle={`${f.pageCount} pages · ${Math.max(1, Math.round(f.size / 1024))} KB · ${f.source}`}
+      subtitle={fileDetailLine({ pageCount: f.pageCount, bytes: f.size, source: f.source })}
       onClose={close}
       wide
     >
@@ -857,19 +866,19 @@ function FileDetail({ file: f }: { file: Artifact }) {
           {f.fields.map((field) =>
             field.type === "unsupported" ? (
               <Text key={field.name} style={s.muted}>
-                {field.name} · this field type is not supported
+                {unsupportedFieldNote(field.name)}
               </Text>
             ) : field.type === "checkbox" ? (
               <CheckRow
                 key={field.name}
                 checked={!!values[field.name]}
-                label={field.name.replace(/_/g, " ").replace(/^./, (s) => s.toUpperCase())}
+                label={formFieldLabel(field.name)}
                 onPress={() => setValues({ ...values, [field.name]: !values[field.name] })}
               />
             ) : (
               <Field
                 key={field.name}
-                label={field.name.replace(/_/g, " ").replace(/^./, (s) => s.toUpperCase())}
+                label={formFieldLabel(field.name)}
                 value={String(values[field.name] || "")}
                 onChangeText={(value) => setValues({ ...values, [field.name]: value })}
               />
@@ -883,8 +892,7 @@ function FileDetail({ file: f }: { file: Artifact }) {
       {!enabled && <Text style={s.small}>此工作台未启用。</Text>}
       <ErrorNotice error={error} />
       <Text style={[s.small, { marginTop: 15 }]}>
-        Added {dateLabel(f.createdAt)}
-        {f.parentId ? " · filled copy" : ""}
+        {fileAddedLine(dateLabel(f.createdAt), Boolean(f.parentId))}
       </Text>
     </Sheet>
   );
@@ -944,8 +952,8 @@ function BrowserDetail({ initial }: { initial: BrowserSession }) {
       const files = result.files;
       notify(
         files.length
-          ? `${files.length} PDF download${files.length === 1 ? "" : "s"} added to Files.`
-          : "本次会话没有新的 PDF 下载。",
+          ? pdfDownloadsAddedNotice(files.length)
+          : pdfDownloadsAddedNotice(0),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -975,7 +983,7 @@ function BrowserDetail({ initial }: { initial: BrowserSession }) {
   return (
     <Sheet
       title={browserSite(browser.url)}
-      subtitle={`${browser.status} · updated ${timeLabel(browser.updatedAt)}`}
+      subtitle={browserSessionSubtitle(browser.status, timeLabel(browser.updatedAt))}
       onClose={close}
       wide
     >
@@ -991,7 +999,7 @@ function BrowserDetail({ initial }: { initial: BrowserSession }) {
           />
         </View>
         <Button primary busy={busy} disabled={!enabled || loading || !url.trim()} onPress={() => void mutate()}>
-          {browser.status === "closed" ? "重新打开" : browser.status === "error" ? "重新连接" : "Go"}
+          {browserOpenLabel(browser.status)}
         </Button>
       </View>
       {!enabled && <Text style={s.small}>此工作台未启用。</Text>}

@@ -1,3 +1,5 @@
+import { browserAddressHint } from "./chat-stream-rules";
+
 export function browserAddress(value: string): string {
   const input = value.trim();
   try {
@@ -11,7 +13,7 @@ export function browserAddress(value: string): string {
       throw new Error("地址无效");
     return url.href;
   } catch {
-    throw new Error("输入网址，例如 copilotkit.ai 或 https://news.ycombinator.com。");
+    throw new Error(browserAddressHint());
   }
 }
 

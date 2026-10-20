@@ -51,6 +51,7 @@ import {
   composerBoxShadow,
   composerChrome,
   composerSendFace,
+  emptyThreadSuggestions,
   listedBackgroundTasks,
   liveCueLabel,
   liveTurnCue,
@@ -713,19 +714,16 @@ export function ChatScreen({
             title="一点帮助，生活多一点空间。"
             detail="告诉我你在想什么。我可以做计划、调用你的应用，并用电脑来帮忙。"
           >
-            <View style={{ width: "100%", maxWidth: 360, marginTop: 4, gap: 8 }}>
-              {[
-                {
-                  text: "在 Hacker News 找点有趣的",
-                  action: () => enqueue("去 Hacker News 看看新鲜事"),
-                },
-                {
-                  text: "总结 copilotkit.ai",
-                  action: () => enqueue("总结 copilotkit.ai"),
-                },
-                { text: "盯着某个网站", action: () => navigate("goals") },
-              ].map((item) => (
-                <SuggestionRow key={item.text} label={item.text} onPress={item.action} />
+            <View style={{ width: "100%", maxWidth: 360, marginTop: 2, gap: 6 }}>
+              {emptyThreadSuggestions().map((item) => (
+                <SuggestionRow
+                  key={item.label}
+                  label={item.label}
+                  onPress={() => {
+                    if (item.prompt) enqueue(item.prompt);
+                    else if (item.section) navigate(item.section);
+                  }}
+                />
               ))}
             </View>
           </ChatStatusScreen>

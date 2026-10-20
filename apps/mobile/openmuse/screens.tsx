@@ -39,7 +39,17 @@ import type {
   EmailDraft,
 } from "../../../packages/openmuse-domain/src";
 import { API_URL } from "./api";
-import { approvalStatusLabel, operationStatusLabel, reviewGateLabel } from "./chat-stream-rules";
+import {
+  approvalStatusLabel,
+  attachmentCountLabel,
+  browserStatusLabel,
+  fileDetailLine,
+  fileSourceLabel,
+  mailDraftDetail,
+  mailListTabLabel,
+  operationStatusLabel,
+  reviewGateLabel,
+} from "./chat-stream-rules";
 import { browserAddress } from "./browser-address";
 import { localDateTime, startOfZonedDay, zonedInstant } from "./date-time";
 import {
@@ -519,10 +529,10 @@ export function MailScreen() {
             全部邮件
           </Button>
           <Button small primary={tab === "unread"} onPress={() => setTab("unread")}>
-            Unread · {w.mail.filter((m) => m.unread).length}
+            {mailListTabLabel("unread", w.mail.filter((m) => m.unread).length)}
           </Button>
           <Button small primary={tab === "drafts"} onPress={() => setTab("drafts")}>
-            Drafts · {drafts.length}
+            {mailListTabLabel("drafts", drafts.length)}
           </Button>
         </View>
         {tab === "drafts" ? (
@@ -532,7 +542,7 @@ export function MailScreen() {
                 key={d.id}
                 icon={Mail}
                 title={d.subject}
-                detail={`To: ${d.to.join(", ")} · saved ${dateLabel(d.createdAt)}`}
+                detail={mailDraftDetail(d.to, dateLabel(d.createdAt))}
                 onPress={() => open({ type: "email", draft: d })}
               />
             ))
@@ -567,7 +577,7 @@ export function MailScreen() {
                   <View style={[s.row, { gap: 4, marginTop: 2 }]}>
                     <FileText size={12} color={colors.muted} />
                     <Text style={s.small}>
-                      {m.attachments.length} attachment{m.attachments.length > 1 ? "s" : ""}
+                      {attachmentCountLabel(m.attachments.length)}
                     </Text>
                   </View>
                 )}
@@ -924,7 +934,9 @@ export function BrowserScreen() {
                     {b.url}
                   </Text>
                 </View>
-                <Chip tint={b.status === "active" ? colors.green : colors.canvas}>{b.status}</Chip>
+                <Chip tint={b.status === "active" ? colors.green : colors.canvas}>
+                  {browserStatusLabel(b.status)}
+                </Chip>
                 <ArrowUpRight size={17} color={colors.muted} />
               </View>
               {!!b.previewUrl && (
@@ -1062,11 +1074,10 @@ export function FilesScreen() {
                   {f.name}
                 </Text>
                 <Text style={s.small}>
-                  {f.pageCount} {f.pageCount === 1 ? "page" : "pages"} ·{" "}
-                  {Math.max(1, Math.round(f.size / 1024))} KB
+                  {fileDetailLine({ pageCount: f.pageCount, bytes: f.size, kind: "meta" })}
                 </Text>
                 <View style={[s.between, { marginTop: 9 }]}>
-                  <Chip>{f.source}</Chip>
+                  <Chip>{fileSourceLabel(f.source)}</Chip>
                   <Text style={s.small}>{dateLabel(f.createdAt)}</Text>
                 </View>
               </View>

@@ -35,7 +35,7 @@ import type {
 } from "../../../packages/openmuse-domain/src/agent";
 import { useAgentWorkspace } from "./agent-workspace";
 import { QuietDots, ReceiptAction, StreamCard } from "./chat-stream";
-import { knownOperationStatus } from "./chat-stream-rules";
+import { fileDetailLine, knownOperationStatus } from "./chat-stream-rules";
 import { ActivityScreen, ConnectionsScreen } from "./screens";
 import {
   Button,
@@ -633,7 +633,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
             <LinkRow
               key={file.id}
               title={file.name}
-              detail={`${file.pageCount} pages · PDF`}
+              detail={fileDetailLine({ pageCount: file.pageCount })}
               icon={FileText}
               onPress={() => open({ type: "file", file })}
             />

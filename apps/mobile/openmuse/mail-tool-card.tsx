@@ -4,7 +4,7 @@ import { Text } from "react-native";
 import { z } from "zod";
 import { BrowserRunContext } from "./browser-tool-card";
 import { ReceiptAction, StreamCard } from "./chat-stream";
-import { mailReceiptAction } from "./chat-stream-rules";
+import { mailReceiptAction, mailRecipientLine } from "./chat-stream-rules";
 import { colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
@@ -110,7 +110,14 @@ export function MailToolCard({
         ) : null
       }
     >
-      <Text style={s.heading}>{message.subject}</Text>
+      <Text style={{ color: colors.text, fontSize: 14, lineHeight: 20, fontWeight: "600" }}>
+        {message.subject}
+      </Text>
+      {message.to.length > 0 ? (
+        <Text numberOfLines={1} style={s.small}>
+          {mailRecipientLine(message.to)}
+        </Text>
+      ) : null}
       <Text style={s.muted} numberOfLines={3}>
         {message.body}
       </Text>
