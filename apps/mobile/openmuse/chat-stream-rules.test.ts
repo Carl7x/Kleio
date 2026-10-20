@@ -19,6 +19,8 @@ import {
   desktopReceiptActions,
   listedBackgroundTasks,
   knownOperationStatus,
+  assistantIdentityIndex,
+  liveCueLabel,
   liveTurnCue,
   mailReceiptAction,
   operationStatusLabel,
@@ -28,6 +30,8 @@ import {
   shouldCommitComposerEnter,
   surfaceFadeAlphas,
   toolCardStartsOpen,
+  turnSpacing,
+  turnTimeLabel,
   userMessageOverflows,
   withAlpha,
 } from "./chat-stream-rules.ts";
@@ -112,6 +116,35 @@ test("the live cue is a thought, then writing, and stays out of a running tool",
     }),
     "thinking",
   );
+});
+
+test("bubble rhythm, the live cue, and the clock stay in the chat shell", () => {
+  assert.equal(turnSpacing(null, "user"), 0);
+  assert.equal(turnSpacing("user", "user"), 6);
+  assert.equal(turnSpacing("user", "assistant"), 16);
+  assert.equal(turnSpacing("assistant", "assistant"), 6);
+  assert.equal(liveCueLabel("thinking"), "正在思考");
+  assert.equal(liveCueLabel("writing"), "正在写回复");
+  assert.doesNotMatch(liveCueLabel("thinking"), /[A-Za-z]/);
+  assert.doesNotMatch(liveCueLabel("writing"), /[A-Za-z]/);
+  const turns = [
+    { role: "user", present: true },
+    { role: "assistant", present: false },
+    { role: "assistant", present: true },
+    { role: "assistant", present: true },
+  ];
+  assert.equal(assistantIdentityIndex(turns, 0), false);
+  assert.equal(assistantIdentityIndex(turns, 1), false);
+  assert.equal(assistantIdentityIndex(turns, 2), true);
+  assert.equal(assistantIdentityIndex(turns, 3), false);
+  const now = Date.parse("2026-10-20T12:00:00.000Z");
+  const sameDay = turnTimeLabel("2026-10-20T12:30:00.000Z", now);
+  const older = turnTimeLabel("2026-10-18T08:05:00.000Z", now);
+  assert.match(sameDay ?? "", /^\d{2}:\d{2}$/);
+  assert.match(older ?? "", /^\d{1,2}月\d{1,2}日 \d{2}:\d{2}$/);
+  assert.doesNotMatch(`${sameDay} ${older}`, /[A-Za-z]/);
+  assert.equal(turnTimeLabel(undefined, now), null);
+  assert.equal(turnTimeLabel("not-a-time", now), null);
 });
 
 test("a settled choice keeps only the chosen row in full", () => {

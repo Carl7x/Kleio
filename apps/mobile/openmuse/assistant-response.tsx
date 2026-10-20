@@ -7,7 +7,7 @@ import { colors, ErrorNotice } from "./ui";
 const textStyle = { color: colors.text, fontSize: 16, lineHeight: 24 };
 const style: Partial<MarkdownStyles> = {
   text: textStyle,
-  paragraph: { marginTop: 0, marginBottom: 6 },
+  paragraph: { marginTop: 0, marginBottom: 4 },
   list: { marginBottom: 6 },
   headingContainer: { marginTop: 8, marginBottom: 4 },
   heading1: { fontSize: 21, lineHeight: 27 },
@@ -30,7 +30,7 @@ const rules: RenderRules = {
   ),
   image: (node) => (
     <Text key={node.key} selectable style={{ color: colors.muted }}>
-      {node.attributes.alt ? `[Image: ${node.attributes.alt}]` : "[Image]"}
+      {node.attributes.alt ? `[图片：${node.attributes.alt}]` : "[图片]"}
     </Text>
   ),
   code_block: renderCodeBlock,

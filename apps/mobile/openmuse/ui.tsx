@@ -403,9 +403,12 @@ export function LinkRow({
 export function Mascot({
   size = 42,
   variant = "sky",
+  decorative = false,
 }: {
   size?: number;
   variant?: "sky" | "sand" | "lilac";
+  /** Hide the portrait from assistive tech when a nearby label already says Kleio. */
+  decorative?: boolean;
 }) {
   const palette = {
     sky: "#ECF5FA",
@@ -414,7 +417,9 @@ export function Mascot({
   }[variant];
   return (
     <View
-      accessibilityLabel="Kleio"
+      accessibilityLabel={decorative ? undefined : "Kleio"}
+      accessibilityElementsHidden={decorative}
+      importantForAccessibility={decorative ? "no" : "auto"}
       style={{
         width: size,
         height: size,

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {Execution,Message as SavedMessage,ProductEvent} from '../src/api.ts';
-import {projectConversationMessages,executionMessages} from './conversation-history.ts';
+import {projectConversationMessages,executionMessages,withoutTurnStamps} from './conversation-history.ts';
 const timestamp='2026-10-19T00:00:00.000Z';
 const saved=(id:string,sequence:number,role:'user'|'assistant',executionId:string,content=id,status='completed'):SavedMessage=>({id,sequence,role,executionId,content,status,conversationId:'c',createdAt:timestamp});
 const execution=(id:string,messageId:string|null,kind:Execution['kind']='conversation',status='completed',text=id):Execution=>({id,messageId,kind,status,text,conversationId:'c',error:null,createdAt:timestamp,updatedAt:timestamp});
@@ -11,7 +11,7 @@ test('persistent sequence anchors completed responses and independent deliveries
  const turns=[execution('e1','u1'),execution('review',null,'review','completed','INTERNAL JSON'),execution('e2','u2')];
  const result=project([...rows].reverse(),turns);
  assert.deepEqual(result.map(x=>x.content),['u1','e1','research','u2','e2']);
- assert.deepEqual(result[2],{id:'delivery',role:'assistant',content:'research'});assert.ok(!JSON.stringify(result).includes('INTERNAL JSON'));
+ assert.deepEqual(result[2],{id:'delivery',role:'assistant',content:'research',createdAt:timestamp});assert.ok(!JSON.stringify(result).includes('INTERNAL JSON'));
 });
 test('same timestamp and identical delivery text retain distinct IDs; replay and duplicated inputs are stable',()=>{
  const rows=[saved('u',1,'user','e'),saved('a',2,'assistant','e'),saved('d1',3,'assistant','r1','same'),saved('d2',4,'assistant','r2','same')];
@@ -37,7 +37,7 @@ test('unpersisted live and failed attempts stay at user anchor while persisted r
 test('completed orphan fallback displays saved text; noncompleted orphan and unpersisted internal jobs stay hidden',()=>{
  const rows=[saved('delivery',1,'assistant','missing','saved report'),saved('failed-orphan',2,'assistant','missing-failed','unsafe partial','failed')];
  const turns=[execution('internal-review',null,'review','completed','PRIVATE REVIEW JSON'),execution('internal-memory',null,'memory','completed','PRIVATE MEMORY JSON')];
- assert.deepEqual(project(rows,turns),[{id:'delivery',role:'assistant',content:'saved report'}]);
+ assert.deepEqual(project(rows,turns),[{id:'delivery',role:'assistant',content:'saved report',createdAt:timestamp}]);
 });
 test('cross-conversation messages, executions and misbound event records cannot affect output',()=>{
  const own=saved('u',1,'user','e');const foreign={...saved('foreign',2,'assistant','foreign-execution','foreign'),conversationId:'other'};
@@ -49,4 +49,26 @@ test('persisted failed conversation attempt remains visible once, followed by re
  const rows=[saved('u',1,'user','failed'),saved('failed-answer',2,'assistant','failed','partial','failed'),saved('retry-answer',3,'assistant','retry','done')];
  const result=project(rows,[execution('failed','u','conversation','failed','partial'),execution('retry','u','conversation','completed','done')]);
  assert.deepEqual(result.map(x=>x.content),['u','partial','done']);
+});
+test('turn stamps follow the saved message or the first event, and stay off the legacy transcript',()=>{
+ const early='2026-10-19T01:00:00.000Z';
+ const later='2026-10-19T02:00:00.000Z';
+ const events:ProductEvent[]=[
+  {sequence:1,executionId:'e',type:'text.delta',data:{text:'before'},createdAt:early},
+  {sequence:2,executionId:'e',type:'tool.started',data:{callId:'call',name:'web_search',args:{}},createdAt:early},
+  {sequence:3,executionId:'e',type:'tool.completed',data:{callId:'call',name:'web_search',result:{}},createdAt:later},
+  {sequence:4,executionId:'e',type:'text.delta',data:{text:'after'},createdAt:later},
+ ];
+ const result=project([saved('u',1,'user','e','hi'),saved('a',3,'assistant','e','ignored')],[execution('e','u')],new Map([['e',events]]));
+ const user=result[0];
+ assert.equal(user&&'createdAt'in user?user.createdAt:undefined,timestamp);
+ const assistants=result.filter(item=>item.role==='assistant');
+ assert.equal(assistants[0]&&'createdAt'in assistants[0]?assistants[0].createdAt:undefined,early);
+ assert.equal(assistants[1]&&'createdAt'in assistants[1]?assistants[1].createdAt:undefined,later);
+ const tool=result.find(item=>item.role==='tool');
+ assert.ok(tool&&!('createdAt'in tool));
+ const roundTrip=withoutTurnStamps(result);
+ assert.equal(roundTrip.some(item=>'createdAt'in item),false);
+ assert.deepEqual(roundTrip.map(item=>item.id),result.map(item=>item.id));
+ assert.deepEqual(roundTrip.map(item=>item.content),result.map(item=>item.content));
 });
