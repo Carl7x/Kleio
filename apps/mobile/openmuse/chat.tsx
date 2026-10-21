@@ -55,6 +55,7 @@ import {
   composerNativeShadow,
   composerPlaceholder,
   composerShortcutHint,
+  composerReturnHint,
   composerSendFace,
   returnKeyCaption,
   emptyThreadSuggestions,
@@ -1180,7 +1181,7 @@ export function ChatScreen({
             <TextInput
               ref={inputRef}
               accessibilityLabel="给 Kleio 发消息"
-              accessibilityHint={Platform.OS === "web" ? composerShortcutHint() : undefined}
+              accessibilityHint={Platform.OS === "web" ? composerShortcutHint() : composerReturnHint()}
               value={draft}
               onChangeText={setDraft}
               onContentSizeChange={(event) =>

@@ -2,7 +2,7 @@ import { Bell, X } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useAgentWorkspace } from "./agent-workspace";
-import { surfaceError } from "./chat-stream-rules";
+import { activityEventTitle, surfaceError } from "./chat-stream-rules";
 import { colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
@@ -50,12 +50,12 @@ export function BackgroundUpdates() {
         <Bell size={14} color={colors.blueDark} />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`后台更新：${update.title}。打开通知`}
+          accessibilityLabel={`后台更新：${activityEventTitle(update.title)}。打开通知`}
           onPress={() => open({ type: "notifications" })}
           style={{ flex: 1 }}
         >
           <Text numberOfLines={1} style={s.muted}>
-            {`后台更新 · ${update.title}${extra}`}
+            {`后台更新 · ${activityEventTitle(update.title)}${extra}`}
           </Text>
         </Pressable>
         <Pressable

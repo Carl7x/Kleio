@@ -149,6 +149,14 @@ export function composerShortcutHint(): string {
 }
 
 /**
+ * Native composer hint. The return key inserts a newline; send is the button.
+ * iOS may still paint the return key from the system language. This hint does not replace that word.
+ */
+export function composerReturnHint(): string {
+  return "回车换行";
+}
+
+/**
  * One line under the portrait. A person who must act comes first.
  * Offline and reconnect stay quieter than an approval, and louder than idle.
  */
@@ -581,6 +589,42 @@ const SHELL_NOTICE_ZH: Record<string, string> = {
   "calendar range must end after it starts and span at most 366 days":
     "日历范围须晚于开始，且不超过 366 天。",
   "computer control is not configured": "电脑还没有配置。",
+  "web search cancelled": "搜索已取消。",
+  "web search cancelled or timed out": "搜索已取消或超时。",
+  "tavily search timed out. try again later": "网页搜索超时了。请稍后再试。",
+  "tavily search could not be reached. check the runtime network connection and try again later":
+    "没有连上网页搜索。请检查网络后再试。",
+  "tavily search returned an invalid result list": "搜索没有返回可读结果。",
+  "tavily search returned an empty response": "搜索没有返回内容。",
+  "tavily search returned an invalid response": "搜索返回的内容无法读取。",
+  "tavily search response exceeded the size limit": "搜索结果太大，没有完整载入。",
+  "tavily rejected the configured search key. check the server-side tavily key":
+    "搜索密钥被拒绝。请检查服务器上的密钥。",
+  "tavily keyless search is unavailable. a server-side tavily key can enable account access":
+    "免密钥搜索不可用。可在服务器上配置搜索密钥。",
+  "tavily search reached an account rate or usage limit. try again later or review the tavily account limits":
+    "搜索次数到了上限。请稍后再试。",
+  "tavily keyless search reached its rate limit. try again later or configure a server-side tavily key":
+    "免密钥搜索到了上限。请稍后再试，或在服务器上配置搜索密钥。",
+  "tavily rejected this search request. rephrase or shorten the query": "这次搜索被拒绝。请换个更短的说法。",
+  "search requires a query of 1–1000 characters and 1–3 results": "搜索内容请写在 1 到 1000 字之间。",
+  "the server-side tavily key is invalid": "服务器上的搜索密钥无法使用。",
+  "remembered text must be an exact quote from the user": "要记住的话须与你刚才说的完全一致。",
+  "credentials and hypothetical text cannot be stored": "凭证和假设中的话不能保存。",
+  "credentials cannot be stored": "凭证不能保存。",
+  "unsupported memory kind": "这种记忆还不能记。",
+  "this fact already exists. correct the current version instead of remembering a second value":
+    "这条已经记下了。请更正现有的，而不是再记一条。",
+  "memory not found": "没有找到这条记忆。",
+  "read the current version before correcting memory": "请先看当前版本，再更正。",
+  "read the current version before forgetting memory": "请先看当前版本，再遗忘。",
+  "forgotten evidence cannot be captured again": "已遗忘的内容不能再记。",
+  "invalid source time": "来源时间无法识别。",
+  "duplicate option id": "选项编号重复了。",
+  "comparison options need sources": "对比选项需要来源。",
+  "comparison panel can show at most three options": "对比最多显示三个选项。",
+  "selected option is missing": "没有找到已选的那一项。",
+  "preferred option is missing": "没有找到上次偏好的那一项。",
   context_invalidated: "这一轮的上下文已失效。",
   context_budget_exceeded: "所需上下文超出了这一轮的容量。",
   context_state_mismatch: "这一轮的上下文已对不上。",
@@ -735,6 +779,25 @@ export function savedResultReceiptAction(input: {
 }): ToolReceipt | null {
   if (input.loading || input.failed || !input.name) return null;
   return receipt("view-saved", `查看${input.name}`);
+}
+
+const SEARCH_WARNING_ZH: Record<string, string> = {
+  "some results were omitted because their source urls were invalid, unavailable, or not public":
+    "有些来源不是公开网页，已略过。",
+  "search results or snippets were shortened to fit the search limits":
+    "部分搜索结果或摘录已缩短。",
+};
+
+/**
+ * One line under a search card. A known English warning is replaced.
+ * Chinese stays. Other Latin becomes the generic note, not the fragment.
+ */
+export function searchWarningLine(warning: string): string {
+  const text = warning.replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  const known = SEARCH_WARNING_ZH[noticeKey(text)];
+  if (known) return known;
+  return statusServerNote(text) ?? "";
 }
 
 const APPROVAL_STATUS_ZH: Record<string, string> = {
@@ -1544,6 +1607,9 @@ export function activityEventTitle(title: string): string {
 const MEMORY_SOURCE_ZH: Record<string, string> = {
   conversation: "对话",
   "authenticated user edit": "你的更正",
+  "user remember": "你记下的",
+  "user correction": "你的更正",
+  "authenticated product command": "你的更正",
 };
 
 /** Provenance under a memory. Stored Chinese notes stay. */
