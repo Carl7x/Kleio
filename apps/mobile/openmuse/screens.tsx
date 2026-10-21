@@ -42,8 +42,10 @@ import { API_URL } from "./api";
 import {
   approvalStatusLabel,
   attachmentCountLabel,
+  attendeeCountLine,
   browserStatusLabel,
   calendarAccessSuffix,
+  calendarZoneLine,
   fileDetailLine,
   fileSourceLabel,
   mailDraftDetail,
@@ -51,6 +53,8 @@ import {
   operationStatusLabel,
   reviewGateLabel,
   richThreadValue,
+  todayBriefLine,
+  todayHeroTitle,
 } from "./chat-stream-rules";
 import { browserAddress } from "./browser-address";
 import { localDateTime, startOfZonedDay, zonedInstant } from "./date-time";
@@ -118,12 +122,10 @@ export function TodayScreen() {
               color: colors.text,
             }}
           >
-            Your day, with a little{"\n"}more room to breathe.
+            {todayHeroTitle()}
           </Text>
           <Text style={[s.muted, { maxWidth: 420, color: "#617680" }]}>
-            {events.length ? `${events.length} things on your calendar` : "日历还有空档"}
-            {unread.length ? `, ${unread.length} unread emails` : ""}.{"\n"}Let’s make space for
-            what matters.
+            {todayBriefLine(events.length, unread.length)}
           </Text>
           <Button
             onPress={() => ask("帮我规划今天")}
@@ -453,7 +455,7 @@ export function AgendaRow({
       <View style={{ flex: 1, gap: 3 }}>
         <Text style={[s.text, { fontSize: 13, fontWeight: "500" }]}>{e.title}</Text>
         <Text numberOfLines={1} style={[s.small, { fontSize: 11 }]}>
-          {e.location || (e.attendees.length ? `${e.attendees.length} attendees` : "属于你的时间")}
+          {e.location || attendeeCountLine(e.attendees.length)}
         </Text>
       </View>
       <ChevronRight size={14} color={colors.muted} />
@@ -811,7 +813,7 @@ export function CalendarScreen() {
           </Button>
         </View>
         <Text style={[s.small, { marginTop: 7, marginBottom: 13 }]}>
-          {selected?.name || "你的日历"} · {zone}. Events show their own time zone.
+          {calendarZoneLine(selected?.name, zone)}
         </Text>
         <ErrorNotice error={error} />
         {!!error && (

@@ -8,9 +8,9 @@ import {
   retryChoiceAvailable,
   selectionText,
 } from "./jev-actions";
-import { StreamCard } from "./chat-stream";
-import { choiceRowQuiet } from "./chat-stream-rules";
-import { Button, colors, ErrorNotice, s } from "./ui";
+import { StatusNote, StreamCard, ThreadNotice } from "./chat-stream";
+import { choiceRowQuiet, shellFailureCopy, statusServerNote } from "./chat-stream-rules";
+import { Button, colors, s } from "./ui";
 
 type JevInteraction = {
   threadId: string | null;
@@ -120,8 +120,21 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
   if (loading) return <StreamCard state="running" title="正在准备选项…" />;
 
   const parsed = parseJevResult(result);
-  if (!parsed) return <ErrorNotice error="无法显示选项。请重试。" />;
-  if (parsed.error) return <ErrorNotice error={parsed.error} />;
+  if (!parsed) {
+    const copy = shellFailureCopy("choice-unreadable");
+    return <ThreadNotice title={copy.title} detail={copy.detail} tone="error" />;
+  }
+  if (parsed.error) {
+    const copy = shellFailureCopy("choice-unreadable");
+    return (
+      <ThreadNotice
+        title={copy.title}
+        detail={copy.detail}
+        note={statusServerNote(parsed.error)}
+        tone="error"
+      />
+    );
+  }
   const panel = parsed.panel;
   if (!panel) return null;
 
@@ -186,19 +199,22 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
   const decisionState = selectedId ? "done" : submitError ? "error" : stale ? "paused" : "pending";
   const chosen = selectedId ? panel.options.find((option) => option.id === selectedId) : undefined;
   const foldSettled = Boolean(selectedId) || stale;
+  const choiceFailure = shellFailureCopy("choice");
   return (
     <StreamCard
       collapsible={foldSettled}
       state={decisionState}
-      title={selectedId ? "已提交选择" : submitError ? "选择没有发出" : stale ? "更早的选择" : "待你选择"}
+      title={selectedId ? "已提交选择" : submitError ? choiceFailure.title : stale ? "更早的选择" : "待你选择"}
       detail={
-        chosen
-          ? chosen.label
-          : panel.mode === "sample"
-            ? "示例 · 脚本化决策"
-            : panel.mode === "live"
-              ? "按当前对话里的选项决定"
-              : undefined
+        submitError
+          ? choiceFailure.detail
+          : chosen
+            ? chosen.label
+            : panel.mode === "sample"
+              ? "示例 · 脚本化决策"
+              : panel.mode === "live"
+                ? "按当前对话里的选项决定"
+                : undefined
       }
     >
       <View style={{ gap: 5 }}>
@@ -284,7 +300,7 @@ export function JevToolCard({ result, loading }: { result: unknown; loading: boo
           })}
         </View>
       )}
-      <ErrorNotice error={submitError} />
+      <StatusNote message={submitError} />
       {failedOptionId && !selectedId && (
         <Button
           small

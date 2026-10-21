@@ -54,6 +54,7 @@ import {
   composerControlChrome,
   composerNativeShadow,
   composerPlaceholder,
+  composerShortcutHint,
   composerSendFace,
   emptyThreadSuggestions,
   listedBackgroundTasks,
@@ -62,6 +63,8 @@ import {
   operationStatusLabel,
   savedResultReceiptAction,
   SCROLL_FADE_PX,
+  shellFailureCopy,
+  statusServerNote,
   threadStatusCopy,
   threadSurface,
   turnSpacing,
@@ -74,6 +77,7 @@ import {
   EventHeading,
   ReceiptAction,
   shouldCommitComposerEnter,
+  StatusNote,
   StreamCard,
   StreamCue,
   SuggestionRow,
@@ -82,7 +86,7 @@ import {
   UserBubble,
 } from "./chat-stream";
 import { type Selection, useMuseThread } from "./threads";
-import { Button, Card, CheckRow, colors, ErrorNotice, s } from "./ui";
+import { Button, Card, CheckRow, colors, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
 const displayParameters = z.record(z.string(), z.unknown());
@@ -225,8 +229,9 @@ function ServerToolCard({
           collapsible
           state="error"
           title={background === "delegate" ? "没能交给后台" : "没能查看后台"}
+          detail={background === "delegate" ? "这次没有交出去。" : "进展暂时没取到。"}
         >
-          <ErrorNotice error={toolError} />
+          <StatusNote message={toolError} />
         </StreamCard>
       );
     }
@@ -263,9 +268,9 @@ function ServerToolCard({
     <StreamCard
       collapsible={failed}
       state={failed ? "error" : loading ? "running" : "done"}
-      title={loading ? `正在保存${name}…` : name}
+      title={loading ? `正在保存${name}…` : failed ? `没能保存${name}` : name}
       detail={
-        failed ? undefined : loading ? "正在等待服务器。" : "打开工作台查看已保存的结果。"
+        failed ? "工作台里的原内容还在。" : loading ? "正在等待服务器。" : "打开工作台查看已保存的结果。"
       }
       action={
         receipt ? (
@@ -284,7 +289,7 @@ function ServerToolCard({
         ) : null
       }
     >
-      {toolError ? <ErrorNotice error={toolError} /> : null}
+      {toolError ? <StatusNote message={toolError} /> : null}
     </StreamCard>
   );
 }
@@ -332,6 +337,7 @@ export function ChatScreen({
   const [scrolledFromTop, setScrolledFromTop] = useState(false);
   const runLock = useRef(false);
   const [saveError, setSaveError] = useState("");
+  const [stopError, setStopError] = useState("");
   const [historyError, setHistoryError] = useState("");
   const [historyAttempt, setHistoryAttempt] = useState(0);
   // Loads still replaying history. A count, so an old load finishing does not end a newer one.
@@ -475,6 +481,7 @@ export function ChatScreen({
       queuedTurn.current = Boolean(message);
       setBusy(true);
       setError("");
+      setStopError("");
       if (message)
         agent.addMessage({
           id: message.id,
@@ -505,9 +512,7 @@ export function ChatScreen({
           await saveHistory();
         } catch (e) {
           queue.pause();
-          setSaveError(
-            `对话未能保存：${e instanceof Error ? e.message : String(e)}`,
-          );
+          setSaveError(e instanceof Error ? e.message : String(e));
         } finally {
           runLock.current = false;
           setBusy(false);
@@ -599,15 +604,17 @@ export function ChatScreen({
   }, [copilotkit, agentId, queue]);
   async function stop() {
     queue.pause();
+    setStopError("");
     try {
       await copilotkit.stopAgent({ agent });
     } catch (e) {
-      setError(`无法停止回复：${e instanceof Error ? e.message : String(e)}`);
+      setStopError(e instanceof Error ? e.message : String(e));
     }
   }
   function send() {
     const text = draft.trim();
     if (!text || !isReady || !loaded) return;
+    setStopError("");
     // A new submission can continue after Stop; held follow-ups still need explicit resume.
     if (!busy && !agent.isRunning && !saveError && !queue.getSnapshot().pending.length)
       queue.resume();
@@ -616,7 +623,7 @@ export function ChatScreen({
     enqueue(
       text +
         (files.length
-          ? `\n\nAttached documents: ${files.map((f) => `${f.name} (artifact ID: ${f.id})`).join(", ")}`
+          ? `\n\n附带文档：${files.map((f) => `${f.name}（文档编号：${f.id}）`).join("，")}`
           : ""),
     );
     setDraft("");
@@ -665,9 +672,9 @@ export function ChatScreen({
   const statusCopy = statusKind ? threadStatusCopy(statusKind) : null;
   const statusNote =
     statusKind === "history-failed" || statusKind === "history-partial"
-      ? historyError || undefined
+      ? statusServerNote(historyError)
       : statusKind === "connect-failed" || statusKind === "reconnecting" || statusKind === "offline"
-        ? agentError || undefined
+        ? statusServerNote(agentError)
         : undefined;
   const retryThreadStatus = (kind: NonNullable<typeof statusKind>) => {
     if (kind === "history-failed" || kind === "history-partial") {
@@ -906,7 +913,8 @@ export function ChatScreen({
         {!!error && (
           <ThreadNotice
             title={threadStatusCopy("run-failed").title}
-            detail={error}
+            detail={threadStatusCopy("run-failed").detail}
+            note={statusServerNote(error)}
             actionLabel={threadStatusCopy("run-failed").actionLabel}
             actionDisabled={busy || agent.isRunning || !loaded || syncing || !isReady || !agent.canRetry}
             onAction={() => {
@@ -950,17 +958,40 @@ export function ChatScreen({
         behavior={undefined}
         style={keyboardPadding > 0 ? { paddingBottom: keyboardPadding } : undefined}
       >
-        <ErrorNotice error={saveError} />
+        {!!saveError && (
+          <View style={{ marginBottom: 8 }}>
+            <ThreadNotice
+              title={shellFailureCopy("save").title}
+              detail={shellFailureCopy("save").detail}
+              note={statusServerNote(saveError)}
+              tone="error"
+            />
+          </View>
+        )}
         {!!saveError && (
           <Button
             small
             disabled={busy}
             onPress={() => {
-              void saveHistory().catch((e) => setSaveError(String(e)));
+              void saveHistory().catch((e) =>
+                setSaveError(e instanceof Error ? e.message : String(e)),
+              );
             }}
           >
             重试保存对话
           </Button>
+        )}
+        {!!stopError && (
+          <View style={{ marginBottom: 8 }}>
+            <ThreadNotice
+              title={shellFailureCopy("stop").title}
+              detail={shellFailureCopy("stop").detail}
+              note={statusServerNote(stopError)}
+              tone="error"
+              actionLabel="再试一次"
+              onAction={() => void stop()}
+            />
+          </View>
         )}
         {!!outbox.pending.length && (
           <View
@@ -1147,9 +1178,7 @@ export function ChatScreen({
             <TextInput
               ref={inputRef}
               accessibilityLabel="给 Kleio 发消息"
-              accessibilityHint={
-                Platform.OS === "web" ? "Enter 发送，Shift+Enter 换行" : undefined
-              }
+              accessibilityHint={Platform.OS === "web" ? composerShortcutHint() : undefined}
               value={draft}
               onChangeText={setDraft}
               onContentSizeChange={(event) =>

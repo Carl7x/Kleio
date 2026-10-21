@@ -37,9 +37,9 @@ import { useAgentWorkspace } from "./agent-workspace";
 import { QuietDots, ReceiptAction, StreamCard } from "./chat-stream";
 import {
   fileDetailLine,
-  knownOperationStatus,
   monitorCadenceLine,
   monitorCheckLine,
+  surfaceChipLabel,
   threadStatusCopy,
 } from "./chat-stream-rules";
 import { ActivityScreen, ConnectionsScreen } from "./screens";
@@ -61,19 +61,9 @@ import {
 } from "./ui";
 import { useWorkspace } from "./workspace";
 
-const TONE_ZH: Record<string, string> = {
-  warm: "温暖",
-  concise: "简洁",
-  thoughtful: "周到",
-};
-/** Operation statuses share chat-stream-rules. Tones and other labels stay here. */
+/** Operation statuses and other chips share chat-stream-rules. Unknown values stay non-English. */
 export function statusLabel(value: string) {
-  const operation = knownOperationStatus(value);
-  if (operation) return operation;
-  if (TONE_ZH[value]) return TONE_ZH[value];
-  const key = value.replace(/\s+/g, "_").toLowerCase();
-  if (TONE_ZH[key]) return TONE_ZH[key];
-  return value.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  return surfaceChipLabel(value);
 }
 function stamp(value?: string) {
   return value
