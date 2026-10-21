@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { datePartLabel } from "./chat-stream-rules";
+import { datePartLabel, returnKeyCaption } from "./chat-stream-rules";
 import { Field } from "./ui";
 export interface DateFieldsProps {
   label: string;
@@ -19,6 +19,7 @@ export default function DateFields({ label, date, time, allDay, onChange }: Date
           placeholder="年-月-日"
           keyboardType="numbers-and-punctuation"
           returnKeyType={allDay ? "done" : "next"}
+          returnKeyLabel={returnKeyCaption(allDay ? "done" : "next")}
         />
       </View>
       {!allDay && (
@@ -30,6 +31,7 @@ export default function DateFields({ label, date, time, allDay, onChange }: Date
             placeholder="时:分（24 小时）"
             keyboardType="numbers-and-punctuation"
             returnKeyType="done"
+            returnKeyLabel={returnKeyCaption("done")}
           />
         </View>
       )}

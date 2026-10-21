@@ -42,6 +42,7 @@ import {
   memorySourceLabel,
   monitorCadenceLine,
   monitorCheckLine,
+  returnKeyCaption,
   surfaceChipLabel,
   surfaceError,
   taskFailureLine,
@@ -1882,6 +1883,7 @@ export function AppsScreen() {
         onChangeText={setQuery}
         placeholder="搜索连接器"
         returnKeyType="search"
+        returnKeyLabel={returnKeyCaption("search")}
         autoCorrect={false}
       />
       <ConnectionsScreen query={query} />

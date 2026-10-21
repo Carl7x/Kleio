@@ -39,6 +39,7 @@ import {
   accessGateCopy,
   chatShellStatus,
   sideThreadTitle,
+  returnKeyCaption,
   statusServerNote,
   surfaceError,
   threadChrome,
@@ -144,6 +145,7 @@ export default function App() {
                     autoCapitalize="none"
                     autoCorrect={false}
                     returnKeyType="go"
+                    returnKeyLabel={returnKeyCaption("go")}
                     onSubmitEditing={() => void connect(accessKey || undefined)}
                     placeholder={gate.tokenPlaceholder}
                   />
