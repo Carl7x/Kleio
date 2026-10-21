@@ -215,7 +215,9 @@ export function ComputerSheet() {
                 onChangeText={setUrl}
                 placeholder="输入网址"
                 autoCapitalize="none"
+                autoCorrect={false}
                 keyboardType="url"
+                returnKeyType="go"
                 onSubmitEditing={() => void create()}
               />
               <Button

@@ -1190,6 +1190,107 @@ export function desktopStepLabel(action: string | undefined): string {
   return DESKTOP_STEP_ZH[key] ?? action;
 }
 
+/** Calendar fields. "开始" becomes "开始日期" / "开始时间", never "开始 date". */
+export function datePartLabel(label: string, part: "date" | "time"): string {
+  const name = label.trim();
+  return part === "date" ? `${name}日期` : `${name}时间`;
+}
+
+/**
+ * Threads-sheet subtitle. Sample mode and the OpenMuse placeholder "You"
+ * are not a person's name.
+ */
+export function shellProfileSubtitle(name: string | undefined, sample: boolean): string {
+  const trimmed = name?.trim() ?? "";
+  if (sample || !trimmed || /^you$/i.test(trimmed)) return "你的工作台";
+  return trimmed;
+}
+
+const COMPUTER_NOTICE_ZH: Record<string, string> = {
+  "computer control is not configured.": "电脑还没有配置。",
+  "computer control is not configured": "电脑还没有配置。",
+};
+
+/** Status line under the computer heading. Known English becomes one Chinese sentence. */
+export function computerWorkspaceNotice(message?: string): string | undefined {
+  const text = message?.replace(/\s+/g, " ").trim();
+  if (!text) return undefined;
+  const known = COMPUTER_NOTICE_ZH[text.toLowerCase()];
+  if (known) return known;
+  if (/[\u3400-\u9fff]/.test(text)) return text;
+  const note = statusServerNote(text);
+  return note ? `电脑说明\n${note}` : undefined;
+}
+
+const ACTIVITY_EVENT_ZH: Record<string, string> = {
+  "task created": "任务已建立",
+  "reminder due": "提醒到了",
+  "research started": "研究开始了",
+  "research result saved": "研究结果已保存",
+  "assistant review completed": "助手已看完",
+  "outcome unknown": "结果未知",
+  "task cancelled": "任务已取消",
+  "task canceled": "任务已取消",
+};
+
+/** Timeline titles. A raw status key uses the operation chip; other titles stay as written. */
+export function activityEventTitle(title: string): string {
+  const text = title.trim();
+  if (!text) return "状态已更新";
+  const known = ACTIVITY_EVENT_ZH[text.toLowerCase().replace(/[.。]+$/g, "")];
+  if (known) return known;
+  return knownOperationStatus(text) ?? text;
+}
+
+const MEMORY_SOURCE_ZH: Record<string, string> = {
+  conversation: "对话",
+  "authenticated user edit": "你的更正",
+};
+
+/** Provenance under a memory. Stored Chinese notes stay. */
+export function memorySourceLabel(source: string): string {
+  const text = source.trim();
+  return MEMORY_SOURCE_ZH[text.toLowerCase()] ?? text;
+}
+
+const AVATAR_ZH: Record<string, string> = {
+  sky: "晴空",
+  sand: "暖沙",
+  lilac: "丁香",
+};
+
+/** Portrait choice. Not an operation status, so it does not fall through to "状态待更新". */
+export function avatarLabel(id: string): string {
+  return AVATAR_ZH[id.trim().toLowerCase()] ?? "头像";
+}
+
+const TASK_FAILURE_ZH: Record<string, string> = {
+  "the runtime stopped before the research outcome was confirmed.": "研究在确认结果前中断了。",
+  "the runtime stopped before the research outcome was confirmed": "研究在确认结果前中断了。",
+  "this capability is not available in the kleio runtime.": "Kleio 还没有这项能力。",
+  "this capability is not available in the kleio runtime": "Kleio 还没有这项能力。",
+  "the native memory service could not save this statement.": "记忆服务没有保存这句话。",
+  "the native memory service could not save this statement": "记忆服务没有保存这句话。",
+  "active memory not found": "没有找到这条记忆。",
+  "active memory not found.": "没有找到这条记忆。",
+};
+
+/**
+ * A task or memory failure shown as its own line.
+ * Chinese stays. A known English sentence is replaced. Other Latin keeps a Chinese lead.
+ */
+export function taskFailureLine(error: string): string {
+  const text = error.replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  const known = TASK_FAILURE_ZH[text.toLowerCase()];
+  if (known) return known;
+  const operation = knownOperationStatus(text);
+  if (operation) return operation;
+  if (/[\u3400-\u9fff]/.test(text)) return text;
+  const note = statusServerNote(text);
+  return note ? `这次没有完成。\n${note}` : "这次没有完成。";
+}
+
 /** Long user turns collapse in the bubble so the stream stays scannable. */
 export function userMessageOverflows(text: string): boolean {
   if (text.length > USER_BUBBLE_COLLAPSE_CHARS) return true;

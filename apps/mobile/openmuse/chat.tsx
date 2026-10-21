@@ -1210,6 +1210,7 @@ export function ChatScreen({
               }}
               multiline
               editable
+              enterKeyHint={Platform.OS === "web" ? "send" : "enter"}
               onKeyPress={
                 Platform.OS === "web"
                   ? (event) => {

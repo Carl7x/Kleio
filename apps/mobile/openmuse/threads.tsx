@@ -13,7 +13,12 @@ import {
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ChatStatusScreen, ThreadNotice } from "./chat-stream";
-import { sheetListStatus, statusServerNote, threadStatusCopy } from "./chat-stream-rules";
+import {
+  sheetListStatus,
+  shellProfileSubtitle,
+  statusServerNote,
+  threadStatusCopy,
+} from "./chat-stream-rules";
 import { Button, colors, Field, LinkRow, Sheet, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
@@ -146,7 +151,7 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet
       title="Kleio"
-      subtitle={workspace.mode === "sample" ? "你的工作台" : workspace.profile.name}
+      subtitle={shellProfileSubtitle(workspace.profile.name, workspace.mode === "sample")}
       onClose={onClose}
       closeLabel="关闭"
     >

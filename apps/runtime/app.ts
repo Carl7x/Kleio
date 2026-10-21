@@ -90,7 +90,7 @@ export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono 
   });
   app.patch('/api/conversations/:id', async c => {
     const body = z.object({ title: z.string().trim().min(1).max(120).optional(), archived: z.boolean().optional() }).parse(await c.req.json());
-    if (body.archived && host.store.conversation(c.req.param('id')).isMain) throw new RuntimeError('invalid_input', 'The main conversation cannot be archived', 400);
+    if (body.archived && host.store.conversation(c.req.param('id')).isMain) throw new RuntimeError('invalid_input', '主对话不能归档', 400);
     return c.json(host.store.updateConversation(c.req.param('id'), { ...(body.title !== undefined ? { title: body.title } : {}), ...(body.archived !== undefined ? { archived: body.archived } : {}) }));
   });
   app.get('/api/conversations/:id/messages', c => c.json(host.store.messages(c.req.param('id'))));
@@ -126,7 +126,7 @@ export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono 
   app.get('/api/memory/:id/history', c => c.json(host.memory.history(c.req.param('id'))));
   app.patch('/api/memory/:id', async c => {
     const body = z.object({ text: z.string().min(1).max(4000), expectedVersion: z.number().int().positive() }).parse(await c.req.json());
-    return c.json(host.correct(c.req.param('id'), { ...body, source: { label: 'Authenticated user edit' } }));
+    return c.json(host.correct(c.req.param('id'), { ...body, source: { label: '你的更正' } }));
   });
   app.delete('/api/memory/:id', async c => {
     const body = z.object({ expectedVersion: z.number().int().positive() }).parse(await c.req.json());

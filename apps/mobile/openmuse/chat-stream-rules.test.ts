@@ -46,6 +46,13 @@ import {
   browserStatusLabel,
   chatShellStatus,
   desktopStepLabel,
+  activityEventTitle,
+  avatarLabel,
+  computerWorkspaceNotice,
+  datePartLabel,
+  memorySourceLabel,
+  shellProfileSubtitle,
+  taskFailureLine,
   emptyThreadSuggestions,
   accessGateCopy,
   sheetListStatus,
@@ -673,4 +680,54 @@ test("long user messages collapse; short ones stay open", () => {
   assert.equal(userMessageOverflows("a".repeat(281)), true);
   assert.equal(userMessageOverflows("1\n2\n3\n4\n5\n6"), false);
   assert.equal(userMessageOverflows("1\n2\n3\n4\n5\n6\n7"), true);
+});
+
+test("calendar fields, the thread sheet, and computer notices stay in Chinese", () => {
+  assert.equal(datePartLabel("开始", "date"), "开始日期");
+  assert.equal(datePartLabel("结束", "time"), "结束时间");
+  assert.doesNotMatch(datePartLabel("开始", "date"), /\bdate\b/i);
+  assert.doesNotMatch(datePartLabel("开始", "time"), /\btime\b/i);
+  assert.equal(shellProfileSubtitle("You", false), "你的工作台");
+  assert.equal(shellProfileSubtitle("  ", true), "你的工作台");
+  assert.equal(shellProfileSubtitle("小洋", false), "小洋");
+  assert.equal(computerWorkspaceNotice("Computer control is not configured."), "电脑还没有配置。");
+  assert.equal(computerWorkspaceNotice("电脑已停止。"), "电脑已停止。");
+  assert.match(computerWorkspaceNotice("docker socket missing") ?? "", /^电脑说明/);
+  assert.doesNotMatch(
+    [
+      datePartLabel("开始", "date"),
+      shellProfileSubtitle("You", false),
+      computerWorkspaceNotice("Computer control is not configured."),
+    ].join("\n"),
+    /\b(date|time|you|computer control)\b/i,
+  );
+});
+
+test("activity titles, memory sources, avatars, and task failures drop leftover English", () => {
+  assert.equal(activityEventTitle("Task created"), "任务已建立");
+  assert.equal(activityEventTitle("Research started"), "研究开始了");
+  assert.equal(activityEventTitle("failed"), "失败");
+  assert.equal(activityEventTitle("整理行程"), "整理行程");
+  assert.equal(memorySourceLabel("Conversation"), "对话");
+  assert.equal(memorySourceLabel("Authenticated user edit"), "你的更正");
+  assert.equal(memorySourceLabel("在应用中由用户添加"), "在应用中由用户添加");
+  assert.equal(avatarLabel("sky"), "晴空");
+  assert.equal(avatarLabel("sand"), "暖沙");
+  assert.equal(avatarLabel("lilac"), "丁香");
+  assert.equal(avatarLabel("unknown"), "头像");
+  assert.notEqual(avatarLabel("sky"), "状态待更新");
+  assert.equal(
+    taskFailureLine("The runtime stopped before the research outcome was confirmed."),
+    "研究在确认结果前中断了。",
+  );
+  assert.equal(taskFailureLine("Active memory not found"), "没有找到这条记忆。");
+  assert.equal(taskFailureLine("审阅尚未就绪。请刷新后再试。"), "审阅尚未就绪。请刷新后再试。");
+  assert.match(taskFailureLine("socket hang up"), /^这次没有完成。/);
+  const copy = [
+    activityEventTitle("Task created"),
+    memorySourceLabel("Conversation"),
+    avatarLabel("lilac"),
+    taskFailureLine("The native memory service could not save this statement."),
+  ].join("\n");
+  assert.doesNotMatch(copy, /task created|conversation|authenticated|lilac|native memory/i);
 });
