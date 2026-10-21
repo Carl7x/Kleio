@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react-native";
 import { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import type Pdf from "react-native-pdf";
+import { surfaceError } from "./chat-stream-rules";
 import { Button, colors, ErrorNotice, s } from "./ui";
 export interface PdfReaderProps {
   url: string;
@@ -67,7 +68,13 @@ export default function PdfReader({ url, token, pageCount }: PdfReaderProps) {
         scale={scale}
         onLoadComplete={(n) => setPages(n)}
         onPageChanged={(p) => setPage(p)}
-        onError={(e) => setError(String(e))}
+        onError={(e) => {
+          const raw =
+            e && typeof e === "object" && "message" in e && typeof e.message === "string"
+              ? e.message
+              : undefined;
+          setError(surfaceError("无法显示此 PDF。", raw));
+        }}
         style={{ height: 530, width: "100%", backgroundColor: colors.line, borderRadius: 12 }}
       />
     </View>

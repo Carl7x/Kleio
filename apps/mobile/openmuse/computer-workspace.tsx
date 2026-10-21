@@ -20,6 +20,7 @@ import type {
   ComputerDirectory,
   ComputerSnapshot,
 } from "../../../packages/openmuse-domain/src/computer";
+import { computerCommandStatus, surfaceError } from "./chat-stream-rules";
 import { useComputerDraft } from "./computer-drafts";
 import { DesktopStream } from "./desktop-stream";
 import { Button, Card, colors, Empty, ErrorNotice, Field, LinkRow, s, timeLabel } from "./ui";
@@ -27,6 +28,7 @@ import { useWorkspace } from "./workspace";
 
 const mono = Platform.OS === "ios" ? "Menlo" : "monospace";
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const noted = (title: string, error: unknown) => surfaceError(title, message(error));
 
 export function LinuxWorkspace({
   tab,
@@ -60,7 +62,7 @@ export function LinuxWorkspace({
         setConnectionError("");
       }
     } catch (e) {
-      if (request === version.current) setConnectionError(message(e));
+      if (request === version.current) setConnectionError(noted("电脑没有连上。", e));
     } finally {
       polling.current = false;
     }
@@ -108,7 +110,7 @@ export function LinuxWorkspace({
       const next = await api.request<ComputerSnapshot>(`/api/computer/${action}`, {});
       if (operation === version.current) setSnapshot(next);
     } catch (e) {
-      setError(message(e));
+      setError(noted(action === "stop" ? "电脑没有停下来。" : "电脑没有启动。", e));
     } finally {
       setBusy(false);
       mutations.current--;
@@ -139,7 +141,7 @@ export function LinuxWorkspace({
       setCommand((current) => (current === sent ? "" : current));
       setEditingCommand(false);
     } catch (e) {
-      setError(message(e));
+      setError(noted("命令没有运行。", e));
     } finally {
       setExecuting(false);
       mutations.current--;
@@ -190,7 +192,7 @@ export function LinuxWorkspace({
               onPress={() =>
                 void refresh()
                   .then(() => setError(""))
-                  .catch((e) => setError(message(e)))
+                  .catch((e) => setError(noted("电脑暂时没有刷新。", e)))
               }
             >
               刷新
@@ -205,7 +207,7 @@ export function LinuxWorkspace({
           onPress={() =>
             void refresh()
               .then(() => setError(""))
-              .catch((e) => setError(message(e)))
+              .catch((e) => setError(noted("电脑暂时没有刷新。", e)))
           }
         >
           重试连接
@@ -347,8 +349,7 @@ function CommandReceipt({ run }: { run: ComputerCommand }) {
             },
           ]}
         >
-          {run.status.replace("_", " ")}
-          {run.exitCode !== undefined ? ` · exit ${run.exitCode}` : ""}
+          {computerCommandStatus(run.status, run.exitCode)}
         </Text>
         <Text style={s.small}>{timeLabel(run.startedAt)}</Text>
       </View>
@@ -429,7 +430,7 @@ function ComputerFiles({ running, active }: { running: boolean; active: boolean 
         if (alive) setDirectory(value);
       })
       .catch((e) => {
-        if (alive) setError(message(e));
+        if (alive) setError(noted("这个文件夹没有打开。", e));
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -451,7 +452,7 @@ function ComputerFiles({ running, active }: { running: boolean; active: boolean 
       );
       if (mounted.current) setEditor({ ...content, saved: content.text, savedPath: content.path });
     } catch (e) {
-      setError(message(e));
+      setError(noted("文件没有打开。", e));
     } finally {
       setBusy(false);
     }
@@ -470,7 +471,7 @@ function ComputerFiles({ running, active }: { running: boolean; active: boolean 
       setNotice("文档已复制到你的电脑。");
       setRetry((value) => value + 1);
     } catch (e) {
-      setError(message(e));
+      setError(noted("文档没有复制过去。", e));
     } finally {
       setBusy(false);
     }
@@ -484,7 +485,7 @@ function ComputerFiles({ running, active }: { running: boolean; active: boolean 
       await refresh();
       if (mounted.current) open({ type: "file", file });
     } catch (e) {
-      setError(message(e));
+      setError(noted("这份 PDF 没有打开。", e));
     } finally {
       setBusy(false);
     }
@@ -506,7 +507,7 @@ function ComputerFiles({ running, active }: { running: boolean; active: boolean 
       setNotice("文件已保存到你的电脑。");
       setRetry((value) => value + 1);
     } catch (e) {
-      setError(message(e));
+      setError(noted("文件没有保存。", e));
     } finally {
       setBusy(false);
     }
@@ -520,7 +521,7 @@ function ComputerFiles({ running, active }: { running: boolean; active: boolean 
       setFolder(undefined);
       setRetry((value) => value + 1);
     } catch (e) {
-      setError(message(e));
+      setError(noted("文件夹没有创建。", e));
     } finally {
       setBusy(false);
     }

@@ -48,11 +48,13 @@ import {
   calendarZoneLine,
   fileDetailLine,
   fileSourceLabel,
+  googleCapabilityLabel,
   mailDraftDetail,
   mailListTabLabel,
   operationStatusLabel,
   reviewGateLabel,
   richThreadValue,
+  surfaceError,
   todayBriefLine,
   todayHeroTitle,
 } from "./chat-stream-rules";
@@ -479,7 +481,7 @@ export function MailScreen() {
         if (active) setDrafts(next);
       })
       .catch((e) => {
-        if (active) setError(e instanceof Error ? e.message : String(e));
+        if (active) setError(surfaceError("草稿暂时没有载入。", e instanceof Error ? e.message : String(e)));
       });
     return () => {
       active = false;
@@ -561,6 +563,8 @@ export function MailScreen() {
           items.map((m, i) => (
             <Pressable
               key={m.id}
+              accessibilityRole="button"
+              accessibilityLabel={`打开邮件：${m.subject}`}
               onPress={() => open({ type: "mail", mail: m })}
               style={[
                 s.row,
@@ -655,7 +659,7 @@ export function CalendarScreen() {
         );
       })
       .catch((e) => {
-        if (active) setError(e instanceof Error ? e.message : String(e));
+        if (active) setError(surfaceError("日历列表没有载入。", e instanceof Error ? e.message : String(e)));
       });
     return () => {
       active = false;
@@ -684,7 +688,7 @@ export function CalendarScreen() {
       .catch((e) => {
         if (active) {
           setEvents([]);
-          setError(e instanceof Error ? e.message : String(e));
+          setError(surfaceError("日程没有载入。", e instanceof Error ? e.message : String(e)));
         }
       })
       .finally(() => {
@@ -875,7 +879,7 @@ export function BrowserScreen() {
       setUrl("");
       open({ type: "browser", browser });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError("浏览器没有打开。", e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
     }
@@ -1001,13 +1005,13 @@ export function FilesScreen() {
         });
         const payload = JSON.parse(result.body);
         if (result.status < 200 || result.status >= 300)
-          throw new Error(payload.error || "无法导入此 PDF。");
+          throw new Error(typeof payload.error === "string" ? payload.error : "无法导入此 PDF。");
         artifact = payload;
       }
       await refresh();
       open({ type: "file", file: artifact });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError("无法导入此 PDF。", e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
     }
@@ -1028,6 +1032,8 @@ export function FilesScreen() {
         {w.files.map((f) => (
           <Pressable
             key={f.id}
+            accessibilityRole="button"
+            accessibilityLabel={`打开文档：${f.name}`}
             onPress={() => open({ type: "file", file: f })}
             style={{ flexGrow: 1, flexBasis: 250, maxWidth: 430 }}
           >
@@ -1240,7 +1246,7 @@ export function ConnectionsScreen({ query = "" }: { query?: string }) {
         notify("本地 Google 数据已就绪。");
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError("没有连上 Google。", e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
     }
@@ -1254,7 +1260,7 @@ export function ConnectionsScreen({ query = "" }: { query?: string }) {
       await refresh();
       notify("已断开 Google。");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError("没有断开 Google。", e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
     }
@@ -1367,7 +1373,7 @@ export function ConnectionsScreen({ query = "" }: { query?: string }) {
               <Text style={s.muted}>把 Gmail 与 Google 日历带进对话。先选择读取权限，需要时再启用发送与编辑。</Text>
               <View style={[s.row, { gap: 7, flexWrap: "wrap" }]}>
                 {google?.capabilities.map((cap) => (
-                  <Chip key={cap}>{capabilityLabel(cap)}</Chip>
+                  <Chip key={cap}>{googleCapabilityLabel(cap)}</Chip>
                 ))}
               </View>
               {!enabled && <Text style={s.small}>此工作台未启用。</Text>}
@@ -1435,15 +1441,3 @@ function SettingsLine({ label, value }: { label: string; value: string }) {
   );
 }
 
-function capabilityLabel(value: string) {
-  const scope = value.split("/").at(-1) || value;
-  const names: Record<string, string> = {
-    "gmail.readonly": "读取 Gmail",
-    "gmail.send": "发送 Gmail",
-    "calendar.events.readonly": "读取日历事件",
-    "calendar.calendarlist.readonly": "读取日历列表",
-    "calendar.events": "管理日历事件",
-    "calendar.readonly": "读取日历",
-  };
-  return names[scope] || scope;
-}

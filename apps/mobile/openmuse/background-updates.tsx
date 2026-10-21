@@ -2,6 +2,7 @@ import { Bell, X } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useAgentWorkspace } from "./agent-workspace";
+import { surfaceError } from "./chat-stream-rules";
 import { colors, ErrorNotice, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
@@ -24,7 +25,7 @@ export function BackgroundUpdates() {
       await mutate(`/notifications/${update.id}/read`, {});
       setError("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError("这条更新没有放下。", e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
     }
