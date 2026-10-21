@@ -46,6 +46,7 @@ import {
   calendarDraftError,
   fileAddedLine,
   fileDetailLine,
+  fileShareLabel,
   formFieldLabel,
   type FormIssue,
   mailDraftError,
@@ -867,7 +868,7 @@ function FileDetail({ file: f }: { file: Artifact }) {
       <PdfReader url={url} token={api.token} pageCount={f.pageCount} />
       <View style={[s.row, { gap: 10, marginVertical: 18, flexWrap: "wrap" }]}>
         <Button icon={Download} disabled={!enabled} onPress={() => void share()}>
-          {Platform.OS === "web" ? "打开 / 下载" : "保存或分享"}
+          {fileShareLabel(Platform.OS === "web")}
         </Button>
         <Button
           icon={Send}

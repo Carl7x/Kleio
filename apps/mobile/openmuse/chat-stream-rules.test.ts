@@ -92,9 +92,11 @@ import {
   threadStatusCopy,
   threadSurface,
   calendarDraftError,
+  computerCommandKeyboardHint,
   computerCommandStatus,
   fileAddedLine,
   fileDetailLine,
+  fileShareLabel,
   fieldReturnKeyLabel,
   fileSourceLabel,
   formFieldLabel,
@@ -839,10 +841,7 @@ test("known chat, gate, and tool failures replace the English sentence", () => {
     statusServerNote("Authentication required for some other reason"),
     "具体原因没有显示。",
   );
-  assert.equal(
-    surfaceError("浏览器没有打开。", "net::ERR_CONNECTION_RESET"),
-    "浏览器没有打开。\n具体原因没有显示。",
-  );
+  assert.equal(surfaceError("浏览器没有打开。", "net::ERR_CONNECTION_RESET"), "网络中断了。");
   assert.equal(financeCsvPlaceholder(), "日期,说明,金额,分类\n2026-09-01,买菜,54.20,餐饮");
   assert.match(financeCsvSample(), /^日期,说明,金额,分类\n/);
   assert.equal(
@@ -933,6 +932,75 @@ test("activity titles, memory sources, avatars, and task failures drop leftover 
     taskFailureLine("The native memory service could not save this statement."),
   ].join("\n");
   assert.doesNotMatch(copy, /task created|conversation|authenticated|lilac|native memory|OpenMuse|CONTEXT_|SOME_OTHER/i);
+});
+
+test("engine, document, network, and keyboard leftovers stay in Chinese", () => {
+  const samples = [
+    ["Execution cancelled before dispatch.", "这次回复在开始前已取消。"],
+    ["The execution stopped before completion (max_tokens).", "输出到了上限，这次回复停了。"],
+    ["The execution stopped before completion (max_turn_requests).", "这一轮的步骤到了上限。"],
+    ["The execution stopped before completion (refusal).", "模型没有继续这次回复。"],
+    ["The execution stopped before completion (other).", "这次回复在完成前停了。"],
+    [
+      "The execution engine failed during prompt; inspect product state before retrying. Provider HTTP status: 502.",
+      "引擎没有完成这次回复。请先看已保存的状态再重试。",
+    ],
+    [
+      "The prompt transport did not confirm its outcome; inspect effects before retrying.",
+      "这次回复没有确认结果。请先查看实际效果再重试。",
+    ],
+    [
+      'The execution engine rejected the schema for product tool "web_search" before model dispatch. Update the tool schema to match the pinned DSH runtime.',
+      "有个工具的格式对不上，这次回复没有开始。",
+    ],
+    ["The engine settled without a text result.", "这次回复没有写出内容。"],
+    ["Request admission configuration is incomplete.", "这一轮的准入配置还不完整。"],
+    ["Only public HTTP(S) documents on standard ports are supported.", "只读取标准端口上的公开文档。"],
+    ["Document returned HTTP 404.", "文档没有打开。"],
+    ["Tavily search returned HTTP 500. Try again later.", "网页搜索没有完成。请稍后再试。"],
+    ["The search query contains a configured credential. Rephrase the query.", "搜索内容里有已配置的凭证。请换个说法。"],
+    ["The Internet connection appears to be offline.", "网络不可用。"],
+    ["net::ERR_INTERNET_DISCONNECTED", "网络中断了。"],
+    ["Failed to load pdf", "无法显示此 PDF。"],
+    ["Password required or incorrect password.", "这份 PDF 需要密码。"],
+    ["IDENTITY.md is unreadable.", "身份文件无法读取。"],
+    ["IDENTITY.md is blank. The product default is used.", "身份文件是空的，已用默认设置。"],
+    ["Error: Execution stopped.", "这次回复在完成前停了。"],
+  ] as const;
+  for (const [english, chinese] of samples) {
+    assert.equal(statusServerNote(english), chinese);
+    assert.equal(taskFailureLine(english), chinese);
+  }
+  assert.doesNotMatch(samples.map(([, chinese]) => chinese).join("\n").replaceAll("PDF", ""), /[A-Za-z]{3,}/);
+  assert.equal(statusServerNote("Authentication required for some other reason"), "具体原因没有显示。");
+  assert.equal(statusServerNote("socket hang up"), "具体原因没有显示。");
+  assert.equal(statusServerNote("The execution stopped before completion (secret)."), "具体原因没有显示。");
+  assert.equal(
+    statusServerNote('The execution engine rejected the schema for product tool "Not A Tool" before model dispatch. Update the tool schema to match the pinned DSH runtime.'),
+    "具体原因没有显示。",
+  );
+  assert.equal(fileSourceLabel("computer"), "电脑");
+  assert.equal(fileSourceLabel("desktop"), "桌面");
+  assert.equal(fileSourceLabel("workspace"), "工作区");
+  assert.equal(fileSourceLabel("import"), "导入");
+  assert.equal(fileSourceLabel("agent"), "智能体");
+  assert.equal(fileSourceLabel("form"), "表单");
+  assert.equal(fileSourceLabel("合同扫描"), "合同扫描");
+  assert.equal(fileShareLabel(true), "打开或下载");
+  assert.equal(fileShareLabel(false), "保存或分享");
+  assert.equal(computerCommandKeyboardHint(), "回车换行。点「运行命令」执行。");
+  assert.equal(composerReturnHint(), "回车换行");
+  const shown = [
+    ...samples.map(([, chinese]) => chinese),
+    fileShareLabel(true),
+    fileShareLabel(false),
+    computerCommandKeyboardHint(),
+    fileSourceLabel("computer"),
+  ].join("\n");
+  assert.doesNotMatch(
+    shown,
+    /\b(execution|engine|http|document|tavily|identity|password|download|share|return|enter|computer)\b/i,
+  );
 });
 
 test("stored choices drop the OpenMuse marker and still read the old prefix", () => {

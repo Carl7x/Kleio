@@ -1273,22 +1273,20 @@ export function ChatScreen({
             </Pressable>
           </View>
         </View>
-        {Platform.OS === "web" ? (
-          <Text
-            accessibilityElementsHidden
-            importantForAccessibility="no"
-            style={{
-              marginTop: 6,
-              marginRight: 8,
-              fontSize: 12,
-              lineHeight: 16,
-              color: colors.muted,
-              textAlign: "right",
-            }}
-          >
-            {composerShortcutHint()}
-          </Text>
-        ) : null}
+        <Text
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+          style={{
+            marginTop: 6,
+            marginRight: 8,
+            fontSize: 12,
+            lineHeight: 16,
+            color: colors.muted,
+            textAlign: "right",
+          }}
+        >
+          {Platform.OS === "web" ? composerShortcutHint() : composerReturnHint()}
+        </Text>
       </KeyboardAvoidingView>
     </View>
   );

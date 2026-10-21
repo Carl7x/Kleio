@@ -21,6 +21,7 @@ import type {
   ComputerSnapshot,
 } from "../../../packages/openmuse-domain/src/computer";
 import {
+  computerCommandKeyboardHint,
   computerCommandStatus,
   computerDesktopHint,
   computerTerminalHint,
@@ -260,6 +261,9 @@ export function LinuxWorkspace({
                     请用直引号
                   </Button>
                 )}
+                <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
+                  {computerCommandKeyboardHint()}
+                </Text>
                 <Button
                   primary
                   icon={Play}

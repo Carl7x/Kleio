@@ -636,11 +636,98 @@ const SHELL_NOTICE_ZH: Record<string, string> = {
   stale_agreement: "当时的约定已经变了。",
   cannot_judge: "这次还无法判断。",
   superseded: "这项事务已经换了新的条件。",
+  "execution cancelled before dispatch": "这次回复在开始前已取消。",
+  "execution settled after cancellation; completed effects are retained":
+    "这次回复已取消。已完成的结果还在。",
+  "a product tool is still settling; inspect its effects before retrying":
+    "有个工具还在收尾。请先查看实际效果再重试。",
+  "engine shutdown was not confirmed": "引擎没有确认已停下。",
+  "execution stopped without a confirmed prompt result; inspect effects before retrying":
+    "这次回复没有确认结果。请先查看实际效果再重试。",
+  "the engine settled without a text result": "这次回复没有写出内容。",
+  "the execution engine is closed": "引擎已经关闭。",
+  "the engine cannot mount product tools": "引擎还挂不上这些工具。",
+  "request admission configuration is incomplete": "这一轮的准入配置还不完整。",
+  "request admission requires explicit model capacity that matches its profile":
+    "请先配置与模型匹配的容量。",
+  "request admission is not bound to this execution": "这一轮的准入没有对上。",
+  "execution stopped": "这次回复在完成前停了。",
+  "product tool bridge did not start": "工具通道没有打开。",
+  "invalid model capacity": "模型容量无法使用。",
+  "model configuration is incomplete": "模型还没配置完整。",
+  "output capacity exceeds context capacity": "输出上限超过了上下文容量。",
+  "the pinned dsh runtime is required": "当前引擎版本对不上。",
+  "invalid model endpoint": "模型地址无法使用。",
+  "only public http(s) documents on standard ports are supported": "只读取标准端口上的公开文档。",
+  "private and reserved network destinations are unavailable": "内网地址不可用。",
+  "too many document redirects": "跳转太多次，没有打开。",
+  "this connector reads text documents only": "这里只读取文本文档。",
+  "the search query contains a configured credential. rephrase the query":
+    "搜索内容里有已配置的凭证。请换个说法。",
+  "the internet connection appears to be offline": "网络不可用。",
+  "a server with the specified hostname could not be found": "没有找到这个地址。",
+  "the request timed out": "请求超时了。",
+  "the network connection was lost": "网络中断了。",
+  "failed to load pdf": "无法显示此 PDF。",
+  "error loading pdf": "无法显示此 PDF。",
+  "password required or incorrect password": "这份 PDF 需要密码。",
+  "identity.md is missing. the product default is used": "身份文件缺失，已用默认设置。",
+  "identity.md is a symlink and was not followed": "身份文件是链接，没有读取。",
+  "identity.md is not a regular file": "身份文件不是普通文件。",
+  "identity.md is over the size limit and was not loaded": "身份文件太大，没有读取。",
+  "identity.md resolves outside the data directory and was not loaded": "身份文件位置不对，没有读取。",
+  "identity.md is not an allowed product path": "身份文件路径不被允许。",
+  "identity.md is unreadable": "身份文件无法读取。",
+  "identity.md is blank. the product default is used": "身份文件是空的，已用默认设置。",
+  "identity.md is name or tone is empty or not allowed": "名称或语气无法保存。",
+  "identity.md is not valid utf-8 and was not loaded": "身份文件编码无法读取。",
+  "identity.md is unavailable": "身份文件暂时不可用。",
 };
 
-/** Exact English failure sentence, or undefined when this text is not one of them. */
+/**
+ * Known sentences that include one fixed slot: a stop reason, a phase, an HTTP
+ * status, a tool name, or a browser error code. The slot is not printed.
+ * Anything outside these shapes stays unrecognized.
+ */
+function shapedShellNotice(key: string): string | undefined {
+  const stopped = /^the execution stopped before completion \((max_tokens|max_turn_requests|refusal|other)\)$/.exec(
+    key,
+  );
+  if (stopped?.[1] === "max_tokens") return "输出到了上限，这次回复停了。";
+  if (stopped?.[1] === "max_turn_requests") return "这一轮的步骤到了上限。";
+  if (stopped?.[1] === "refusal") return "模型没有继续这次回复。";
+  if (stopped) return "这次回复在完成前停了。";
+  if (
+    /^the execution engine failed during (?:prepare|bridge|initialize|session|prompt); inspect product state before retrying(?:\. provider http status: \d{3})?$/.test(
+      key,
+    )
+  ) {
+    return "引擎没有完成这次回复。请先看已保存的状态再重试。";
+  }
+  if (
+    /^the prompt transport did not confirm its outcome; inspect effects before retrying(?:\. provider http status: \d{3})?$/.test(
+      key,
+    )
+  ) {
+    return "这次回复没有确认结果。请先查看实际效果再重试。";
+  }
+  if (
+    /^the execution engine rejected the schema for product tool "[a-z][a-z0-9_-]{0,49}" before model dispatch\. update the tool schema to match the pinned dsh runtime$/.test(
+      key,
+    )
+  ) {
+    return "有个工具的格式对不上，这次回复没有开始。";
+  }
+  if (/^tavily search returned http \d{3}\. try again later$/.test(key)) return "网页搜索没有完成。请稍后再试。";
+  if (/^document returned http \d{3}$/.test(key)) return "文档没有打开。";
+  if (/^net::err_[a-z0-9_]+$/.test(key)) return "网络中断了。";
+  return undefined;
+}
+
+/** Exact English failure sentence, or a known shape with one fixed slot. */
 export function knownShellNotice(message: string): string | undefined {
-  return SHELL_NOTICE_ZH[noticeKey(shellNoticeBody(message))];
+  const key = noticeKey(shellNoticeBody(message));
+  return SHELL_NOTICE_ZH[key] ?? shapedShellNotice(key);
 }
 
 /**
@@ -1419,6 +1506,13 @@ const FILE_SOURCE_ZH: Record<string, string> = {
   upload: "上传",
   uploaded: "上传",
   user: "上传",
+  import: "导入",
+  imported: "导入",
+  computer: "电脑",
+  desktop: "桌面",
+  workspace: "工作区",
+  agent: "智能体",
+  form: "表单",
   mail: "邮件",
   email: "邮件",
   gmail: "邮件",
@@ -1543,6 +1637,19 @@ const COMPUTER_NOTICE_ZH: Record<string, string> = {
   "computer control is not configured.": "电脑还没有配置。",
   "computer control is not configured": "电脑还没有配置。",
 };
+
+/**
+ * Native caption under the computer command field.
+ * The return key may still follow the system language. This line does not replace that word.
+ */
+export function computerCommandKeyboardHint(): string {
+  return "回车换行。点「运行命令」执行。";
+}
+
+/** File sheet action. Web opens or downloads the PDF. Native saves or shares it. */
+export function fileShareLabel(web: boolean): string {
+  return web ? "打开或下载" : "保存或分享";
+}
 
 /** Terminal footnote. A graphical app is described in Chinese, without a shell redirect. */
 export function computerTerminalHint(networkEnabled: boolean): string {
