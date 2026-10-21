@@ -97,6 +97,11 @@ export default function App() {
   useEffect(() => {
     void connect();
   }, [connect]);
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    document.documentElement.lang = "zh-CN";
+    if (/open\s*bot|openmuse/i.test(document.title)) document.title = "Kleio";
+  }, []);
   const gate = accessGateCopy();
   return (
     <SafeAreaProvider>

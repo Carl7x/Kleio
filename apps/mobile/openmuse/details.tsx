@@ -54,7 +54,9 @@ import {
   mailThreadSubtitle,
   pdfDownloadsAddedNotice,
   returnKeyCaption,
+  statusServerNote,
   surfaceError,
+  taskFailureLine,
   unsupportedFieldNote,
 } from "./chat-stream-rules";
 import BrowserConsole from "./BrowserConsole";
@@ -740,7 +742,7 @@ function ReviewDetail({ initial }: { initial: ActionProposal }) {
         )}
       </Card>
       {!enabled && <Text style={s.small}>此工作台未启用。</Text>}
-      <ErrorNotice error={error || action.error} />
+      <ErrorNotice error={error || (action.error ? taskFailureLine(action.error) : "")} />
       {!!action.result && (
         <Card style={{ marginTop: 10, backgroundColor: colors.green, padding: 12, borderRadius: 16 }}>
           <Text selectable style={s.text}>
@@ -967,7 +969,12 @@ function BrowserDetail({ initial }: { initial: BrowserSession }) {
         setError(
           surfaceError(
             "有的下载没有导入。",
-            result.failures.map((failure) => `${failure.name}: ${failure.message}`).join("\n"),
+            result.failures
+              .map((failure) => {
+                const note = statusServerNote(failure.message);
+                return note ? `${failure.name}：${note}` : failure.name;
+              })
+              .join("\n"),
           ),
         );
       const files = result.files;

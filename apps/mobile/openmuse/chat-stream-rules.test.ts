@@ -56,6 +56,7 @@ import {
   documentFieldPlaceholder,
   financeCsvPlaceholder,
   financeCsvSample,
+  kleioComputerLinkCopy,
   memorySourceLabel,
   returnKeyCaption,
   shellDateLabel,
@@ -584,8 +585,8 @@ test("threads sheet and access gate use the same short Chinese status", () => {
   assert.equal(longNote?.length, 72);
   assert.equal(longNote?.endsWith("…"), true);
   assert.match(longNote ?? "", /^连接超时/);
-  assert.equal(composerShortcutHint(), "回车发送，Shift+回车换行");
-  assert.doesNotMatch(composerShortcutHint(), /\bEnter\b/);
+  assert.equal(composerShortcutHint(), "回车发送，上档+回车换行");
+  assert.doesNotMatch(composerShortcutHint(), /[A-Za-z]/);
   const failureKinds = ["save", "stop", "choice", "choice-unreadable"] as const;
   const failureLines = failureKinds.map((kind) => {
     const copy = shellFailureCopy(kind);
@@ -736,8 +737,15 @@ test("calendar fields, the thread sheet, and computer notices stay in Chinese", 
   assert.doesNotMatch(datePartLabel("开始", "date"), /\bdate\b/i);
   assert.doesNotMatch(datePartLabel("开始", "time"), /\btime\b/i);
   assert.equal(shellProfileSubtitle("You", false), "你的工作台");
+  assert.equal(shellProfileSubtitle("OpenMuse", false), "你的工作台");
+  assert.equal(shellProfileSubtitle("OpenBot", false), "你的工作台");
   assert.equal(shellProfileSubtitle("  ", true), "你的工作台");
   assert.equal(shellProfileSubtitle("小洋", false), "小洋");
+  const kleioLink = kleioComputerLinkCopy();
+  assert.equal(kleioLink.name, "Kleio");
+  assert.equal(kleioLink.title, "Kleio");
+  assert.equal(kleioLink.body, "外部执行还没接上。这台电脑现在用 Kleio 自己的浏览器工作进程。");
+  assert.doesNotMatch(`${kleioLink.name}\n${kleioLink.title}\n${kleioLink.body}`, /OpenBot|OpenMuse|openbot|openmuse/);
   assert.equal(computerWorkspaceNotice("Computer control is not configured."), "电脑还没有配置。");
   assert.equal(computerWorkspaceNotice("电脑已停止。"), "电脑已停止。");
   assert.equal(computerWorkspaceNotice("docker socket missing"), "电脑说明\n具体原因没有显示。");
