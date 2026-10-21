@@ -15,7 +15,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { shellDateLabel, shellTimeLabel } from "./chat-stream-rules";
+import { activityDetailLine, fieldReturnKeyLabel, shellDateLabel, shellTimeLabel } from "./chat-stream-rules";
 export const colors = {
   canvas: "#FCFCFC",
   card: "#FFFFFF",
@@ -206,6 +206,11 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
         placeholderTextColor={colors.muted}
         accessibilityLabel={label}
         {...props}
+        returnKeyLabel={fieldReturnKeyLabel({
+          returnKeyType: props.returnKeyType,
+          returnKeyLabel: typeof props.returnKeyLabel === "string" ? props.returnKeyLabel : undefined,
+          multiline: props.multiline,
+        })}
         style={[
           s.input,
           props.multiline && { minHeight: 120, textAlignVertical: "top" },
@@ -449,7 +454,5 @@ export function timeLabel(value: string, timeZone?: string) {
 export { relativeDate } from "./relative-date";
 
 export function resultSummary(value: string) {
-  return /^Saved to (?:sample|local) sent mail(?: · .+)?$/.test(value)
-    ? "回复已保存到本地已发送。"
-    : value;
+  return activityDetailLine(value);
 }

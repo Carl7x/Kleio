@@ -570,6 +570,17 @@ const SHELL_NOTICE_ZH: Record<string, string> = {
   "calendar range must end after it starts and span at most 366 days":
     "日历范围须晚于开始，且不超过 366 天。",
   "computer control is not configured": "电脑还没有配置。",
+  context_invalidated: "这一轮的上下文已失效。",
+  context_budget_exceeded: "所需上下文超出了这一轮的容量。",
+  context_state_mismatch: "这一轮的上下文已对不上。",
+  unsourced_result: "这次结果还没有可核验的来源。",
+  research_outcome_unknown: "研究在确认结果前中断了。",
+  research_failed: "这次研究没有完成。",
+  review_failed: "审阅没有完成。",
+  host_interrupted: "Kleio 中断了这次检查。",
+  stale_agreement: "当时的约定已经变了。",
+  cannot_judge: "这次还无法判断。",
+  superseded: "这项事务已经换了新的条件。",
 };
 
 /** Exact English failure sentence, or undefined when this text is not one of them. */
@@ -1037,12 +1048,39 @@ export function shellTimeLabel(value: string, timeZone?: string): string {
  * Android return-key caption. iOS uses returnKeyType, which the system localizes.
  * The composer does not set enterKeyHint on native, so this caption is not replaced by "Enter".
  */
-export function returnKeyCaption(kind: "go" | "search" | "done" | "next" | "newline"): string {
+export function returnKeyCaption(kind: "go" | "search" | "done" | "next" | "newline" | "send"): string {
   if (kind === "go") return "前往";
   if (kind === "search") return "搜索";
   if (kind === "done") return "完成";
   if (kind === "next") return "下一项";
+  if (kind === "send") return "发送";
   return "换行";
+}
+
+/**
+ * Android label for a field that did not set one. An explicit caption wins.
+ * A multiline field asks for a newline; a single line asks to finish.
+ */
+export function fieldReturnKeyLabel(input: {
+  returnKeyType?: string | null;
+  returnKeyLabel?: string | null;
+  multiline?: boolean | null;
+}): string {
+  const explicit = input.returnKeyLabel?.trim();
+  if (explicit) return explicit;
+  const type = input.returnKeyType?.trim().toLowerCase();
+  if (type === "go" || type === "search" || type === "done" || type === "next" || type === "send")
+    return returnKeyCaption(type);
+  return returnKeyCaption(input.multiline ? "newline" : "done");
+}
+
+/** Bubble line after a choice is stored. The marker itself stays off the screen. */
+export function choiceSelectionLine(label: string): string {
+  return `已选：${label}`;
+}
+
+export function choiceUnavailableLine(): string {
+  return "选项不可用";
 }
 
 /** After a choice lands, the other rows keep their labels and drop the rest of the card. */
@@ -1376,11 +1414,18 @@ const DESKTOP_STEP_ZH: Record<string, string> = {
   wait: "等了一下",
 };
 
-/** Short desktop verbs become spoken Chinese. Longer notes stay as the tool returned them. */
+/**
+ * Short desktop verbs, including a verb plus a note, become spoken Chinese.
+ * A Chinese note stays. Other Latin stays off the card.
+ */
 export function desktopStepLabel(action: string | undefined): string {
   if (!action?.trim()) return "桌面步骤";
-  const key = action.trim().toLowerCase().replace(/[\s-]+/g, "_");
-  return DESKTOP_STEP_ZH[key] ?? action;
+  const text = action.trim();
+  const key = text.toLowerCase().replace(/[\s-]+/g, "_");
+  const known = DESKTOP_STEP_ZH[key] ?? DESKTOP_STEP_ZH[key.split("_")[0] ?? ""];
+  if (known) return known;
+  if (/[\u3400-\u9fff]/.test(text)) return text;
+  return "桌面步骤";
 }
 
 /** Calendar fields. "开始" becomes "开始日期" / "开始时间", never "开始 date". */
@@ -1437,6 +1482,21 @@ const ACTIVITY_EVENT_ZH: Record<string, string> = {
   "task cancelled": "任务已取消",
   "task canceled": "任务已取消",
 };
+
+/**
+ * Timeline and activity detail. A known sentence or error code is replaced.
+ * A code that is not one of those becomes the generic note. Other text stays,
+ * including a result the user wrote.
+ */
+export function activityDetailLine(detail: string): string {
+  const text = detail.replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  if (/^saved to (?:sample|local) sent mail(?: · .+)?$/i.test(text)) return "回复已保存到本地已发送。";
+  const known = knownShellNotice(text);
+  if (known) return known;
+  if (/^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$/.test(text)) return UNRECOGNIZED_SERVER_NOTE;
+  return text;
+}
 
 /** Timeline titles. A raw status key uses the operation chip; other titles stay as written. */
 export function activityEventTitle(title: string): string {
