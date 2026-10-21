@@ -671,7 +671,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
               </Text>
               <Text style={s.text}>{activityEventTitle(event.title)}</Text>
               <Text selectable style={s.muted}>
-                {event.detail}
+                {resultSummary(event.detail)}
               </Text>
             </View>
           ))}

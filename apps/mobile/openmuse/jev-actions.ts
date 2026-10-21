@@ -3,10 +3,11 @@ import {
   type JevAction,
   type JevPanel,
   type JevToolResult,
-  jevActionPrefix,
+  jevActionPrefixOf,
   jevToolResultSchema,
   parseJevAction,
 } from "../../../packages/openmuse-domain/src/jev";
+import { choiceSelectionLine, choiceUnavailableLine } from "./chat-stream-rules";
 
 export function parseJevResult(value: unknown): JevToolResult | null {
   let result = value;
@@ -92,7 +93,7 @@ export function retryChoiceAvailable(
     (latestPanelId === null || latestPanelId === panel.id) &&
     !!failedOptionId &&
     panel.options.some((option) => option.id === failedOptionId) &&
-    latestUserText === selectionText(panel, failedOptionId) &&
+    sameStoredChoice(latestUserText, selectionText(panel, failedOptionId)) &&
     !panel.selectedId &&
     !confirmed &&
     !busy
@@ -115,6 +116,21 @@ function actionFromText(text: string): JevAction | null {
   } catch {
     return null;
   }
+}
+
+/** A saved choice matches whether it was stored with the current or legacy marker. */
+function sameStoredChoice(stored: string | null, encoded: string): boolean {
+  if (!stored) return false;
+  if (stored === encoded) return true;
+  const left = actionFromText(stored);
+  const right = actionFromText(encoded);
+  if (!left || !right) return false;
+  return (
+    left.panelId === right.panelId &&
+    left.threadId === right.threadId &&
+    left.candidateSetVersion === right.candidateSetVersion &&
+    left.optionId === right.optionId
+  );
 }
 
 function panelForAction(messages: readonly unknown[], action: JevAction): JevPanel | null {
@@ -146,13 +162,13 @@ function panelForAction(messages: readonly unknown[], action: JevAction): JevPan
 }
 
 export function displayJevUserMessage(text: string, precedingMessages: readonly unknown[]): string {
-  if (!text.startsWith(jevActionPrefix)) return text;
+  if (!jevActionPrefixOf(text)) return text;
   const action = actionFromText(text);
-  if (!action) return "选项不可用";
+  if (!action) return choiceUnavailableLine();
   const option = panelForAction(precedingMessages, action)?.options.find(
     (candidate) => candidate.id === action.optionId,
   );
-  return option ? `已选：${option.label}` : "选项不可用";
+  return option ? choiceSelectionLine(option.label) : choiceUnavailableLine();
 }
 
 export function confirmedJevSelection(

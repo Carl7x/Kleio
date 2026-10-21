@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  encodeJevAction,
+  legacyJevActionPrefix,
+  parseJevAction,
+} from "../../../packages/openmuse-domain/src/jev.ts";
+import { displayJevUserMessage, retryChoiceAvailable } from "./jev-actions.ts";
+import {
   approvalAttachmentLine,
   approvalCalendarName,
   approvalEndNote,
@@ -46,8 +52,11 @@ import {
   browserStatusLabel,
   chatShellStatus,
   desktopStepLabel,
+  activityDetailLine,
   activityEventTitle,
   avatarLabel,
+  choiceSelectionLine,
+  choiceUnavailableLine,
   computerDesktopHint,
   computerTerminalHint,
   computerWorkspaceNotice,
@@ -81,6 +90,7 @@ import {
   computerCommandStatus,
   fileAddedLine,
   fileDetailLine,
+  fieldReturnKeyLabel,
   fileSourceLabel,
   formFieldLabel,
   googleCapabilityLabel,
@@ -386,6 +396,8 @@ test("mail, file, and browser detail rows stay in short Chinese", () => {
   assert.equal(pdfDownloadsAddedNotice(2), "2 份 PDF 已放进文件。");
   assert.equal(desktopStepLabel(undefined), "桌面步骤");
   assert.equal(desktopStepLabel("click"), "点了一下");
+  assert.equal(desktopStepLabel("scroll the page"), "滚动页面");
+  assert.equal(desktopStepLabel("MouseEvent at 12,20"), "桌面步骤");
   assert.equal(desktopStepLabel("已打开表格"), "已打开表格");
   const detailCopy = [
     mailThreadSubtitle(2),
@@ -719,6 +731,12 @@ test("mail, calendar, files, and computer clocks stay Chinese", () => {
   assert.equal(returnKeyCaption("done"), "完成");
   assert.equal(returnKeyCaption("next"), "下一项");
   assert.equal(returnKeyCaption("newline"), "换行");
+  assert.equal(returnKeyCaption("send"), "发送");
+  assert.equal(fieldReturnKeyLabel({ returnKeyType: "go" }), "前往");
+  assert.equal(fieldReturnKeyLabel({ returnKeyType: "search" }), "搜索");
+  assert.equal(fieldReturnKeyLabel({ multiline: true }), "换行");
+  assert.equal(fieldReturnKeyLabel({}), "完成");
+  assert.equal(fieldReturnKeyLabel({ returnKeyLabel: "完成" }), "完成");
   assert.doesNotMatch(
     [
       returnKeyCaption("go"),
@@ -726,8 +744,12 @@ test("mail, calendar, files, and computer clocks stay Chinese", () => {
       returnKeyCaption("done"),
       returnKeyCaption("next"),
       returnKeyCaption("newline"),
+      returnKeyCaption("send"),
+      fieldReturnKeyLabel({ returnKeyType: "go" }),
+      fieldReturnKeyLabel({ multiline: true }),
+      fieldReturnKeyLabel({}),
     ].join("\n"),
-    /\b(go|search|done|next|enter|return)\b/i,
+    /\b(go|search|done|next|enter|return|send)\b/i,
   );
 });
 
@@ -838,11 +860,63 @@ test("activity titles, memory sources, avatars, and task failures drop leftover 
   assert.equal(taskFailureLine("Active memory not found"), "没有找到这条记忆。");
   assert.equal(taskFailureLine("审阅尚未就绪。请刷新后再试。"), "审阅尚未就绪。请刷新后再试。");
   assert.equal(taskFailureLine("socket hang up"), "这次没有完成。\n具体原因没有显示。");
+  assert.equal(activityDetailLine("CONTEXT_INVALIDATED"), "这一轮的上下文已失效。");
+  assert.equal(activityDetailLine("HOST_INTERRUPTED"), "Kleio 中断了这次检查。");
+  assert.equal(activityDetailLine("SOME_OTHER_CODE"), "具体原因没有显示。");
+  assert.equal(activityDetailLine("Saved to local sent mail"), "回复已保存到本地已发送。");
+  assert.equal(activityDetailLine("整理好了"), "整理好了");
+  assert.equal(activityDetailLine("Plan the afternoon"), "Plan the afternoon");
+  assert.equal(choiceSelectionLine("左边"), "已选：左边");
+  assert.equal(choiceUnavailableLine(), "选项不可用");
+  assert.equal(taskFailureLine("CONTEXT_BUDGET_EXCEEDED"), "所需上下文超出了这一轮的容量。");
   const copy = [
     activityEventTitle("Task created"),
+    activityDetailLine("CONTEXT_INVALIDATED"),
+    activityDetailLine("SOME_OTHER_CODE"),
     memorySourceLabel("Conversation"),
     avatarLabel("lilac"),
+    choiceSelectionLine("左边"),
+    choiceUnavailableLine(),
     taskFailureLine("The native memory service could not save this statement."),
   ].join("\n");
-  assert.doesNotMatch(copy, /task created|conversation|authenticated|lilac|native memory/i);
+  assert.doesNotMatch(copy, /task created|conversation|authenticated|lilac|native memory|OpenMuse|CONTEXT_|SOME_OTHER/i);
+});
+
+test("stored choices drop the OpenMuse marker and still read the old prefix", () => {
+  const action = {
+    panelId: "panel-1",
+    threadId: "thread-1",
+    candidateSetVersion: 1,
+    optionId: "left",
+  };
+  const panel = {
+    id: "panel-1",
+    threadId: "thread-1",
+    turnId: "turn-1",
+    candidateSetVersion: 1,
+    type: "clarification" as const,
+    title: "选一个",
+    options: [{ id: "left", label: "左边", details: [], sources: [] }],
+    mode: "live" as const,
+  };
+  const messages = [
+    { role: "assistant", toolCalls: [{ id: "call-1", name: "present_choices" }] },
+    { role: "tool", toolCallId: "call-1", content: JSON.stringify({ panel }) },
+  ];
+  const stored = encodeJevAction(action);
+  const legacy = legacyJevActionPrefix + JSON.stringify(action);
+  assert.equal(stored.startsWith("[Kleio 选择] "), true);
+  assert.equal(legacy.startsWith("[OpenMuse choice] "), true);
+  assert.deepEqual(parseJevAction(stored), action);
+  assert.deepEqual(parseJevAction(legacy), action);
+  assert.equal(displayJevUserMessage(stored, messages), "已选：左边");
+  assert.equal(displayJevUserMessage(legacy, messages), "已选：左边");
+  assert.equal(displayJevUserMessage(`${legacyJevActionPrefix}{`, messages), "选项不可用");
+  assert.equal(displayJevUserMessage("我想选左边", messages), "我想选左边");
+  assert.equal(
+    retryChoiceAvailable(panel, "thread-1", "panel-1", "left", legacy, false, false),
+    true,
+  );
+  const shown = [stored, displayJevUserMessage(stored, messages), displayJevUserMessage(legacy, [])].join("\n");
+  assert.doesNotMatch(shown, /OpenMuse|OpenBot|openmuse/);
 });
