@@ -51,7 +51,10 @@ import {
   computerWorkspaceNotice,
   datePartLabel,
   memorySourceLabel,
+  returnKeyCaption,
+  shellDateLabel,
   shellProfileSubtitle,
+  shellTimeLabel,
   taskFailureLine,
   emptyThreadSuggestions,
   accessGateCopy,
@@ -680,6 +683,46 @@ test("long user messages collapse; short ones stay open", () => {
   assert.equal(userMessageOverflows("a".repeat(281)), true);
   assert.equal(userMessageOverflows("1\n2\n3\n4\n5\n6"), false);
   assert.equal(userMessageOverflows("1\n2\n3\n4\n5\n6\n7"), true);
+});
+
+test("mail, calendar, files, and computer clocks stay Chinese", () => {
+  const stamp = "2026-10-21T07:09:00.000Z";
+  const dateOptions = { month: "short" as const, day: "numeric" as const, timeZone: "UTC" };
+  const heading = {
+    weekday: "long" as const,
+    month: "long" as const,
+    day: "numeric" as const,
+    timeZone: "UTC",
+  };
+  assert.equal(shellDateLabel(stamp, dateOptions), "10月21日");
+  assert.equal(shellDateLabel(stamp, heading), "10月21日星期三");
+  assert.equal(shellTimeLabel(stamp, "UTC"), "07:09");
+  assert.equal(shellTimeLabel(stamp, "Asia/Shanghai"), "15:09");
+  assert.equal(shellDateLabel("not-a-date"), "not-a-date");
+  assert.equal(shellTimeLabel("not-a-date"), "not-a-date");
+  assert.equal(shellTimeLabel(stamp, "Not/AZone"), stamp);
+  const shown = [
+    shellDateLabel(stamp, dateOptions),
+    shellDateLabel(stamp, heading),
+    shellTimeLabel(stamp, "UTC"),
+    shellTimeLabel(stamp, "Asia/Shanghai"),
+  ].join("\n");
+  assert.doesNotMatch(shown, /\b(AM|PM|Oct|October|Wednesday)\b/);
+  assert.equal(returnKeyCaption("go"), "前往");
+  assert.equal(returnKeyCaption("search"), "搜索");
+  assert.equal(returnKeyCaption("done"), "完成");
+  assert.equal(returnKeyCaption("next"), "下一项");
+  assert.equal(returnKeyCaption("newline"), "换行");
+  assert.doesNotMatch(
+    [
+      returnKeyCaption("go"),
+      returnKeyCaption("search"),
+      returnKeyCaption("done"),
+      returnKeyCaption("next"),
+      returnKeyCaption("newline"),
+    ].join("\n"),
+    /\b(go|search|done|next|enter|return)\b/i,
+  );
 });
 
 test("calendar fields, the thread sheet, and computer notices stay in Chinese", () => {

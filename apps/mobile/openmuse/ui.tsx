@@ -15,6 +15,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { shellDateLabel, shellTimeLabel } from "./chat-stream-rules";
 export const colors = {
   canvas: "#FCFCFC",
   card: "#FFFFFF",
@@ -440,16 +441,10 @@ export function Mascot({
   );
 }
 export function dateLabel(value: string, options?: Intl.DateTimeFormatOptions) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleDateString("en-US", options || { month: "short", day: "numeric" });
+  return shellDateLabel(value, options);
 }
 export function timeLabel(value: string, timeZone?: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone });
+  return shellTimeLabel(value, timeZone);
 }
 export { relativeDate } from "./relative-date";
 

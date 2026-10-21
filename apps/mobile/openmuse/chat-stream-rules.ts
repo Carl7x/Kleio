@@ -830,6 +830,20 @@ export function assistantIdentityIndex(
   return true;
 }
 
+/** 24-hour HH:mm. A bad zone or an unreadable part returns null so callers can fall back. */
+function clockLabel(date: Date, timeZone?: string): string | null {
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    ...(timeZone ? { timeZone } : {}),
+  }).formatToParts(date);
+  const hour = (parts.find((part) => part.type === "hour")?.value ?? "").padStart(2, "0");
+  const minute = (parts.find((part) => part.type === "minute")?.value ?? "").padStart(2, "0");
+  if (!/^\d{2}$/.test(hour) || !/^\d{2}$/.test(minute)) return null;
+  return `${hour}:${minute}`;
+}
+
 /** Clock under a bubble. Same calendar day is HH:mm. Older turns add 月日. Invalid stamps stay hidden. */
 export function turnTimeLabel(value: string | undefined, now = Date.now()): string | null {
   if (!value) return null;
@@ -837,21 +851,48 @@ export function turnTimeLabel(value: string | undefined, now = Date.now()): stri
   if (!Number.isFinite(parsed)) return null;
   const date = new Date(parsed);
   const current = new Date(now);
-  const parts = new Intl.DateTimeFormat("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(date);
-  const hour = (parts.find((part) => part.type === "hour")?.value ?? "").padStart(2, "0");
-  const minute = (parts.find((part) => part.type === "minute")?.value ?? "").padStart(2, "0");
-  if (!/^\d{2}$/.test(hour) || !/^\d{2}$/.test(minute)) return null;
-  const clock = `${hour}:${minute}`;
+  const clock = clockLabel(date);
+  if (!clock) return null;
   const sameDay =
     date.getFullYear() === current.getFullYear() &&
     date.getMonth() === current.getMonth() &&
     date.getDate() === current.getDate();
   if (sameDay) return clock;
   return `${date.getMonth() + 1}月${date.getDate()}日 ${clock}`;
+}
+
+/**
+ * Dates on mail, files, calendar, and activity.
+ * Chinese month and weekday, never "Oct 21" or "Wednesday".
+ */
+export function shellDateLabel(value: string, options?: Intl.DateTimeFormatOptions): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  try {
+    return new Intl.DateTimeFormat("zh-CN", options ?? { month: "short", day: "numeric" }).format(date);
+  } catch {
+    return value;
+  }
+}
+
+/** Clocks beside those dates. Same 24-hour HH:mm as a chat bubble, never "3:09 PM". */
+export function shellTimeLabel(value: string, timeZone?: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  try {
+    return clockLabel(date, timeZone) ?? value;
+  } catch {
+    return value;
+  }
+}
+
+/** Android return-key caption. iOS still uses returnKeyType, which the system localizes. */
+export function returnKeyCaption(kind: "go" | "search" | "done" | "next" | "newline"): string {
+  if (kind === "go") return "前往";
+  if (kind === "search") return "搜索";
+  if (kind === "done") return "完成";
+  if (kind === "next") return "下一项";
+  return "换行";
 }
 
 /** After a choice lands, the other rows keep their labels and drop the rest of the card. */

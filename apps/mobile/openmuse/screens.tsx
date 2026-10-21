@@ -52,6 +52,7 @@ import {
   mailDraftDetail,
   mailListTabLabel,
   operationStatusLabel,
+  returnKeyCaption,
   reviewGateLabel,
   richThreadValue,
   surfaceError,
@@ -522,6 +523,7 @@ export function MailScreen() {
             onChangeText={setQuery}
             autoCorrect={false}
             returnKeyType="search"
+            returnKeyLabel={returnKeyCaption("search")}
             style={{ flex: 1, paddingVertical: 13, fontSize: 13, color: colors.text }}
           />
         </View>
@@ -906,6 +908,7 @@ export function BrowserScreen() {
             autoCorrect={false}
             keyboardType="url"
             returnKeyType="go"
+            returnKeyLabel={returnKeyCaption("go")}
             placeholder="输入网址"
             placeholderTextColor={colors.muted}
             style={[s.input, { flex: 1 }]}

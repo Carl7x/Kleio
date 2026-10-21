@@ -56,6 +56,7 @@ import {
   composerPlaceholder,
   composerShortcutHint,
   composerSendFace,
+  returnKeyCaption,
   emptyThreadSuggestions,
   listedBackgroundTasks,
   liveCueLabel,
@@ -1211,6 +1212,7 @@ export function ChatScreen({
               multiline
               editable
               enterKeyHint={Platform.OS === "web" ? "send" : "enter"}
+              returnKeyLabel={Platform.OS === "web" ? undefined : returnKeyCaption("newline")}
               onKeyPress={
                 Platform.OS === "web"
                   ? (event) => {
@@ -1269,6 +1271,22 @@ export function ChatScreen({
             </Pressable>
           </View>
         </View>
+        {Platform.OS === "web" ? (
+          <Text
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+            style={{
+              marginTop: 6,
+              marginRight: 8,
+              fontSize: 12,
+              lineHeight: 16,
+              color: colors.muted,
+              textAlign: "right",
+            }}
+          >
+            {composerShortcutHint()}
+          </Text>
+        ) : null}
       </KeyboardAvoidingView>
     </View>
   );

@@ -53,6 +53,7 @@ import {
   mailReplySubject,
   mailThreadSubtitle,
   pdfDownloadsAddedNotice,
+  returnKeyCaption,
   surfaceError,
   unsupportedFieldNote,
 } from "./chat-stream-rules";
@@ -1017,6 +1018,7 @@ function BrowserDetail({ initial }: { initial: BrowserSession }) {
             autoCorrect={false}
             keyboardType="url"
             returnKeyType="go"
+            returnKeyLabel={returnKeyCaption("go")}
             onSubmitEditing={() => void mutate()}
           />
         </View>
