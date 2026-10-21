@@ -578,16 +578,26 @@ export function knownShellNotice(message: string): string | undefined {
 }
 
 /**
+ * Shown when a server line is not a known sentence and is not already Chinese.
+ * The fragment is not translated word by word.
+ */
+export const UNRECOGNIZED_SERVER_NOTE = "具体原因没有显示。";
+
+/**
  * Server text under a Chinese status line.
- * A known English sentence is replaced. Anything else is shortened, not rewritten.
+ * A known English sentence is replaced. Chinese stays, and is shortened when long.
+ * Anything else becomes the generic note above.
  */
 export function statusServerNote(message?: string, max = 72): string | undefined {
   const text = message?.replace(/\s+/g, " ").trim();
   if (!text) return undefined;
   const known = knownShellNotice(text);
   if (known) return known;
-  if (text.length <= max) return text;
-  return `${text.slice(0, max - 1)}…`;
+  if (/[\u3400-\u9fff]/.test(text)) {
+    if (text.length <= max) return text;
+    return `${text.slice(0, max - 1)}…`;
+  }
+  return UNRECOGNIZED_SERVER_NOTE;
 }
 
 export type ThreadPlace =
@@ -1209,11 +1219,12 @@ export function calendarDraftError(issues: readonly FormIssue[], allDay: boolean
 /**
  * Chinese title first. A Chinese message, including a known English sentence
  * that statusServerNote has replaced, stands alone.
- * Other Latin server text stays on the next line, shortened.
+ * An unrecognized server line keeps the title and the generic Chinese note.
  */
 export function surfaceError(title: string, server?: string): string {
   const note = statusServerNote(server);
   if (!note || note === title) return title;
+  if (note === UNRECOGNIZED_SERVER_NOTE) return `${title}\n${note}`;
   if (!/[A-Za-z]{3,}/.test(note)) return note;
   return `${title}\n${note}`;
 }
@@ -1390,6 +1401,18 @@ const COMPUTER_NOTICE_ZH: Record<string, string> = {
   "computer control is not configured": "电脑还没有配置。",
 };
 
+/** Terminal footnote. A graphical app is described in Chinese, without a shell redirect. */
+export function computerTerminalHint(networkEnabled: boolean): string {
+  return networkEnabled
+    ? "在你的电脑上运行，可访问网络。图形程序请放到后台启动，再到「桌面」页打开。"
+    : "在你的电脑上运行，网络已关闭。上网请用「浏览器」。";
+}
+
+/** Shared-desktop note. The workspace path stays in the file list, not in this sentence. */
+export function computerDesktopHint(): string {
+  return "你与智能体共享此桌面。停止电脑会关闭其上的应用；工作区里的文件会保留。打开桌面可使电脑保持唤醒 30 分钟；保持此标签页打开或回到应用可延长。链接可控制桌面，请勿分享。";
+}
+
 /** Status line under the computer heading. Known English becomes one Chinese sentence. */
 export function computerWorkspaceNotice(message?: string): string | undefined {
   const text = message?.replace(/\s+/g, " ").trim();
@@ -1444,8 +1467,31 @@ export function avatarLabel(id: string): string {
 }
 
 /**
+ * Placeholder and sample rows in the finance delegate field.
+ * Headers and sample words are Chinese. Amounts stay signed numbers.
+ */
+export function financeCsvPlaceholder(): string {
+  return "日期,说明,金额,分类\n2026-09-01,买菜,54.20,餐饮";
+}
+
+export function financeCsvSample(): string {
+  return "日期,说明,金额,分类\n2026-09-01,工资,-4200,收入\n2026-09-02,买菜,84.50,餐饮\n2026-09-03,会员,19.99,订阅\n2026-09-04,咖啡,6.50,餐饮";
+}
+
+/** Example object for a document task. The sample field names are Chinese. */
+export function documentFieldPlaceholder(): string {
+  return '{"姓名":"你的姓名","同意":true}';
+}
+
+/** Validation for that object. true and false stay, because those are the accepted values. */
+export function documentFieldJsonError(): string {
+  return "请写成一个对象：每个值是一段文字，或 true、false。";
+}
+
+/**
  * A task or memory failure shown as its own line.
- * Chinese stays. A known English sentence is replaced. Other Latin keeps a Chinese lead.
+ * Chinese stays. A known English sentence is replaced.
+ * Other Latin keeps a Chinese lead and the generic note, not the fragment.
  */
 export function taskFailureLine(error: string): string {
   const text = error.replace(/\s+/g, " ").trim();
