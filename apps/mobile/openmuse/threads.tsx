@@ -11,8 +11,10 @@ import {
   Settings2,
 } from "lucide-react-native";
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
-import { Button, colors, ErrorNotice, Field, LinkRow, Sheet, s } from "./ui";
+import { Pressable, Text, View } from "react-native";
+import { ChatStatusScreen, ThreadNotice } from "./chat-stream";
+import { sheetListStatus, statusServerNote, threadStatusCopy } from "./chat-stream-rules";
+import { Button, colors, Field, LinkRow, Sheet, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
 function newThreadId() {
@@ -127,22 +129,39 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
     onClose();
     navigate(section);
   }
+  const opening = threadStatusCopy(mainError ? "opening-failed" : "opening");
+  const listLoading = sheetListStatus("loading");
+  const listFailed = sheetListStatus("failed");
+  const listEmpty = sheetListStatus(archived ? "empty-archived" : "empty");
+  const moreFailed = sheetListStatus("more-failed");
+  const actionFailed = sheetListStatus("action-failed");
+  const savedThreads = threads.threads.filter(
+    (thread) => thread.id !== mainId && thread.archived === archived,
+  );
+  const draftThreads = archived
+    ? []
+    : visited.filter(
+        (item) => item.id !== mainId && !threads.threads.some((saved) => saved.id === item.id),
+      );
   return (
     <Sheet
       title="Kleio"
       subtitle={workspace.mode === "sample" ? "你的工作台" : workspace.profile.name}
       onClose={onClose}
+      closeLabel="关闭"
     >
       <View style={{ gap: 14 }}>
         {enabled && loading ? (
-          <>
-            <ErrorNotice error={mainError} />
-            {mainError ? (
-              <Button onPress={retry}>重试主对话</Button>
-            ) : (
-              <ActivityIndicator color={colors.blueDark} />
-            )}
-          </>
+          <ChatStatusScreen
+            compact
+            busy={opening.busy}
+            tone={opening.tone}
+            title={opening.title}
+            detail={opening.detail}
+            note={mainError ? statusServerNote(mainError) : undefined}
+            actionLabel={mainError ? opening.actionLabel : undefined}
+            onAction={mainError ? retry : undefined}
+          />
         ) : enabled ? (
           <>
             <LinkRow
@@ -170,34 +189,47 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
                 {archived ? "进行中" : "已归档"}
               </Button>
             </View>
-            {threads.isLoading && <ActivityIndicator color={colors.blueDark} />}
-            <ErrorNotice error={error || threads.error?.message} />
-            {threads.error && (
-              <Button small onPress={threads.refetchThreads}>
-                重试对话列表
-              </Button>
-            )}
-            {!archived &&
-              visited
-                .filter(
-                  (item) =>
-                    item.id !== mainId && !threads.threads.some((saved) => saved.id === item.id),
-                )
-                .map((item, index) => (
-                  <LinkRow
-                    key={item.id}
-                    icon={MessageCircle}
-                    title={`旁路对话 ${index + 1}`}
-                    detail="在本应用中打开"
-                    onPress={() => {
-                      select(item);
-                      onClose();
-                    }}
-                  />
-                ))}
-            {threads.threads
-              .filter((thread) => thread.id !== mainId && thread.archived === archived)
-              .map((thread) => (
+            {threads.isLoading ? (
+              <ChatStatusScreen
+                compact
+                busy={listLoading.busy}
+                tone={listLoading.tone}
+                title={listLoading.title}
+                detail={listLoading.detail}
+              />
+            ) : threads.error ? (
+              <ChatStatusScreen
+                compact
+                busy={listFailed.busy}
+                tone={listFailed.tone}
+                title={listFailed.title}
+                detail={listFailed.detail}
+                note={statusServerNote(threads.error.message)}
+                actionLabel={listFailed.actionLabel}
+                onAction={() => void threads.refetchThreads()}
+              />
+            ) : null}
+            {error ? (
+              <ThreadNotice
+                title={actionFailed.title}
+                detail={actionFailed.detail}
+                note={statusServerNote(error)}
+                tone={actionFailed.tone}
+              />
+            ) : null}
+            {draftThreads.map((item, index) => (
+              <LinkRow
+                key={item.id}
+                icon={MessageCircle}
+                title={`旁路对话 ${index + 1}`}
+                detail="在本应用中打开"
+                onPress={() => {
+                  select(item);
+                  onClose();
+                }}
+              />
+            ))}
+            {savedThreads.map((thread) => (
                 <View
                   key={thread.id}
                   style={{
@@ -257,23 +289,31 @@ export function ThreadsSheet({ onClose }: { onClose: () => void }) {
                   </View>
                 </View>
               ))}
-            {!threads.isLoading &&
-              !threads.error &&
-              !threads.threads.some(
-                (thread) => thread.id !== mainId && thread.archived === archived,
-              ) && (
-                <Text style={s.muted}>
-                  {archived
-                    ? "没有已归档的对话。"
-                    : "在此另开一个话题。主对话始终可用。"}
-                </Text>
-              )}
-            <ErrorNotice error={threads.fetchMoreError?.message} />
-            {threads.hasMoreThreads && (
+            {!threads.isLoading && !threads.error && savedThreads.length === 0 && draftThreads.length === 0 ? (
+              <ChatStatusScreen
+                compact
+                busy={listEmpty.busy}
+                tone={listEmpty.tone}
+                title={listEmpty.title}
+                detail={listEmpty.detail}
+              />
+            ) : null}
+            {threads.fetchMoreError ? (
+              <ChatStatusScreen
+                compact
+                busy={moreFailed.busy}
+                tone={moreFailed.tone}
+                title={moreFailed.title}
+                detail={moreFailed.detail}
+                note={statusServerNote(threads.fetchMoreError.message)}
+                actionLabel={moreFailed.actionLabel}
+                onAction={threads.fetchMoreThreads}
+              />
+            ) : threads.hasMoreThreads ? (
               <Button small busy={threads.isFetchingMoreThreads} onPress={threads.fetchMoreThreads}>
                 加载更多对话
               </Button>
-            )}
+            ) : null}
             <Text style={s.small}>
               旁路对话有各自上下文。智能体已保存的记忆是共享的。
             </Text>

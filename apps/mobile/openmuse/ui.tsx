@@ -249,12 +249,14 @@ export function Sheet({
   children,
   onClose,
   wide,
+  closeLabel = "关闭详情",
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
+  closeLabel?: string;
 }) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -297,7 +299,7 @@ export function Sheet({
               <Text style={s.title}>{title}</Text>
               {!!subtitle && <Text style={s.muted}>{subtitle}</Text>}
             </View>
-            <IconButton icon={X} label="关闭详情" onPress={onClose} />
+            <IconButton icon={X} label={closeLabel} onPress={onClose} />
           </View>
           <ScrollView
             keyboardShouldPersistTaps="handled"

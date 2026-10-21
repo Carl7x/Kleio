@@ -264,7 +264,15 @@ export function ReceiptAction({
 }
 
 /** Three quiet dots, 1.9s wave. Static when the person prefers reduced motion. */
-export function QuietDots({ label, bare = false }: { label?: string; bare?: boolean }) {
+export function QuietDots({
+  label,
+  bare = false,
+  centered = false,
+}: {
+  label?: string;
+  bare?: boolean;
+  centered?: boolean;
+}) {
   const reduce = useReduceMotion();
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -293,7 +301,14 @@ export function QuietDots({ label, bare = false }: { label?: string; bare?: bool
       accessibilityLabel={bare ? undefined : label}
       accessibilityElementsHidden={bare}
       importantForAccessibility={bare ? "no" : "auto"}
-      style={[s.row, { gap: bare ? 0 : 8, alignSelf: "flex-start", paddingVertical: bare ? 0 : 4 }]}
+      style={[
+        s.row,
+        {
+          gap: bare ? 0 : 8,
+          alignSelf: centered ? "center" : "flex-start",
+          paddingVertical: bare ? 0 : 4,
+        },
+      ]}
     >
       <View style={[s.row, { gap: 5 }]}>
         {waves.map((opacity, index) => (
@@ -717,6 +732,7 @@ export function ChatStatusScreen({
   note,
   busy,
   hero,
+  compact = false,
   tone = "neutral",
   actionLabel,
   onAction,
@@ -729,6 +745,8 @@ export function ChatStatusScreen({
   note?: string;
   busy?: boolean;
   hero?: boolean;
+  /** Sheet and card status: same title, detail, and action, without filling the thread. */
+  compact?: boolean;
   tone?: ThreadStatusTone;
   actionLabel?: string;
   onAction?: () => void;
@@ -738,16 +756,16 @@ export function ChatStatusScreen({
   return (
     <View
       style={{
-        flexGrow: 1,
+        flexGrow: compact ? 0 : 1,
         justifyContent: "center",
         alignItems: "center",
-        paddingVertical: hero ? 24 : 20,
-        paddingHorizontal: 8,
+        paddingVertical: compact ? 8 : hero ? 24 : 20,
+        paddingHorizontal: compact ? 4 : 8,
         gap: threadChrome.statusGap,
       }}
     >
       {hero ? <Mascot size={48} /> : null}
-      {busy ? <QuietDots /> : null}
+      {busy ? <QuietDots centered={compact} /> : null}
       <Text
         style={{
           fontSize: hero ? threadChrome.statusHero : threadChrome.statusTitle,
@@ -787,11 +805,11 @@ export function ChatStatusScreen({
         <View
           accessibilityElementsHidden
           importantForAccessibility="no"
-          style={{ width: "100%", maxWidth: 260, gap: 8, marginTop: 2 }}
+          style={{ width: "100%", maxWidth: compact ? 220 : 260, gap: 8, marginTop: 2 }}
         >
           <SkeletonLine width="68%" />
           <SkeletonLine width="100%" />
-          <SkeletonLine width="42%" />
+          {compact ? null : <SkeletonLine width="42%" />}
         </View>
       ) : null}
       {children}
