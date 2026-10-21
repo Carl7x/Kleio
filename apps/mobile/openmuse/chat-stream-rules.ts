@@ -450,6 +450,17 @@ function noticeKey(value: string): string {
 }
 
 /**
+ * `String(new Error(...))` is "Error: message". TypeError and DOMException
+ * do the same. The class name is not part of the sentence the person reads.
+ * A line that is not that shape stays as written.
+ */
+function shellNoticeBody(value: string): string {
+  const text = value.replace(/\s+/g, " ").trim();
+  const match = /^(?:[A-Za-z]*Error|DOMException):\s*(\S.*)$/.exec(text);
+  return match?.[1]?.trim() || text;
+}
+
+/**
  * Known failure sentences that still arrive in English from the runtime,
  * the access gate, or a tool. The whole sentence is replaced. Unknown text
  * is not guessed from a substring.
@@ -585,7 +596,7 @@ const SHELL_NOTICE_ZH: Record<string, string> = {
 
 /** Exact English failure sentence, or undefined when this text is not one of them. */
 export function knownShellNotice(message: string): string | undefined {
-  return SHELL_NOTICE_ZH[noticeKey(message)];
+  return SHELL_NOTICE_ZH[noticeKey(shellNoticeBody(message))];
 }
 
 /**
@@ -600,7 +611,7 @@ export const UNRECOGNIZED_SERVER_NOTE = "具体原因没有显示。";
  * Anything else becomes the generic note above.
  */
 export function statusServerNote(message?: string, max = 72): string | undefined {
-  const text = message?.replace(/\s+/g, " ").trim();
+  const text = message ? shellNoticeBody(message) : "";
   if (!text) return undefined;
   const known = knownShellNotice(text);
   if (known) return known;
@@ -873,9 +884,30 @@ export function calendarAccessSuffix(accessRole: string): string {
   return " · 只读";
 }
 
-/** Rich-thread connection value. The vendor name stays off the settings line. */
+/** Settings row for more than one conversation. The old calque stays off the row. */
+export function richThreadLabel(): string {
+  return "多段对话";
+}
+
+/** Whether that row is on. The vendor name stays off the settings line. */
 export function richThreadValue(connected: boolean): string {
   return connected ? "已接通" : "未连接";
+}
+
+/**
+ * Name stored when this phone pairs. It can show on a device list.
+ * The old default was the English word iPhone, including on Android.
+ */
+export function pairedDeviceName(): string {
+  return "这部手机";
+}
+
+/**
+ * In-memory key for the chat agent. It filters run errors and is not rendered.
+ * The old prefix was the previous product name.
+ */
+export function localChatAgentId(threadId: string): string {
+  return `kleio-${threadId}`;
 }
 
 /** Goal-monitor cadence. Minutes and check counts stay as given. */
@@ -1463,7 +1495,7 @@ export function computerDesktopHint(): string {
 
 /** Status line under the computer heading. Known English becomes one Chinese sentence. */
 export function computerWorkspaceNotice(message?: string): string | undefined {
-  const text = message?.replace(/\s+/g, " ").trim();
+  const text = message ? shellNoticeBody(message) : "";
   if (!text) return undefined;
   const known = COMPUTER_NOTICE_ZH[text.toLowerCase()] ?? knownShellNotice(text);
   if (known) return known;
@@ -1491,10 +1523,12 @@ const ACTIVITY_EVENT_ZH: Record<string, string> = {
 export function activityDetailLine(detail: string): string {
   const text = detail.replace(/\s+/g, " ").trim();
   if (!text) return "";
-  if (/^saved to (?:sample|local) sent mail(?: · .+)?$/i.test(text)) return "回复已保存到本地已发送。";
-  const known = knownShellNotice(text);
+  const body = shellNoticeBody(text);
+  if (/^saved to (?:sample|local) sent mail(?: · .+)?$/i.test(body)) return "回复已保存到本地已发送。";
+  const known = knownShellNotice(body);
   if (known) return known;
-  if (/^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$/.test(text)) return UNRECOGNIZED_SERVER_NOTE;
+  if (/^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$/.test(body)) return UNRECOGNIZED_SERVER_NOTE;
+  if (/[\u3400-\u9fff]/.test(body)) return body;
   return text;
 }
 
@@ -1569,7 +1603,7 @@ export function documentFieldJsonError(): string {
  * Other Latin keeps a Chinese lead and the generic note, not the fragment.
  */
 export function taskFailureLine(error: string): string {
-  const text = error.replace(/\s+/g, " ").trim();
+  const text = shellNoticeBody(error);
   if (!text) return "";
   const known = knownShellNotice(text);
   if (known) return known;

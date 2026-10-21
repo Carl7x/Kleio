@@ -39,6 +39,9 @@ import {
   monitorCheckLine,
   operationStatusLabel,
   reviewGateLabel,
+  localChatAgentId,
+  pairedDeviceName,
+  richThreadLabel,
   richThreadValue,
   savedResultReceiptAction,
   searchReceiptAction,
@@ -199,8 +202,15 @@ test("calendar, monitor, and connection lines drop the leftover English", () => 
   assert.equal(calendarAccessSuffix("writer"), "");
   assert.equal(calendarAccessSuffix("reader"), " · 只读");
   assert.equal(calendarAccessSuffix("freeBusyReader"), " · 只读");
+  assert.equal(richThreadLabel(), "多段对话");
   assert.equal(richThreadValue(true), "已接通");
   assert.equal(richThreadValue(false), "未连接");
+  assert.equal(pairedDeviceName(), "这部手机");
+  assert.equal(localChatAgentId("thread-1"), "kleio-thread-1");
+  assert.doesNotMatch(
+    [richThreadLabel(), pairedDeviceName(), localChatAgentId("thread-1")].join("\n"),
+    /openmuse|openbot|iphone|rich thread/i,
+  );
   assert.equal(monitorCadenceLine(15, 3), "每 15 分钟 · 已查 3 次");
   assert.equal(monitorCheckLine("尚未检查"), "上次 尚未检查");
   assert.equal(monitorCheckLine("10月20日 14:30", "10月20日 14:45"), "上次 10月20日 14:30\n下次 10月20日 14:45");
@@ -800,7 +810,20 @@ test("known chat, gate, and tool failures replace the English sentence", () => {
     assert.equal(taskFailureLine(english), chinese);
   }
   assert.equal(statusServerNote("  Execution cancelled.  "), "这次回复已取消。");
+  assert.equal(statusServerNote("TypeError: Failed to fetch"), "没有连上 Kleio。");
+  assert.equal(statusServerNote("Error: Authentication required"), "需要先登录。");
+  assert.equal(
+    statusServerNote("Error: 工作台无响应。请确认服务器可达后再试。"),
+    "工作台无响应。请确认服务器可达后再试。",
+  );
   assert.equal(statusServerNote("连接超时"), "连接超时");
+  assert.equal(taskFailureLine("TypeError: Execution cancelled"), "这次回复已取消。");
+  assert.equal(activityDetailLine("Error: Saved to local sent mail"), "回复已保存到本地已发送。");
+  assert.equal(activityDetailLine("Error: Plan the afternoon"), "Error: Plan the afternoon");
+  assert.equal(
+    computerWorkspaceNotice("Error: Computer control is not configured."),
+    "电脑还没有配置。",
+  );
   assert.equal(taskFailureLine("socket hang up"), "这次没有完成。\n具体原因没有显示。");
   assert.equal(statusServerNote("socket hang up"), "具体原因没有显示。");
   assert.equal(

@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { clientFetch, getServerURL, serverURL, setTransport } from "../src/transport";
 import { readApiPayload } from "./api-response";
+import { pairedDeviceName } from "./chat-stream-rules";
 
 function configuredURL(): string {
   if (Platform.OS === "web") return globalThis.location?.origin ?? "";
@@ -83,7 +84,7 @@ export async function createSession(accessKey?: string): Promise<{ token: string
       setTransport(API_URL, accessKey.trim());
       try {
         const issued = await request<{ code: string }>("/api/device-pairing", json({}));
-        const paired = await request<{ token: string }>("/api/devices/pair", json({ code: issued.code, name: "iPhone", client: "native" }));
+        const paired = await request<{ token: string }>("/api/devices/pair", json({ code: issued.code, name: pairedDeviceName(), client: "native" }));
         if (!paired.token) throw new Error("工作台未授予设备会话。");
         deviceToken = paired.token;
         await SecureStore.setItemAsync(savedKey, JSON.stringify({ url: API_URL, token: deviceToken }), {
