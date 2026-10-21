@@ -2,6 +2,14 @@ import { localDateTime } from "../../../packages/openmuse-domain/src/date-time.t
 
 export { localDateTime };
 
+/** A local wall time that the zone skips, such as midnight on a spring-forward day. */
+export class MissingLocalTimeError extends Error {
+  constructor() {
+    super("所选时区不存在该时刻。请另选时间。");
+    this.name = "MissingLocalTimeError";
+  }
+}
+
 /** Resolve a local wall-clock time, rejecting gaps at daylight-saving transitions. */
 export function zonedInstant(date: string, time: string, timeZone: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time))
@@ -20,7 +28,7 @@ export function zonedInstant(date: string, time: string, timeZone: string): stri
     if (delta === 0) return new Date(candidate).toISOString();
     candidate += delta;
   }
-  throw new Error("所选时区不存在该时刻。请另选时间。");
+  throw new MissingLocalTimeError();
 }
 
 /**
@@ -33,7 +41,7 @@ export function startOfZonedDay(date: string, timeZone: string): string {
   try {
     return zonedInstant(date, "00:00", timeZone);
   } catch (error) {
-    if (!(error instanceof Error) || !error.message.includes("does not exist")) throw error;
+    if (!(error instanceof MissingLocalTimeError)) throw error;
   }
   for (let minutes = 1; minutes < 24 * 60; minutes++) {
     const time = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { View } from "react-native";
 import { WebView } from "react-native-webview";
+import { surfaceError } from "./chat-stream-rules";
 import { ErrorNotice } from "./ui";
 // `title` labels the web iframe; the native WebView has no equivalent.
 export default function BrowserConsole({
@@ -16,7 +17,7 @@ export default function BrowserConsole({
       <ErrorNotice error={error} />
       <WebView
         source={{ uri: url }}
-        onError={(event) => setError(event.nativeEvent.description)}
+        onError={(event) => setError(surfaceError("页面没有打开。", event.nativeEvent.description))}
         style={{ height: 520, borderRadius: 12 }}
       />
     </View>
