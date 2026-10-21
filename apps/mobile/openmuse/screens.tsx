@@ -390,7 +390,7 @@ export function TodayScreen() {
                     <Check size={14} color={colors.text} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[s.text, { fontSize: 12 }]}>{a.title}</Text>
+                    <Text style={[s.text, { fontSize: 12 }]}>{activityEventTitle(a.title)}</Text>
                     <Text style={s.small}>{relativeDate(a.date)}</Text>
                   </View>
                 </View>

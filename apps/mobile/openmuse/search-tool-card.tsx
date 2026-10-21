@@ -4,7 +4,7 @@ import { Linking, Text, View } from "react-native";
 import { z } from "zod";
 import { BrowserRunContext } from "./browser-tool-card";
 import { ReceiptAction, StatusNote, StreamCard } from "./chat-stream";
-import { searchReceiptAction } from "./chat-stream-rules";
+import { searchReceiptAction, searchWarningLine } from "./chat-stream-rules";
 import { colors, s } from "./ui";
 
 const resultSchema = z.object({
@@ -93,7 +93,7 @@ export function SearchToolCard({ result, loading }: { result: unknown; loading: 
           {parsed.data.truncated && (
             <Text style={s.small}>部分搜索结果或摘录已省略。</Text>
           )}
-          {[...new Set(parsed.data.warnings)].map((warning) => (
+          {[...new Set(parsed.data.warnings.map(searchWarningLine).filter(Boolean))].map((warning) => (
             <Text key={warning} style={s.small}>
               {warning}
             </Text>

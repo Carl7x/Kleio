@@ -26,6 +26,7 @@ import {
   composerControlChrome,
   composerNativeShadow,
   composerPlaceholder,
+  composerReturnHint,
   composerShortcutHint,
   composerSendFace,
   desktopReceiptActions,
@@ -45,6 +46,7 @@ import {
   richThreadValue,
   savedResultReceiptAction,
   searchReceiptAction,
+  searchWarningLine,
   shouldCommitComposerEnter,
   surfaceFadeAlphas,
   toolCardStartsOpen,
@@ -609,6 +611,8 @@ test("threads sheet and access gate use the same short Chinese status", () => {
   assert.match(longNote ?? "", /^连接超时/);
   assert.equal(composerShortcutHint(), "回车发送，上档+回车换行");
   assert.doesNotMatch(composerShortcutHint(), /[A-Za-z]/);
+  assert.equal(composerReturnHint(), "回车换行");
+  assert.doesNotMatch(composerReturnHint(), /[A-Za-z]/);
   const failureKinds = ["save", "stop", "choice", "choice-unreadable"] as const;
   const failureLines = failureKinds.map((kind) => {
     const copy = shellFailureCopy(kind);
@@ -804,6 +808,11 @@ test("known chat, gate, and tool failures replace the English sentence", () => {
     ["Invalid time zone", "这个时区无法识别。"],
     ["Failed to fetch", "没有连上 Kleio。"],
     ["Request cancelled", "请求已取消。"],
+    ["Web search cancelled", "搜索已取消。"],
+    ["Tavily search timed out. Try again later.", "网页搜索超时了。请稍后再试。"],
+    ["Memory not found.", "没有找到这条记忆。"],
+    ["Remembered text must be an exact quote from the user.", "要记住的话须与你刚才说的完全一致。"],
+    ["Duplicate option ID", "选项编号重复了。"],
   ] as const;
   for (const [english, chinese] of samples) {
     assert.equal(statusServerNote(english), chinese);
@@ -870,7 +879,23 @@ test("activity titles, memory sources, avatars, and task failures drop leftover 
   assert.equal(activityEventTitle("整理行程"), "整理行程");
   assert.equal(memorySourceLabel("Conversation"), "对话");
   assert.equal(memorySourceLabel("Authenticated user edit"), "你的更正");
+  assert.equal(memorySourceLabel("User remember"), "你记下的");
+  assert.equal(memorySourceLabel("User correction"), "你的更正");
+  assert.equal(memorySourceLabel("authenticated product command"), "你的更正");
   assert.equal(memorySourceLabel("在应用中由用户添加"), "在应用中由用户添加");
+  assert.equal(
+    searchWarningLine(
+      "Some results were omitted because their source URLs were invalid, unavailable, or not public.",
+    ),
+    "有些来源不是公开网页，已略过。",
+  );
+  assert.equal(
+    searchWarningLine("Search results or snippets were shortened to fit the search limits."),
+    "部分搜索结果或摘录已缩短。",
+  );
+  assert.equal(searchWarningLine("已略过不公开的来源。"), "已略过不公开的来源。");
+  assert.equal(searchWarningLine("socket hang up"), "具体原因没有显示。");
+  assert.equal(searchWarningLine("  "), "");
   assert.equal(avatarLabel("sky"), "晴空");
   assert.equal(avatarLabel("sand"), "暖沙");
   assert.equal(avatarLabel("lilac"), "丁香");
@@ -897,6 +922,11 @@ test("activity titles, memory sources, avatars, and task failures drop leftover 
     activityDetailLine("CONTEXT_INVALIDATED"),
     activityDetailLine("SOME_OTHER_CODE"),
     memorySourceLabel("Conversation"),
+    memorySourceLabel("User remember"),
+    memorySourceLabel("authenticated product command"),
+    searchWarningLine(
+      "Some results were omitted because their source URLs were invalid, unavailable, or not public.",
+    ),
     avatarLabel("lilac"),
     choiceSelectionLine("左边"),
     choiceUnavailableLine(),

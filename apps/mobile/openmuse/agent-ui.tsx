@@ -587,7 +587,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
                     <Text style={s.text}>{step.title}</Text>
                     <Text style={s.small}>
                       {statusLabel(step.status)}
-                      {step.detail ? ` · ${step.detail}` : ""}
+                      {step.detail ? ` · ${resultSummary(step.detail)}` : ""}
                     </Text>
                   </View>
                 </View>
@@ -1788,10 +1788,10 @@ export function NotificationsSheet() {
             style={{ gap: 8, backgroundColor: item.read ? colors.card : colors.sky }}
           >
             <View style={s.between}>
-              <Text style={s.heading}>{item.title}</Text>
+              <Text style={s.heading}>{activityEventTitle(item.title)}</Text>
               {!item.read && <Chip>新</Chip>}
             </View>
-            <Text style={s.muted}>{item.body}</Text>
+            <Text style={s.muted}>{resultSummary(item.body)}</Text>
             <Text style={s.small}>{stamp(item.createdAt)}</Text>
             <Button small onPress={() => void read(item.id, item.taskId)}>
               {item.taskId ? "查看任务" : item.read ? "已读" : "标为已读"}
