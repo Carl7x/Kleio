@@ -307,7 +307,11 @@ function EmailEditor({ draft }: { draft?: Partial<EmailDraft> & { id?: string } 
   return (
     <Sheet
       title={draft?.threadId ? "写回复" : "新邮件"}
-      subtitle={`来自 ${w.profile.email} · 私密保存在 Kleio`}
+      subtitle={
+        w.profile.email.trim()
+          ? `来自 ${w.profile.email} · 私密保存在 Kleio`
+          : "私密保存在 Kleio"
+      }
       onClose={close}
     >
       <Field
@@ -1010,7 +1014,9 @@ function BrowserDetail({ initial }: { initial: BrowserSession }) {
             value={url}
             onChangeText={setUrl}
             autoCapitalize="none"
+            autoCorrect={false}
             keyboardType="url"
+            returnKeyType="go"
             onSubmitEditing={() => void mutate()}
           />
         </View>

@@ -40,6 +40,7 @@ import {
   chatShellStatus,
   sideThreadTitle,
   statusServerNote,
+  surfaceError,
   threadChrome,
   threadStatusCopy,
 } from "./chat-stream-rules";
@@ -142,6 +143,8 @@ export default function App() {
                     secureTextEntry
                     autoCapitalize="none"
                     autoCorrect={false}
+                    returnKeyType="go"
+                    onSubmitEditing={() => void connect(accessKey || undefined)}
                     placeholder={gate.tokenPlaceholder}
                   />
                   <Text
@@ -427,7 +430,7 @@ function WorkspaceShell({
                   </Button>
                 )}
                 <Text style={[s.title, { fontSize: 25, marginBottom: 22 }]}>{title?.title}</Text>
-                <ErrorNotice error={error} />
+                <ErrorNotice error={error ? surfaceError("工作台暂时没有刷新。", error) : ""} />
                 <Screen />
               </ScrollView>
             )}

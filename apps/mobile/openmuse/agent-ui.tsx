@@ -36,10 +36,15 @@ import type {
 import { useAgentWorkspace } from "./agent-workspace";
 import { QuietDots, ReceiptAction, StreamCard } from "./chat-stream";
 import {
+  activityEventTitle,
+  avatarLabel,
   fileDetailLine,
+  memorySourceLabel,
   monitorCadenceLine,
   monitorCheckLine,
   surfaceChipLabel,
+  surfaceError,
+  taskFailureLine,
   threadStatusCopy,
 } from "./chat-stream-rules";
 import { ActivityScreen, ConnectionsScreen } from "./screens";
@@ -78,6 +83,9 @@ function stamp(value?: string) {
 function errorText(e: unknown) {
   return e instanceof Error ? e.message : String(e);
 }
+function notedFailure(error: unknown, title = "这次没有完成。") {
+  return surfaceError(title, errorText(error));
+}
 function activeTask(task: AgentTask) {
   return !["succeeded", "failed", "cancelled"].includes(task.status);
 }
@@ -89,7 +97,7 @@ export function AgentStatus() {
   const offline = threadStatusCopy("offline");
   return (
     <View style={{ gap: 8 }}>
-      <ErrorNotice error={error ? `${failed.title}。${error}` : ""} />
+      <ErrorNotice error={error ? surfaceError(failed.title, error) : ""} />
       {!!error && (
         <Button small onPress={() => void refresh().catch(() => {})}>
           {failed.actionLabel}
@@ -164,7 +172,8 @@ export function TaskCard({
         )}
         {(task.question || task.result || task.error || next?.title) && (
           <Text numberOfLines={compact ? 2 : 4} style={s.muted}>
-            {task.question || task.error || resultSummary(task.result || next?.title || "")}
+            {task.question ||
+              (task.error ? taskFailureLine(task.error) : resultSummary(task.result || next?.title || ""))}
           </Text>
         )}
         {waiting && (
@@ -245,7 +254,7 @@ export function EvidenceList({ items }: { items: Evidence[] }) {
             <Button
               small
               onPress={() =>
-                void Linking.openURL(item.url || "").catch((e) => setError(errorText(e)))
+                void Linking.openURL(item.url || "").catch((e) => setError(notedFailure(e, "来源没有打开。")))
               }
             >
               打开来源
@@ -317,7 +326,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
         }
       })
       .catch((e) => {
-        if (active) setError(errorText(e));
+        if (active) setError(notedFailure(e, "任务没有载入。"));
       });
     return () => {
       active = false;
@@ -344,7 +353,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
         setFields({});
       }
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, "任务没有更新。"));
     } finally {
       setBusy(false);
     }
@@ -370,7 +379,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
         fields: parsed,
       });
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, "补充没有提交。"));
     }
   }
   async function review() {
@@ -383,7 +392,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
       if (!action) throw new Error("审阅尚未就绪。请刷新后再试。");
       open({ type: "review", action });
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, "审阅没有打开。"));
     } finally {
       setBusy(false);
     }
@@ -587,7 +596,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
               </Text>
             </Card>
           )}
-          <ErrorNotice error={task.error ?? undefined} />
+          <ErrorNotice error={task.error ? taskFailureLine(task.error) : ""} />
           {detail?.browsers?.map((browser) => (
             <Card key={browser.id} style={{ gap: 10 }}>
               <Text style={s.heading}>{browser.title || "智能体浏览器"}</Text>
@@ -611,7 +620,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
                         await mutate(`/tasks/${taskId}/control`, { action: "pause" });
                       open({ type: "browser", browser });
                     } catch (error) {
-                      setError(errorText(error));
+                      setError(notedFailure(error, "浏览器没有打开。"));
                     } finally {
                       setBusy(false);
                     }
@@ -655,7 +664,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
               <Text style={s.small}>
                 {stamp(event.date)} · {statusLabel(event.kind)}
               </Text>
-              <Text style={s.text}>{event.title}</Text>
+              <Text style={s.text}>{activityEventTitle(event.title)}</Text>
               <Text selectable style={s.muted}>
                 {event.detail}
               </Text>
@@ -765,7 +774,7 @@ function FinanceArtifact({ artifact }: { artifact: AgentArtifact }) {
       });
       setGoalSaved(true);
     } catch (error) {
-      setGoalError(errorText(error));
+      setGoalError(notedFailure(error, "目标没有创建。"));
     } finally {
       setGoalBusy(false);
     }
@@ -982,7 +991,7 @@ export function DelegateSheet({ goalId, milestoneId }: { goalId?: string; milest
       const task = await delegate(input, submission.current.id);
       open({ type: "task", taskId: task.id });
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, "任务没有交出去。"));
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -1104,7 +1113,7 @@ export function IdeasScreen() {
     try {
       await mutate("/ideas/refresh", {});
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, "灵感没有刷新。"));
     } finally {
       setBusy(false);
     }
@@ -1175,7 +1184,7 @@ function IdeaCard({ idea }: { idea: Idea }) {
       const result = await mutate<Idea>(`/ideas/${idea.id}`, { action, prompt });
       if (result.taskId && action === "accept") open({ type: "task", taskId: result.taskId });
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, "这条灵感没有更新。"));
     } finally {
       setBusy(false);
     }
@@ -1413,7 +1422,7 @@ function GoalForm({ onDone, category }: { onDone: () => void; category?: string 
       });
       onDone();
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, "目标没有创建。"));
     } finally {
       setBusy(false);
     }
@@ -1460,7 +1469,7 @@ function GoalCard({ goal, onOpenTask }: { goal: Goal; onOpenTask?: () => void })
     try {
       await mutate(`/goals/${goal.id}${milestoneId ? `/milestones/${milestoneId}` : ""}`, body);
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, "目标没有更新。"));
     } finally {
       setBusy(false);
     }
@@ -1480,7 +1489,7 @@ function GoalCard({ goal, onOpenTask }: { goal: Goal; onOpenTask?: () => void })
       onOpenTask?.();
       open({ type: "task", taskId: task.id });
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, "计划没有创建。"));
     } finally {
       setBusy(false);
     }
@@ -1587,7 +1596,7 @@ function MonitorForm({ onDone }: { onDone: () => void }) {
       });
       onDone();
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, "盯梢没有创建。"));
     } finally {
       setBusy(false);
     }
@@ -1674,7 +1683,7 @@ function MonitorCard({ monitor, onOpenTask }: { monitor: Monitor; onOpenTask?: (
     try {
       await mutate(`/monitors/${monitor.id}/control`, { action });
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, "盯梢没有更新。"));
     } finally {
       setBusy(false);
     }
@@ -1689,7 +1698,7 @@ function MonitorCard({ monitor, onOpenTask }: { monitor: Monitor; onOpenTask?: (
       });
       await mutate(`/monitors/${monitor.id}/control`, { action: "check" });
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, "这次检查没有完成。"));
     } finally {
       setBusy(false);
     }
@@ -1724,7 +1733,9 @@ function MonitorCard({ monitor, onOpenTask }: { monitor: Monitor; onOpenTask?: (
           {monitor.lastValue}
         </Text>
       )}
-      <ErrorNotice error={error || monitor.error} />
+      <ErrorNotice
+        error={error || (monitor.error ? taskFailureLine(monitor.error) : "")}
+      />
       {monitor.status !== "stopped" && (
         <View style={[s.row, { gap: 8, flexWrap: "wrap" }]}>
           <Button
@@ -1761,7 +1772,7 @@ export function NotificationsSheet() {
       await mutate(`/notifications/${id}/read`, {});
       if (taskId) open({ type: "task", taskId });
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, "通知没有放下。"));
     }
   }
   return (
@@ -1831,7 +1842,7 @@ export function AppsScreen() {
       await mutate(path, body);
       if (path === "/memories") setMemory("");
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, path === "/memories" ? "这条记忆没有记下。" : "偏好没有保存。"));
     } finally {
       setBusy(false);
     }
@@ -1870,6 +1881,8 @@ export function AppsScreen() {
         value={query}
         onChangeText={setQuery}
         placeholder="搜索连接器"
+        returnKeyType="search"
+        autoCorrect={false}
       />
       <ConnectionsScreen query={query} />
       <Text style={s.heading}>在你的电脑上</Text>
@@ -1902,7 +1915,7 @@ export function AppsScreen() {
                 <Pressable
                   key={item}
                   accessibilityRole="radio"
-                  accessibilityLabel={`${statusLabel(item)} 头像`}
+                  accessibilityLabel={`${avatarLabel(item)} 头像`}
                   accessibilityState={{ checked: avatar === item }}
                   onPress={() => setAvatar(item)}
                   style={{
@@ -1991,7 +2004,7 @@ function MemoryRow({ memory }: { memory: AgentMemory }) {
       });
       setEditing(false);
     } catch (e) {
-      setError(errorText(e));
+      setError(notedFailure(e, forget ? "这次遗忘没有完成。" : "这次更正没有完成。"));
     } finally {
       setBusy(false);
     }
@@ -2006,7 +2019,7 @@ function MemoryRow({ memory }: { memory: AgentMemory }) {
         <Text style={s.text}>{memory.text}</Text>
       )}
       <Text style={s.small}>
-        {memory.source} · {stamp(memory.createdAt)}
+        {memorySourceLabel(memory.source)} · {stamp(memory.createdAt)}
       </Text>
       <View style={[s.row, { gap: 8 }]}>
         {editing ? (

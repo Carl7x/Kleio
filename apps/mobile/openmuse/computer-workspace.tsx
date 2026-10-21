@@ -20,7 +20,7 @@ import type {
   ComputerDirectory,
   ComputerSnapshot,
 } from "../../../packages/openmuse-domain/src/computer";
-import { computerCommandStatus, surfaceError } from "./chat-stream-rules";
+import { computerCommandStatus, computerWorkspaceNotice, surfaceError } from "./chat-stream-rules";
 import { useComputerDraft } from "./computer-drafts";
 import { DesktopStream } from "./desktop-stream";
 import { Button, Card, colors, Empty, ErrorNotice, Field, LinkRow, s, timeLabel } from "./ui";
@@ -153,13 +153,14 @@ export function LinuxWorkspace({
   }, [snapshot, onSnapshot]);
   const running = snapshot?.status === "running";
   const commandRunning = executing || snapshot?.commands.some((item) => item.status === "running");
+  const workspaceNotice = computerWorkspaceNotice(snapshot?.message);
   return (
     <View style={{ gap: 16 }}>
       <Card style={{ backgroundColor: colors.sky, gap: 12 }}>
         <View style={[s.row, { gap: 12 }]}>
           <Terminal size={24} color={colors.blueDark} />
           <View style={{ flex: 1, gap: 4 }}>
-            <Text style={s.heading}>你的 Linux 工作区</Text>
+            <Text style={s.heading}>你的电脑工作区</Text>
             <Text style={s.muted}>
               {running
                 ? "运行中 · 停止后文件仍保留"
@@ -174,7 +175,7 @@ export function LinuxWorkspace({
           </View>
           {!snapshot && !error && <ActivityIndicator color={colors.blueDark} />}
         </View>
-        {!!snapshot?.message && <Text style={s.small}>{snapshot.message}</Text>}
+        {!!workspaceNotice && <Text style={s.small}>{workspaceNotice}</Text>}
         {snapshot?.enabled && enabled && (
           <View style={[s.row, { gap: 8, flexWrap: "wrap" }]}>
             {running ? (
@@ -313,7 +314,7 @@ export function LinuxWorkspace({
   );
 }
 
-// Live view of the computer' 的桌面，与对话共享's desktop card.
+// Live desktop, shared with the conversation's desktop card.
 function ComputerDesktop({ running }: { running: boolean }) {
   if (!running)
     return (

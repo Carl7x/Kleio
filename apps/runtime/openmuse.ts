@@ -13,7 +13,7 @@ import { projectNotification } from './notification-projection.ts';
 
 const capabilities = { research: true, reminders: true, goals: false, tracking: false, ideas: false, google: false, browser: false, computer: false, pdf: false, finance: false, taskPause: false, taskResume: false, taskRetry: false, taskCancel: true, taskInput: false };
 const identity = (host: RuntimeHost): AgentIdentity => currentAgentIdentity(host.store, host.config.dataDirectory);
-const memory = (claim: MemoryClaim): AgentMemory & { version: number } => ({ id: claim.id, text: claim.text, source: claim.provenance?.label ?? 'Conversation', createdAt: claim.createdAt, version: claim.version });
+const memory = (claim: MemoryClaim): AgentMemory & { version: number } => ({ id: claim.id, text: claim.text, source: claim.provenance?.label ?? '对话', createdAt: claim.createdAt, version: claim.version });
 const notification = (value: WorkNotification): AgentNotification => ({ id: value.id, taskId: value.taskId, title: value.title, body: value.text, createdAt: value.createdAt, read: value.readAt !== null });
 const unsupported = (): never => { throw new RuntimeError('unsupported', 'This capability is not available in the Kleio runtime.', 409); };
 
@@ -30,6 +30,14 @@ function asHttp(error: unknown): never {
     throw new RuntimeError(error.code.toLowerCase(), error.message, status);
   }
   throw error;
+}
+
+function runSettledTitle(status: string): string {
+  if (status === 'unknown') return '结果未知';
+  if (status === 'failed') return '没有完成';
+  if (status === 'succeeded' || status === 'completed') return '已完成';
+  if (status === 'cancelled' || status === 'canceled') return '已取消';
+  return '状态已更新';
 }
 
 function taskDetail(host: RuntimeHost, work: WorkTask) {
@@ -52,17 +60,17 @@ function taskDetail(host: RuntimeHost, work: WorkTask) {
   });
   const latestReview = latest && host.work.reviewResult(latest.id);
   const latestResult = latest && host.work.result(latest.id);
-  const events: RunEvent[] = [{ id: work.id + ':created', taskId: work.id, date: work.createdAt, kind: 'status', title: 'Task created', detail: work.title }];
+  const events: RunEvent[] = [{ id: work.id + ':created', taskId: work.id, date: work.createdAt, kind: 'status', title: '任务已建立', detail: work.title }];
   for (const run of runs) {
-    events.push({ id: run.id + ':started', taskId: work.id, date: run.createdAt, kind: 'status', title: work.kind === 'reminder' ? 'Reminder due' : 'Research started', detail: run.occurrenceAt });
+    events.push({ id: run.id + ':started', taskId: work.id, date: run.createdAt, kind: 'status', title: work.kind === 'reminder' ? '提醒到了' : '研究开始了', detail: run.occurrenceAt });
     const result = host.work.result(run.id), review = host.work.reviewResult(run.id);
-    if (result) events.push({ id: result.id, taskId: work.id, date: result.createdAt, kind: 'result', title: 'Research result saved', detail: result.text });
-    if (review) events.push({ id: review.id, taskId: work.id, date: review.createdAt, kind: 'observation', title: 'Assistant review completed', detail: review.text });
+    if (result) events.push({ id: result.id, taskId: work.id, date: result.createdAt, kind: 'result', title: '研究结果已保存', detail: result.text });
+    if (review) events.push({ id: review.id, taskId: work.id, date: review.createdAt, kind: 'observation', title: '助手已看完', detail: review.text });
     if (run.status !== 'running' && run.status !== 'review_pending' && run.status !== 'reviewing') {
-      events.push({ id: run.id + ':settled', taskId: work.id, date: run.updatedAt, kind: run.status === 'failed' || run.status === 'unknown' ? 'error' : 'status', title: run.status === 'unknown' ? 'Outcome unknown' : run.status, detail: run.errorCode ?? '' });
+      events.push({ id: run.id + ':settled', taskId: work.id, date: run.updatedAt, kind: run.status === 'failed' || run.status === 'unknown' ? 'error' : 'status', title: runSettledTitle(run.status), detail: run.errorCode ?? '' });
     }
   }
-  if (work.status === 'cancelled') events.push({ id: work.id + ':cancelled', taskId: work.id, date: work.updatedAt, kind: 'status', title: 'Task cancelled', detail: '' });
+  if (work.status === 'cancelled') events.push({ id: work.id + ':cancelled', taskId: work.id, date: work.updatedAt, kind: 'status', title: '任务已取消', detail: '' });
   events.sort((a, b) => a.date.localeCompare(b.date));
   const task: AgentTask = { id: work.id, title: work.title, prompt: work.prompt, kind: 'agent', status, plan: [],
     evidence: latestResult?.evidence?.map((item, index) => ({ id: latestResult.id + ':evidence:' + index, kind: item.kind === 'url' ? 'web' as const : item.kind === 'file' ? 'file' as const : 'user' as const,
@@ -73,7 +81,7 @@ function taskDetail(host: RuntimeHost, work: WorkTask) {
     createdAt: work.createdAt, updatedAt: latest && latest.updatedAt > work.updatedAt ? latest.updatedAt : work.updatedAt, ...(work.nextAt ? { nextRunAt: work.nextAt } : {}),
     attempts: runs.length, actionId: null, leaseId: null, leaseUntil: null,
     ...(latestReview || latestResult ? { result: latestReview?.text ?? latestResult!.text } : {}),
-    error: work.status === 'unknown' ? 'The runtime stopped before the research outcome was confirmed.' : latest?.errorCode ?? null,
+    error: work.status === 'unknown' ? '研究在确认结果前中断了。' : latest?.errorCode ?? null,
     artifactIds: artifacts.map(item => item.id) };
   return { task, events, artifacts, files: [], browsers: [] };
 }
@@ -94,7 +102,7 @@ function mainThread(host: RuntimeHost): string {
 export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
   const displayedNotification = (value: WorkNotification) => projectNotification(value, text => host.memory.redactBlocked(text));
   app.get('/api/workspace', c => {
-    const workspace: Workspace = { mode: 'live', profile: { name: 'You', email: '' }, mail: [], events: [], files: [], browsers: [], actions: [],
+    const workspace: Workspace = { mode: 'live', profile: { name: '', email: '' }, mail: [], events: [], files: [], browsers: [], actions: [],
       activity: host.work.notifications().map(displayedNotification).map(item => ({ id: item.id, title: item.title, detail: item.text, date: item.createdAt, status: item.readAt ? 'read' : 'unread' })),
       connections: [{ id: 'google', name: 'Google', status: 'unconfigured', capabilities: [] },
         { id: 'browser', name: 'Browser', status: 'unconfigured', capabilities: [] }, { id: 'computer', name: 'Computer', status: 'unconfigured', capabilities: [] }],
@@ -111,12 +119,12 @@ export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
   app.patch('/api/threads/:id', async c => {
     const body = z.object({ title: z.string().trim().min(1).max(120).optional(), name: z.string().trim().min(1).max(120).optional() }).parse(await c.req.json());
     const title = body.title ?? body.name;
-    if (!title) throw new RuntimeError('invalid_input', 'A thread title is required', 400);
+    if (!title) throw new RuntimeError('invalid_input', '请写一个对话名称', 400);
     return c.json(threadView(host.store.updateConversation(c.req.param('id'), { title })));
   });
   for (const action of ['archive', 'restore'] as const) app.post('/api/threads/:id/' + action, c => {
     const id = z.string().uuid().parse(c.req.param('id'));
-    if (id === host.store.getSetting('openmuse.mainThread', '') && action === 'archive') throw new RuntimeError('invalid_input', 'The main conversation cannot be archived', 400);
+    if (id === host.store.getSetting('openmuse.mainThread', '') && action === 'archive') throw new RuntimeError('invalid_input', '主对话不能归档', 400);
     return c.json(threadView(host.store.updateConversation(id, { archived: action === 'archive' })));
   });
   app.get('/api/agent', c => {
@@ -149,7 +157,7 @@ export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
       messages: [{ id, role: 'user', content: body.text, createdAt }] }, async () => JSON.stringify({ claims: [{ subject: '用户', key, text: body.text,
         kind: 'fact', evidence: [{ messageId: id, quote: body.text }], scope: 'personal' }], relationships: [] }));
     const added = host.memory.list().find(claim => claim.key === key);
-    if (!added || captured.status !== 'applied') throw new RuntimeError('invalid_memory', 'The native memory service could not save this statement.', 409);
+    if (!added || captured.status !== 'applied') throw new RuntimeError('invalid_memory', '记忆服务没有保存这句话。', 409);
     // Ingestion already committed the new fact. A same-text correction was a no-op,
     // and must not turn ordinary addition into context revocation.
     return c.json(memory(added), 201);
@@ -157,8 +165,8 @@ export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
   app.post('/api/agent/memories/:id', async c => {
     const body = z.object({ text: z.string().trim().min(1).max(1600), source: z.string().trim().min(1).max(160).optional(), expectedVersion: z.number().int().positive().optional() }).parse(await c.req.json());
     const current = host.memory.list().find(claim => claim.id === c.req.param('id'));
-    if (!current) throw new RuntimeError('not_found', 'Active memory not found', 404);
-    return c.json(memory(host.correct(current.id, { text: body.text, expectedVersion: body.expectedVersion ?? current.version, source: { label: body.source ?? 'Authenticated user edit' } })));
+    if (!current) throw new RuntimeError('not_found', '没有找到这条记忆。', 404);
+    return c.json(memory(host.correct(current.id, { text: body.text, expectedVersion: body.expectedVersion ?? current.version, source: { label: body.source ?? '你的更正' } })));
   });
   app.get('/api/agent/memories/:id/history', c => c.json(host.memory.history(c.req.param('id'))));
   app.post('/api/agent/memories/:id/forget', async c => {
@@ -176,7 +184,7 @@ export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
   });
   app.get('/api/agent/notifications', c => c.json(host.work.notifications().map(displayedNotification).map(notification)));
   app.post('/api/agent/notifications/:id/read', c => c.json(notification(displayedNotification(host.work.readNotification(c.req.param('id'))))));
-  const computer: ComputerSnapshot = { enabled: false, provider: 'docker', status: 'unconfigured', workspacePath: '/workspace', network: 'disabled', message: 'Computer control is not configured.', commands: [] };
+  const computer: ComputerSnapshot = { enabled: false, provider: 'docker', status: 'unconfigured', workspacePath: '/workspace', network: 'disabled', message: '电脑还没有配置。', commands: [] };
   app.get('/api/computer', c => c.json(computer));
   app.get('/api/computer/files', c => c.json({ path: c.req.query('path') ?? '/workspace', entries: [] }));
   app.get('/api/google/status', c => c.json({ status: 'unconfigured', connected: false, capabilities: [] }));

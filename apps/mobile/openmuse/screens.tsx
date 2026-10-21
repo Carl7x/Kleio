@@ -520,6 +520,8 @@ export function MailScreen() {
             placeholderTextColor={colors.muted}
             value={query}
             onChangeText={setQuery}
+            autoCorrect={false}
+            returnKeyType="search"
             style={{ flex: 1, paddingVertical: 13, fontSize: 13, color: colors.text }}
           />
         </View>
@@ -901,6 +903,9 @@ export function BrowserScreen() {
             onChangeText={setUrl}
             onSubmitEditing={() => void create()}
             autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            returnKeyType="go"
             placeholder="输入网址"
             placeholderTextColor={colors.muted}
             style={[s.input, { flex: 1 }]}
@@ -1410,7 +1415,11 @@ export function ConnectionsScreen({ query = "" }: { query?: string }) {
               <Button
                 small
                 icon={ArrowDownToLine}
-                onPress={() => void refresh().catch((e) => setError(String(e)))}
+                onPress={() =>
+                  void refresh().catch((e) =>
+                    setError(surfaceError("连接没有刷新。", e instanceof Error ? e.message : String(e))),
+                  )
+                }
               >
                 刷新连接
               </Button>
@@ -1418,8 +1427,8 @@ export function ConnectionsScreen({ query = "" }: { query?: string }) {
           ) : (
             <View style={{ gap: 14 }}>
               <Text style={s.small}>此工作台未启用。</Text>
-              <Text style={s.text}>本开源项目提供 OpenBot 适配器。尚未配置线上 OpenBot 后端。</Text>
-              <Text style={s.muted}>当前电脑使用 Kleio 持久化 Chromium 工作进程。OpenBot 集成将扩展执行后端，并保留此界面。</Text>
+              <Text style={s.text}>OpenBot 还没接上。这台电脑现在用 Kleio 自己的浏览器工作进程。</Text>
+              <Text style={s.muted}>接上之后，执行方式会换，这个界面还留着。</Text>
             </View>
           )}
         </Sheet>
