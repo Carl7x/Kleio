@@ -56,6 +56,7 @@ import {
   kleioComputerLinkCopy,
   returnKeyCaption,
   reviewGateLabel,
+  richThreadLabel,
   richThreadValue,
   surfaceError,
   todayBriefLine,
@@ -1415,7 +1416,7 @@ export function ConnectionsScreen({ query = "" }: { query?: string }) {
                 }
               />
               <SettingsLine
-                label="富线程"
+                label={richThreadLabel()}
                 value={richThreadValue(w.runtime.richThreads === true)}
               />
               <Button

@@ -323,7 +323,7 @@ async function subscribeConversation(
 export const api = {
   session: (ticket: string) => request<{ ok: boolean }>("/session", { method: "POST", ...body({ ticket }) }),
   signOut: () => request<{ ok: boolean }>("/session", { method: 'DELETE' }),
-  pair: (code: string, client: 'browser' | 'native', name = 'iPhone') => request<{ token?: string; deviceId?: string; expiresAt?: string }>("/devices/pair", { method: 'POST', ...body({ code, client, name }) }),
+  pair: (code: string, client: 'browser' | 'native', name = '这部手机') => request<{ token?: string; deviceId?: string; expiresAt?: string }>("/devices/pair", { method: 'POST', ...body({ code, client, name }) }),
   disconnectDevice: () => request<{ ok: boolean }>("/device-session", { method: 'DELETE' }),
   createDevicePairing: () => request<{ code: string; expiresAt: string; addresses: string[] }>("/device-pairing", { method: 'POST' }),
   devices: () => request<Array<{ id: string; name: string; createdAt: string; expiresAt: string }>>("/devices"),

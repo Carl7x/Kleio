@@ -53,6 +53,10 @@ import { ThreadsProvider, ThreadsSheet, useMuseThread } from "./threads";
 import { Button, Card, colors, ErrorNotice, Field, IconButton, Mascot, s } from "./ui";
 import { type Detail, useWorkspace, WorkspaceContext } from "./workspace";
 
+function caughtMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 const nav: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "chat", label: "对话", icon: MessageCircle },
   { id: "activity", label: "动态", icon: PanelsTopLeft },
@@ -191,11 +195,11 @@ function WorkspaceApp({ token }: { token: string }) {
     setError("");
   }, [api]);
   useEffect(() => {
-    void refresh().catch((e) => setError(String(e)));
+    void refresh().catch((e) => setError(caughtMessage(e)));
   }, [refresh]);
   useEffect(() => {
     const listener = AppState.addEventListener("change", (state) => {
-      if (state === "active") void refresh().catch((e) => setError(String(e)));
+      if (state === "active") void refresh().catch((e) => setError(caughtMessage(e)));
     });
     return () => listener.remove();
   }, [refresh]);
@@ -229,7 +233,7 @@ function WorkspaceApp({ token }: { token: string }) {
           note={error ? statusServerNote(error) : undefined}
           actionLabel={error ? opening.actionLabel : undefined}
           onAction={
-            error ? () => void refresh().catch((e) => setError(String(e))) : undefined
+            error ? () => void refresh().catch((e) => setError(caughtMessage(e))) : undefined
           }
         />
       </SafeAreaView>

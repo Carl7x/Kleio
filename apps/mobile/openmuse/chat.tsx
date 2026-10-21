@@ -58,6 +58,7 @@ import {
   composerSendFace,
   returnKeyCaption,
   emptyThreadSuggestions,
+  localChatAgentId,
   listedBackgroundTasks,
   liveCueLabel,
   liveTurnCue,
@@ -308,7 +309,7 @@ export function ChatScreen({
   const { enabled: richThreads, mainId, claimPrompt } = useMuseThread();
   const selection = thread || { id: "local", existing: false };
   const threadId = richThreads ? selection.id : "local-main";
-  const agentId = `openmuse-${threadId}`;
+  const agentId = localChatAgentId(threadId);
   const { agent, isReady } = useAgent({ agentId, runtimeAgentId: "default", threadId });
   const { copilotkit } = useCopilotKit();
   const renderToolCall = useRenderToolCall();
