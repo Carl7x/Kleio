@@ -12,7 +12,7 @@ import { AppState, Image, Pressable, Text, View } from "react-native";
 import type { BrowserSession } from "../../../packages/openmuse-domain/src";
 import type { ComputerSnapshot } from "../../../packages/openmuse-domain/src/computer";
 import { browserAddress } from "./browser-address";
-import { fileDetailLine } from "./chat-stream-rules";
+import { fileDetailLine, surfaceError } from "./chat-stream-rules";
 import { useComputerDraft } from "./computer-drafts";
 import { computerStatus } from "./computer-status";
 import { LinuxWorkspace } from "./computer-workspace";
@@ -143,7 +143,7 @@ export function ComputerSheet() {
     const timer = setInterval(() => {
       if (AppState.currentState !== "active") return;
       void refresh().catch((e) => {
-        if (active) setError(e instanceof Error ? e.message : String(e));
+        if (active) setError(surfaceError("电脑暂时没有刷新。", e instanceof Error ? e.message : String(e)));
       });
     }, 10000);
     return () => {
@@ -162,7 +162,7 @@ export function ComputerSheet() {
       await refresh();
       open({ type: "browser", browser });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError("浏览器没有打开。", e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
     }
@@ -268,7 +268,7 @@ export function ComputerSheet() {
           onPress={() =>
             void refresh()
               .then(() => setError(""))
-              .catch((e) => setError(String(e)))
+              .catch((e) => setError(surfaceError("电脑暂时没有刷新。", e instanceof Error ? e.message : String(e))))
           }
         >
           刷新电脑

@@ -43,12 +43,17 @@ import {
   approvalStatusLabel,
   browserOpenLabel,
   browserSessionSubtitle,
+  calendarDraftError,
   fileAddedLine,
   fileDetailLine,
   formFieldLabel,
+  type FormIssue,
+  mailDraftError,
   mailRecipientLine,
+  mailReplySubject,
   mailThreadSubtitle,
   pdfDownloadsAddedNotice,
+  surfaceError,
   unsupportedFieldNote,
 } from "./chat-stream-rules";
 import BrowserConsole from "./BrowserConsole";
@@ -132,7 +137,7 @@ function MailDetail({ mail: m }: { mail: Mail }) {
       await refresh();
       open({ type: "file", file });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError("附件没有导入。", errorText(e)));
     } finally {
       setImporting("");
     }
@@ -154,7 +159,7 @@ function MailDetail({ mail: m }: { mail: Mail }) {
         if (active) setThread(items.sort((a, b) => a.date.localeCompare(b.date)));
       })
       .catch((e) => {
-        if (active) setError(e instanceof Error ? e.message : String(e));
+        if (active) setError(surfaceError("这封邮件暂时没有载入。", errorText(e)));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -228,7 +233,7 @@ function MailDetail({ mail: m }: { mail: Mail }) {
             type: "email",
             draft: {
               to: [m.from],
-              subject: /^re:/i.test(m.subject) ? m.subject : `Re: ${m.subject}`,
+              subject: mailReplySubject(m.subject),
               body: "",
               cc: [],
               bcc: [],
@@ -276,10 +281,7 @@ function EmailEditor({ draft }: { draft?: Partial<EmailDraft> & { id?: string } 
         threadId: draft?.threadId,
         replyToMessageId: draft?.replyToMessageId,
       });
-      if (!parsed.success)
-        throw new Error(
-          parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("\n"),
-        );
+      if (!parsed.success) throw new Error(mailDraftError(formIssues(parsed.error.issues)));
       if (review) {
         const action = await api.request<ActionProposal>("/api/actions", {
           kind: "email.send",
@@ -297,7 +299,7 @@ function EmailEditor({ draft }: { draft?: Partial<EmailDraft> & { id?: string } 
         close();
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError("这封邮件没有保存。", errorText(e)));
     } finally {
       setBusy("");
     }
@@ -312,7 +314,7 @@ function EmailEditor({ draft }: { draft?: Partial<EmailDraft> & { id?: string } 
         label="收件人"
         value={to}
         onChangeText={setTo}
-        placeholder="person@example.com"
+        placeholder="邮箱地址，逗号分隔"
         autoCapitalize="none"
         keyboardType="email-address"
       />
@@ -457,10 +459,7 @@ function EventEditor({
             .map((a) => a.trim())
             .filter(Boolean),
         });
-        if (!parsed.success)
-          throw new Error(
-            parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("\n"),
-          );
+        if (!parsed.success) throw new Error(calendarDraftError(formIssues(parsed.error.issues), allDay));
         data = e
           ? { kind: "calendar.update", data: { ...parsed.data, eventId: e.id } }
           : { kind: "calendar.create", data: parsed.data };
@@ -469,7 +468,7 @@ function EventEditor({
       await refresh();
       open({ type: "review", action });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(surfaceError("这个日程没有提交。", errorText(err)));
     } finally {
       setBusy(false);
     }
@@ -506,7 +505,7 @@ function EventEditor({
             setAllDay(!allDay);
             setError("");
           } catch (cause) {
-            setError(cause instanceof Error ? cause.message : String(cause));
+            setError(surfaceError("这个时间还没法换算。", errorText(cause)));
           }
         }}
       />
@@ -527,7 +526,7 @@ function EventEditor({
         label="时区"
         value={zone}
         onChangeText={setZone}
-        placeholder="Asia/Shanghai"
+        placeholder="例如 Asia/Shanghai"
       />
       <Field
         label="地点或会议链接"
@@ -595,7 +594,7 @@ function ReviewDetail({ initial }: { initial: ActionProposal }) {
       setLocal(result);
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError("这次确认没有完成。", errorText(e)));
     } finally {
       setBusy(false);
     }
@@ -624,7 +623,7 @@ function ReviewDetail({ initial }: { initial: ActionProposal }) {
       await refresh();
       open(next);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError("暂时无法编辑。", errorText(e)));
     } finally {
       setBusy(false);
     }
@@ -775,6 +774,20 @@ function ReviewDetail({ initial }: { initial: ActionProposal }) {
     </Sheet>
   );
 }
+function errorText(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function formIssues(
+  issues: readonly { path: readonly PropertyKey[]; code: string; format?: unknown }[],
+): FormIssue[] {
+  return issues.map((issue) => ({
+    path: issue.path.map((part) => String(part)),
+    code: issue.code,
+    format: typeof issue.format === "string" ? issue.format : undefined,
+  }));
+}
+
 function arrayText(value: unknown) {
   return Array.isArray(value) ? value.map(String).join(", ") : "";
 }
@@ -813,7 +826,7 @@ function FileDetail({ file: f }: { file: Artifact }) {
       await refresh();
       open({ type: "file", file });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError("这份副本没有保存。", errorText(e)));
     } finally {
       setBusy(false);
     }
@@ -834,7 +847,7 @@ function FileDetail({ file: f }: { file: Artifact }) {
         await Sharing.shareAsync(target, { mimeType: "application/pdf", UTI: "com.adobe.pdf" });
       else throw new Error("此设备不支持分享。");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError("暂时无法分享。", errorText(e)));
     }
   }
   return (
@@ -929,7 +942,7 @@ function BrowserDetail({ initial }: { initial: BrowserSession }) {
         }
       })
       .catch((e) => {
-        if (active) setError(e instanceof Error ? e.message : String(e));
+        if (active) setError(surfaceError("浏览器没有连上。", errorText(e)));
       });
     return () => {
       active = false;
@@ -947,7 +960,10 @@ function BrowserDetail({ initial }: { initial: BrowserSession }) {
       await refresh();
       if (result.failures.length)
         setError(
-          result.failures.map((failure) => `${failure.name}: ${failure.message}`).join("\n"),
+          surfaceError(
+            "有的下载没有导入。",
+            result.failures.map((failure) => `${failure.name}: ${failure.message}`).join("\n"),
+          ),
         );
       const files = result.files;
       notify(
@@ -956,7 +972,7 @@ function BrowserDetail({ initial }: { initial: BrowserSession }) {
           : pdfDownloadsAddedNotice(0),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError("下载没有导入。", errorText(e)));
     } finally {
       setBusy(false);
     }
@@ -975,7 +991,7 @@ function BrowserDetail({ initial }: { initial: BrowserSession }) {
       await refresh();
       if (end) close();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError(end ? "会话没有关闭。" : "页面没有打开。", errorText(e)));
     } finally {
       setBusy(false);
     }

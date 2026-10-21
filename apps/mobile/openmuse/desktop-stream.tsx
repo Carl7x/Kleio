@@ -2,10 +2,12 @@ import { ExternalLink } from "lucide-react-native";
 import { memo, useEffect, useState } from "react";
 import { ActivityIndicator, AppState, Linking, Platform, View } from "react-native";
 import BrowserConsole from "./BrowserConsole";
+import { surfaceError } from "./chat-stream-rules";
 import { Button, colors, ErrorNotice } from "./ui";
 import { useWorkspace } from "./workspace";
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const noted = (title: string, error: unknown) => surfaceError(title, message(error));
 
 // Each URL request keeps the computer awake for 30 minutes; a visible stream repeats
 // it every 2 minutes, for at most an hour.
@@ -38,7 +40,7 @@ export function useDesktopStream(running: boolean) {
           // A loaded stream survives a failed refresh; a first load shows the error and
           // retries shortly instead of waiting for the next refresh.
           if (!alive || loaded) return;
-          setError(message(e));
+          setError(noted("桌面没有连上。", e));
           clearTimeout(retry);
           // Forced: until the first URL arrives, retry even while the app is hidden.
           retry = setTimeout(() => load(true), 5000);
@@ -84,7 +86,7 @@ export const DesktopStream = memo(function DesktopStream({
         embedded && url ? url : (await api.request<{ url: string }>("/api/computer/desktop")).url;
       await Linking.openURL(target);
     } catch (e) {
-      setError(message(e));
+      setError(noted("桌面没有打开。", e));
     } finally {
       setOpening(false);
     }

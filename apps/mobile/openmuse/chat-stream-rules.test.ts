@@ -60,14 +60,20 @@ import {
   threadChrome,
   threadStatusCopy,
   threadSurface,
+  calendarDraftError,
+  computerCommandStatus,
   fileAddedLine,
   fileDetailLine,
   fileSourceLabel,
   formFieldLabel,
+  googleCapabilityLabel,
   mailDraftDetail,
+  mailDraftError,
   mailListTabLabel,
   mailRecipientLine,
+  mailReplySubject,
   mailThreadSubtitle,
+  surfaceError,
   pdfDownloadsAddedNotice,
   suggestionRowChrome,
   toolCardChrome,
@@ -389,6 +395,88 @@ test("empty thread keeps three Kleio suggestions and drops demo stubs", () => {
   assert.equal(toolCardChrome.chevron, 14);
   assert.equal(suggestionRowChrome.radius, toolCardChrome.radius);
   assert.equal(browserAddressHint(), "输入网址，例如 example.com。");
+});
+
+test("mail, file, and computer leftovers stay in short Chinese", () => {
+  assert.equal(mailReplySubject("周会"), "回复：周会");
+  assert.equal(mailReplySubject("Re: 周会"), "Re: 周会");
+  assert.equal(mailReplySubject("  re:周会"), "  re:周会");
+  assert.equal(mailReplySubject("回复：周会"), "回复：周会");
+  assert.equal(mailReplySubject("Reply: 周会"), "Reply: 周会");
+  const mail = mailDraftError([
+    { path: ["to"], code: "too_small" },
+    { path: ["to", "0"], code: "invalid_format", format: "email" },
+    { path: ["cc", "0"], code: "invalid_format", format: "email" },
+    { path: ["subject"], code: "too_small" },
+    { path: ["subject"], code: "custom" },
+    { path: ["body"], code: "too_small" },
+    { path: ["attachmentIds"], code: "too_big" },
+    { path: ["subject"], code: "too_big" },
+  ]);
+  assert.match(mail, /请填写至少一位收件人/);
+  assert.match(mail, /抄送里有无法识别的邮箱/);
+  assert.match(mail, /请写一个主题/);
+  assert.match(mail, /请写一点正文/);
+  assert.match(mail, /附件最多 10 个/);
+  assert.doesNotMatch(mail, /主题请写在一行里/);
+  assert.equal(
+    mailDraftError([{ path: ["subject"], code: "custom" }]),
+    "主题请写在一行里。",
+  );
+  assert.equal(
+    mailDraftError([{ path: ["body"], code: "too_big" }]),
+    "正文太长了。",
+  );
+  assert.equal(mailDraftError([]), "这封邮件还没法保存。");
+  const timed = calendarDraftError(
+    [
+      { path: ["title"], code: "too_small" },
+      { path: ["end"], code: "custom" },
+      { path: ["start"], code: "custom" },
+      { path: ["timeZone"], code: "custom" },
+      { path: ["attendees", "0"], code: "invalid_format", format: "email" },
+    ],
+    false,
+  );
+  assert.match(timed, /请写一个标题/);
+  assert.match(timed, /结束时间要晚于开始/);
+  assert.match(timed, /请填写带时区的开始和结束时间/);
+  assert.match(timed, /这个时区无法识别/);
+  assert.match(timed, /参与者里有无法识别的邮箱/);
+  assert.equal(
+    calendarDraftError([{ path: ["start"], code: "custom" }], true),
+    "全天日程请填写日期。",
+  );
+  assert.equal(
+    calendarDraftError([{ path: ["start"], code: "too_small" }, { path: ["start"], code: "custom" }], false),
+    "请填写开始时间。",
+  );
+  assert.equal(surfaceError("无法导入此 PDF。"), "无法导入此 PDF。");
+  assert.equal(surfaceError("无法导入此 PDF。", "无法导入此 PDF。"), "无法导入此 PDF。");
+  assert.equal(
+    surfaceError("无法导入此 PDF。", "无法读取所选文件。请重新选择。"),
+    "无法读取所选文件。请重新选择。",
+  );
+  assert.equal(
+    surfaceError("无法显示此 PDF。", "Failed to load document"),
+    "无法显示此 PDF。\nFailed to load document",
+  );
+  assert.equal(
+    googleCapabilityLabel("https://www.googleapis.com/auth/gmail.readonly"),
+    "读取 Gmail",
+  );
+  assert.equal(googleCapabilityLabel("gmail.modify"), "管理 Gmail");
+  assert.equal(googleCapabilityLabel("gmail.metadata"), "其他权限");
+  assert.equal(computerCommandStatus("running"), "运行中");
+  assert.equal(computerCommandStatus("succeeded", 0), "已完成 · 退出码 0");
+  assert.equal(computerCommandStatus("failed", 1), "失败 · 退出码 1");
+  assert.equal(computerCommandStatus("timed_out"), "已超时");
+  assert.equal(computerCommandStatus("interrupted"), "已中断");
+  assert.equal(computerCommandStatus("mystery"), "状态待更新");
+  const copy = [mail, timed, computerCommandStatus("timed_out", 124), googleCapabilityLabel("gmail.metadata")].join(
+    "\n",
+  );
+  assert.doesNotMatch(copy, /Invalid|Subject must|Too small|Too big|exit\b|timed out|succeeded|gmail\./i);
 });
 
 test("thread status copy stays short, Chinese, and has one action when a person can do something", () => {

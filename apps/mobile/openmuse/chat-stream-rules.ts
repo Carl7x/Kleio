@@ -917,6 +917,160 @@ export function mailThreadSubtitle(count: number): string {
   return `会话里 ${count} 封`;
 }
 
+/** Reply subjects stay as written when they already name a reply. New ones lead in Chinese. */
+export function mailReplySubject(subject: string): string {
+  const trimmed = subject.trim();
+  if (/^(?:re|reply|回复)\s*[:：]/i.test(trimmed)) return subject;
+  return `回复：${trimmed}`;
+}
+
+export type FormIssue = {
+  path: readonly string[];
+  code: string;
+  format?: string;
+};
+
+const MAIL_FIELD_ZH: Record<string, string> = {
+  to: "收件人",
+  cc: "抄送",
+  bcc: "密送",
+  subject: "主题",
+  body: "正文",
+  attachmentIds: "附件",
+};
+
+function issueField(issue: FormIssue): string {
+  return issue.path[0] ?? "";
+}
+
+function isEmailIssue(issue: FormIssue, field: string): boolean {
+  if (field !== "to" && field !== "cc" && field !== "bcc" && field !== "attendees") return false;
+  return issue.format === "email" || issue.code === "invalid_format";
+}
+
+/**
+ * Local draft checks. A too-small field already says what is missing, so the
+ * extra format note on that same field stays off the screen.
+ */
+function formIssueLines(
+  issues: readonly FormIssue[],
+  lineFor: (issue: FormIssue) => string,
+  empty: string,
+): string {
+  const quiet = new Set(
+    issues.filter((issue) => issue.code === "too_small" && issue.path[0]).map((issue) => issue.path[0]),
+  );
+  const lines: string[] = [];
+  for (const issue of issues) {
+    if (issue.code === "custom" && issue.path[0] && quiet.has(issue.path[0])) continue;
+    const line = lineFor(issue);
+    if (!lines.includes(line)) lines.push(line);
+  }
+  return lines.join("\n") || empty;
+}
+
+/** Mail composer checks. Field names and validator prose stay off the sheet. */
+export function mailDraftError(issues: readonly FormIssue[]): string {
+  return formIssueLines(
+    issues,
+    (issue) => {
+      const field = issueField(issue);
+      const label = MAIL_FIELD_ZH[field] ?? "这封邮件";
+      if (isEmailIssue(issue, field)) return `${label}里有无法识别的邮箱。`;
+      if (field === "subject" && issue.code === "custom") return "主题请写在一行里。";
+      if (issue.code === "too_small") {
+        if (field === "to") return "请填写至少一位收件人。";
+        if (field === "subject") return "请写一个主题。";
+        if (field === "body") return "请写一点正文。";
+        return `请补上${label}。`;
+      }
+      if (issue.code === "too_big") {
+        if (field === "attachmentIds") return "附件最多 10 个。";
+        if (field === "to" || field === "cc" || field === "bcc") return `${label}太多了。`;
+        if (field === "subject") return "主题太长了。";
+        if (field === "body") return "正文太长了。";
+        return `${label}超出长度了。`;
+      }
+      return `${label}还需要改一下。`;
+    },
+    "这封邮件还没法保存。",
+  );
+}
+
+/** Calendar composer checks. The zone id itself can stay; the sentence does not. */
+export function calendarDraftError(issues: readonly FormIssue[], allDay: boolean): string {
+  return formIssueLines(
+    issues,
+    (issue) => {
+      const field = issueField(issue);
+      if (isEmailIssue(issue, field)) return "参与者里有无法识别的邮箱。";
+      if (issue.code === "custom") {
+        if (field === "end") return "结束时间要晚于开始。";
+        if (field === "timeZone") return "这个时区无法识别。";
+        if (field === "start") return allDay ? "全天日程请填写日期。" : "请填写带时区的开始和结束时间。";
+      }
+      if (issue.code === "too_small") {
+        if (field === "title") return "请写一个标题。";
+        if (field === "start") return "请填写开始时间。";
+        if (field === "end") return "请填写结束时间。";
+        return "请补全日程。";
+      }
+      if (issue.code === "too_big") {
+        if (field === "title") return "标题太长了。";
+        if (field === "location") return "地点太长了。";
+        if (field === "description") return "备注太长了。";
+        if (field === "attendees") return "参与者太多了。";
+        return "日程超出长度了。";
+      }
+      return "日程还需要改一下。";
+    },
+    "这个日程还没法提交。",
+  );
+}
+
+/**
+ * Chinese title first. A Chinese message stands alone.
+ * Latin server text stays on the next line, shortened.
+ */
+export function surfaceError(title: string, server?: string): string {
+  const note = statusServerNote(server);
+  if (!note || note === title) return title;
+  if (!/[A-Za-z]{3,}/.test(note)) return note;
+  return `${title}\n${note}`;
+}
+
+const GOOGLE_CAPABILITY_ZH: Record<string, string> = {
+  "gmail.readonly": "读取 Gmail",
+  "gmail.send": "发送 Gmail",
+  "gmail.compose": "撰写 Gmail",
+  "gmail.modify": "管理 Gmail",
+  "calendar.events.readonly": "读取日历事件",
+  "calendar.calendarlist.readonly": "读取日历列表",
+  "calendar.events": "管理日历事件",
+  "calendar.readonly": "读取日历",
+};
+
+/** Connection chips. Unknown scopes stay off the row instead of showing the raw id. */
+export function googleCapabilityLabel(value: string): string {
+  const scope = value.split("/").at(-1)?.trim() || value.trim();
+  return GOOGLE_CAPABILITY_ZH[scope] ?? "其他权限";
+}
+
+const COMPUTER_COMMAND_ZH: Record<string, string> = {
+  running: "运行中",
+  succeeded: "已完成",
+  failed: "失败",
+  timed_out: "已超时",
+  interrupted: "已中断",
+};
+
+/** Command receipt on the computer. The status word and exit label stay Chinese. */
+export function computerCommandStatus(status: string, exitCode?: number): string {
+  const label = COMPUTER_COMMAND_ZH[operationStatusKey(status)] ?? "状态待更新";
+  if (exitCode === undefined) return label;
+  return `${label} · 退出码 ${exitCode}`;
+}
+
 export function mailRecipientLine(recipients: readonly string[]): string {
   const list = recipients.map((item) => item.trim()).filter(Boolean);
   if (!list.length) return "还没有收件人";

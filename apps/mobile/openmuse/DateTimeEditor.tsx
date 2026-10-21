@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import DateFields from "./DateFields";
 import { isCompleteInstant, localDateTime, zonedInstant } from "./date-time";
+import { surfaceError } from "./chat-stream-rules";
 import { colors, s } from "./ui";
 export default function DateTimeEditor({
   label,
@@ -44,7 +45,7 @@ export default function DateTimeEditor({
       onChange(zonedInstant(nextDate, nextTime, timeZone));
     } catch (e) {
       onChange(`${nextDate} ${nextTime}`);
-      setError(e instanceof Error ? e.message : String(e));
+      setError(surfaceError("这个时间还没法换算。", e instanceof Error ? e.message : String(e)));
     }
   }
   return (
