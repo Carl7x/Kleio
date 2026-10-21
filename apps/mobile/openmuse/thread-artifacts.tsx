@@ -4,9 +4,10 @@ import { Pressable, Text, View } from "react-native";
 import type { Artifact, BrowserSession } from "../../../packages/openmuse-domain/src";
 import type { AgentArtifact, AgentTask } from "../../../packages/openmuse-domain/src/agent";
 import { ArtifactCard, TaskCard } from "./agent-ui";
-import { formFieldLabel } from "./chat-stream-rules";
+import { ThreadNotice } from "./chat-stream";
+import { formFieldLabel, statusServerNote } from "./chat-stream-rules";
 import { BrowserThreadCard } from "./computer";
-import { Button, Card, colors, ErrorNotice, s } from "./ui";
+import { Card, colors, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
 export function FileThreadCard({ file }: { file: Artifact }) {
@@ -102,12 +103,16 @@ export function TaskThreadCard({ task }: { task: AgentTask }) {
       {detail?.artifacts.map((artifact) => (
         <ArtifactCard key={artifact.id} artifact={artifact} />
       ))}
-      <ErrorNotice error={error} />
-      {!!error && (
-        <Button small onPress={() => setAttempt((value) => value + 1)}>
-          重新加载任务结果
-        </Button>
-      )}
+      {error ? (
+        <ThreadNotice
+          title="结果没有载入"
+          detail="已保存的任务还在。"
+          note={statusServerNote(error)}
+          tone="error"
+          actionLabel="重新加载"
+          onAction={() => setAttempt((value) => value + 1)}
+        />
+      ) : null}
     </View>
   );
 }

@@ -14,6 +14,7 @@ import {
   type StreamState,
   surfaceFadeAlphas,
   suggestionRowChrome,
+  statusServerNote,
   threadChrome,
   type ThreadStatusTone,
   toolCardChrome,
@@ -653,6 +654,20 @@ export function ThreadNotice({
         <StatusAction label={actionLabel} onPress={onAction} disabled={actionDisabled} tone={tone} />
       ) : null}
     </View>
+  );
+}
+
+/** Secondary server line. The title and detail stay outside this note. */
+export function StatusNote({ message }: { message?: string }) {
+  const note = statusServerNote(message);
+  if (!note) return null;
+  return (
+    <Text
+      numberOfLines={2}
+      style={{ color: colors.muted, fontSize: threadChrome.detailSize, lineHeight: threadChrome.detailLine }}
+    >
+      {note}
+    </Text>
   );
 }
 

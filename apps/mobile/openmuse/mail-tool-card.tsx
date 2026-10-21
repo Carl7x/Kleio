@@ -3,9 +3,9 @@ import { useContext } from "react";
 import { Text } from "react-native";
 import { z } from "zod";
 import { BrowserRunContext } from "./browser-tool-card";
-import { ReceiptAction, StreamCard } from "./chat-stream";
+import { ReceiptAction, StatusNote, StreamCard } from "./chat-stream";
 import { mailReceiptAction, mailRecipientLine } from "./chat-stream-rules";
-import { colors, ErrorNotice, s } from "./ui";
+import { colors, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
 const messageSchema = z.object({
@@ -44,8 +44,14 @@ export function MailToolCard({
   const error = z.object({ error: z.string() }).safeParse(value);
   if (error.success)
     return (
-      <StreamCard collapsible state="error" title="无法读取邮件" icon={<Mail size={16} color={colors.danger} />}>
-        <ErrorNotice error={error.data.error} />
+      <StreamCard
+        collapsible
+        state="error"
+        title="无法读取邮件"
+        detail="请稍后再试。"
+        icon={<Mail size={16} color={colors.danger} />}
+      >
+        <StatusNote message={error.data.error} />
       </StreamCard>
     );
   if (loading)
@@ -62,9 +68,13 @@ export function MailToolCard({
       .safeParse(value);
     if (!parsed.success)
       return (
-        <StreamCard collapsible state="error" title="无法读取邮件" icon={<Search size={16} color={colors.danger} />}>
-          <ErrorNotice error="邮箱未返回可读结果。" />
-        </StreamCard>
+        <StreamCard
+          collapsible
+          state="error"
+          title="无法读取邮件"
+          detail="邮箱未返回可读结果。"
+          icon={<Search size={16} color={colors.danger} />}
+        />
       );
     const count = parsed.data.matches.length;
     return (
@@ -84,9 +94,13 @@ export function MailToolCard({
     .safeParse(value);
   if (!parsed.success)
     return (
-      <StreamCard collapsible state="error" title="无法显示该邮件" icon={<Mail size={16} color={colors.danger} />}>
-        <ErrorNotice error="无法显示该邮件。" />
-      </StreamCard>
+      <StreamCard
+        collapsible
+        state="error"
+        title="无法显示该邮件"
+        detail="请重试。"
+        icon={<Mail size={16} color={colors.danger} />}
+      />
     );
   const message = parsed.data.messages.at(-1);
   if (!message)

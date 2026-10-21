@@ -5,9 +5,9 @@ import { z } from "zod";
 import type { ComputerSnapshot } from "../../../packages/openmuse-domain/src/computer";
 import { useComputerDraft } from "./computer-drafts";
 import { DesktopStream } from "./desktop-stream";
-import { ReceiptAction, StreamCard } from "./chat-stream";
+import { ReceiptAction, StatusNote, StreamCard } from "./chat-stream";
 import { desktopReceiptActions, desktopStepLabel } from "./chat-stream-rules";
-import { colors, ErrorNotice, s } from "./ui";
+import { colors, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
 const resultSchema = z.object({
@@ -108,9 +108,11 @@ export function DesktopToolCard({
           ? "正在使用桌面…"
           : value?.error
             ? "桌面步骤失败"
-            : offline
-              ? "电脑离线"
-              : desktopStepLabel(value?.action)
+            : error
+              ? "桌面暂时没连上。"
+              : offline
+                ? "电脑离线"
+                : desktopStepLabel(value?.action)
       }
       icon={<Monitor size={16} color={value?.error ? colors.danger : colors.blueDark} />}
       action={
@@ -134,7 +136,7 @@ export function DesktopToolCard({
     >
       {hasDetails ? (
         <>
-          <ErrorNotice error={value?.error || error} />
+          <StatusNote message={value?.error || error} />
           {latest && snapshot && !running ? (
             <Text style={s.small}>电脑离线。启动后可查看桌面；之前打开的应用已关闭。</Text>
           ) : latest && running ? (

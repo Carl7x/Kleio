@@ -3,9 +3,9 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { AppState, Image, Text, View } from "react-native";
 import { z } from "zod";
 import type { BrowserSession } from "../../../packages/openmuse-domain/src";
-import { ReceiptAction, SkeletonLine, StreamCard } from "./chat-stream";
+import { ReceiptAction, SkeletonLine, StatusNote, StreamCard } from "./chat-stream";
 import { browserReceiptAction } from "./chat-stream-rules";
-import { Button, colors, ErrorNotice, s } from "./ui";
+import { Button, colors, s } from "./ui";
 import { useWorkspace } from "./workspace";
 
 export const BrowserRunContext = createContext({ running: false, active: false });
@@ -108,7 +108,9 @@ export function BrowserToolCard({
             ? "浏览已暂停"
             : failure
               ? "无法阅读该页面"
-              : siteLabel(visited?.url)
+              : error
+                ? "预览暂时不可用。"
+                : siteLabel(visited?.url)
       }
       icon={<Globe2 size={16} color={failure ? colors.danger : colors.blueDark} />}
       action={
@@ -155,7 +157,7 @@ export function BrowserToolCard({
           ) : null}
         </View>
       )}
-      <ErrorNotice error={failure || error} />
+      <StatusNote message={toolError.success ? toolError.data.error : error || undefined} />
       {!!error && (
         <Button small icon={RotateCw} onPress={() => setRetry((attempt) => attempt + 1)}>
           重新连接预览

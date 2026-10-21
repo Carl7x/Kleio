@@ -141,6 +141,14 @@ export function composerPlaceholder(input: {
 }
 
 /**
+ * Web composer hint. Enter still sends and Shift+Enter still inserts a newline.
+ * The words name those keys in Chinese.
+ */
+export function composerShortcutHint(): string {
+  return "回车发送，Shift+回车换行";
+}
+
+/**
  * One line under the portrait. A person who must act comes first.
  * Offline and reconnect stay quieter than an approval, and louder than idle.
  */
@@ -398,6 +406,45 @@ export function accessGateCopy(): AccessGateCopy {
   };
 }
 
+export type ShellFailureKind = "save" | "stop" | "choice" | "choice-unreadable";
+
+/**
+ * Save, stop, and choice failures. The title and detail stay Chinese.
+ * Callers pass the server text through statusServerNote, never as the title.
+ */
+const SHELL_FAILURE: Record<ShellFailureKind, { title: string; detail: string }> = {
+  save: { title: "对话没有保存", detail: "已发出的内容还在。" },
+  stop: { title: "没能停下来", detail: "回复可能还在继续。" },
+  choice: { title: "选择没有发出", detail: "可以再选一次。" },
+  "choice-unreadable": { title: "无法显示选项", detail: "请重试。" },
+};
+
+export function shellFailureCopy(kind: ShellFailureKind): { title: string; detail: string } {
+  return { ...SHELL_FAILURE[kind] };
+}
+
+/** Today hero. The line break matches the wide type on that card. */
+export function todayHeroTitle(): string {
+  return "今天，多留一点\n喘息的空间。";
+}
+
+/** Calendar and inbox counts under the today hero. Zero stays a quiet sentence. */
+export function todayBriefLine(events: number, unread: number): string {
+  const calendar = events > 0 ? `日历上有 ${events} 件事` : "日历还有空档";
+  const mail = unread > 0 ? `，${unread} 封未读邮件` : "";
+  return `${calendar}${mail}。\n把时间留给要紧的事。`;
+}
+
+/** Calendar sheet subtitle. The zone id stays as stored; the sentence is Chinese. */
+export function calendarZoneLine(name: string | undefined, zone: string): string {
+  return `${name?.trim() || "你的日历"} · ${zone}。日程按各自时区显示。`;
+}
+
+/** Agenda row when a location is missing. Zero attendees stays the quiet line. */
+export function attendeeCountLine(count: number): string {
+  return count > 0 ? `${count} 位参与者` : "属于你的时间";
+}
+
 /** Server text sits under the stable Chinese line. A long payload does not become the screen. */
 export function statusServerNote(message?: string, max = 72): string | undefined {
   const text = message?.replace(/\s+/g, " ").trim();
@@ -585,6 +632,39 @@ export function knownOperationStatus(status: string): string | undefined {
 /** Short Chinese chip. Unknown values stay non-English. */
 export function operationStatusLabel(status: string): string {
   return knownOperationStatus(status) ?? "状态待更新";
+}
+
+/**
+ * Chips and short labels on the chat shell, artifact cards, and activity.
+ * Operation statuses win. Unknown values stay non-English.
+ */
+const SURFACE_LABEL_ZH: Record<string, string> = {
+  warm: "温暖",
+  concise: "简洁",
+  thoughtful: "周到",
+  plan: "计划",
+  comparison: "对比",
+  finance: "财务",
+  report: "报告",
+  document: "文档",
+  monitor: "盯梢",
+  agent: "任务",
+  step: "步骤",
+  observation: "观察",
+  approval: "审阅",
+  result: "结果",
+  error: "出错",
+  status: "状态",
+  new: "新的",
+  dismissed: "已放下",
+  accepted: "已采纳",
+};
+
+export function surfaceChipLabel(value: string): string {
+  const operation = knownOperationStatus(value);
+  if (operation) return operation;
+  const key = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return SURFACE_LABEL_ZH[key] ?? "状态待更新";
 }
 
 /** Activity-list gate. Same phrase as the approval sheet. */

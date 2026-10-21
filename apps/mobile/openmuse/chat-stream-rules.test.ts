@@ -20,6 +20,7 @@ import {
   composerControlChrome,
   composerNativeShadow,
   composerPlaceholder,
+  composerShortcutHint,
   composerSendFace,
   desktopReceiptActions,
   listedBackgroundTasks,
@@ -49,7 +50,13 @@ import {
   accessGateCopy,
   sheetListStatus,
   sideThreadTitle,
+  attendeeCountLine,
+  calendarZoneLine,
+  shellFailureCopy,
   statusServerNote,
+  surfaceChipLabel,
+  todayBriefLine,
+  todayHeroTitle,
   threadChrome,
   threadStatusCopy,
   threadSurface,
@@ -474,6 +481,31 @@ test("threads sheet and access gate use the same short Chinese status", () => {
   const longNote = statusServerNote("x".repeat(80));
   assert.equal(longNote?.length, 72);
   assert.equal(longNote?.endsWith("…"), true);
+  assert.equal(composerShortcutHint(), "回车发送，Shift+回车换行");
+  assert.doesNotMatch(composerShortcutHint(), /\bEnter\b/);
+  const failureKinds = ["save", "stop", "choice", "choice-unreadable"] as const;
+  const failureLines = failureKinds.map((kind) => {
+    const copy = shellFailureCopy(kind);
+    assert.ok(copy.title.length > 0 && copy.title.length <= 16, copy.title);
+    assert.ok(copy.detail.length > 0 && copy.detail.length <= 28, copy.detail);
+    return `${copy.title} ${copy.detail}`;
+  });
+  assert.equal(shellFailureCopy("save").title, "对话没有保存");
+  assert.equal(shellFailureCopy("stop").title, "没能停下来");
+  assert.equal(shellFailureCopy("choice").title, "选择没有发出");
+  assert.doesNotMatch(failureLines.join("\n"), /\b(error|failed|exception|save|stop|retry)\b/i);
+  assert.equal(todayHeroTitle(), "今天，多留一点\n喘息的空间。");
+  assert.equal(todayBriefLine(2, 1), "日历上有 2 件事，1 封未读邮件。\n把时间留给要紧的事。");
+  assert.equal(todayBriefLine(0, 0), "日历还有空档。\n把时间留给要紧的事。");
+  assert.equal(calendarZoneLine("  ", "Asia/Shanghai"), "你的日历 · Asia/Shanghai。日程按各自时区显示。");
+  assert.equal(attendeeCountLine(3), "3 位参与者");
+  assert.equal(attendeeCountLine(0), "属于你的时间");
+  const calendarCopy = [todayHeroTitle(), todayBriefLine(2, 1), calendarZoneLine("工作", "Asia/Shanghai"), attendeeCountLine(2)].join("\n");
+  assert.doesNotMatch(calendarCopy, /things on your calendar|unread emails|attendees|Events show/i);
+  assert.equal(surfaceChipLabel("plan"), "计划");
+  assert.equal(surfaceChipLabel("Needs review"), "待你审阅");
+  assert.equal(surfaceChipLabel("mystery-kind"), "状态待更新");
+  assert.doesNotMatch(surfaceChipLabel("comparison"), /[A-Za-z]/);
 });
 
 test("an empty thread picks one status, and messages keep a single banner", () => {

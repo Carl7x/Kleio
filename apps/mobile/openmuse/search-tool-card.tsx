@@ -3,9 +3,9 @@ import { useContext, useState } from "react";
 import { Linking, Text, View } from "react-native";
 import { z } from "zod";
 import { BrowserRunContext } from "./browser-tool-card";
-import { ReceiptAction, StreamCard } from "./chat-stream";
+import { ReceiptAction, StatusNote, StreamCard } from "./chat-stream";
 import { searchReceiptAction } from "./chat-stream-rules";
-import { colors, ErrorNotice, s } from "./ui";
+import { colors, s } from "./ui";
 
 const resultSchema = z.object({
   results: z.array(z.object({ url: z.url({ protocol: /^https?$/ }), title: z.string().nullish() })),
@@ -57,6 +57,9 @@ export function SearchToolCard({ result, loading }: { result: unknown; loading: 
       collapsible={hasBody}
       state={failure || linkError ? "error" : working ? "running" : loading ? "paused" : "done"}
       title={title}
+      detail={
+        error.success ? "可以再搜一次。" : failure ? "搜索未返回可读结果。" : linkError ? "无法打开该来源。" : undefined
+      }
       icon={<Search size={16} color={failure || linkError ? colors.danger : colors.blueDark} />}
       action={
         receipt && first ? (
@@ -97,7 +100,7 @@ export function SearchToolCard({ result, loading }: { result: unknown; loading: 
           ))}
         </View>
       )}
-      <ErrorNotice error={failure || linkError} />
+      <StatusNote message={error.success ? error.data.error : undefined} />
     </StreamCard>
   );
 }
