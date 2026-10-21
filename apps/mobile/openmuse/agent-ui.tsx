@@ -38,7 +38,11 @@ import { QuietDots, ReceiptAction, StreamCard } from "./chat-stream";
 import {
   activityEventTitle,
   avatarLabel,
+  documentFieldJsonError,
+  documentFieldPlaceholder,
   fileDetailLine,
+  financeCsvPlaceholder,
+  financeCsvSample,
   memorySourceLabel,
   monitorCadenceLine,
   monitorCheckLine,
@@ -372,7 +376,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
             (value) => typeof value !== "string" && typeof value !== "boolean",
           )
         )
-          throw new Error("表单字段须为 JSON 对象，值为文本或 true/false。");
+          throw new Error(documentFieldJsonError());
         parsed = raw as Record<string, string | boolean>;
       }
       await act("input", {
@@ -546,12 +550,12 @@ export function TaskDetail({ taskId }: { taskId: string }) {
                   </Button>
                   {showFieldJson && (
                     <Field
-                      label="字段（JSON：字段名到值）"
+                      label="字段名和值"
                       value={fieldJson}
                       onChangeText={setFieldJson}
                       multiline
                       autoCapitalize="none"
-                      placeholder={'{"full_name":"你的姓名","consent":true}'}
+                      placeholder={documentFieldPlaceholder()}
                     />
                   )}
                 </>
@@ -1054,21 +1058,15 @@ export function DelegateSheet({ goalId, milestoneId }: { goalId?: string; milest
       {kind === "finance" && (
         <>
           <Field
-            label="交易 CSV"
+            label="交易记录"
             value={csv}
             onChangeText={setCsv}
             multiline
             autoCapitalize="none"
-            placeholder={"date,description,amount,category\n2026-09-01,Groceries,54.20,Food"}
+            placeholder={financeCsvPlaceholder()}
           />
           {workspace.mode === "sample" && (
-            <Button
-              onPress={() =>
-                setCsv(
-                  "date,description,amount,category\n2026-09-01,Salary,-4200,Income\n2026-09-02,Groceries,84.50,Food\n2026-09-03,Subscription,19.99,Subscriptions\n2026-09-04,Coffee,6.50,Food",
-                )
-              }
-            >
+            <Button onPress={() => setCsv(financeCsvSample())}>
               试用示例交易
             </Button>
           )}

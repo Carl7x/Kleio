@@ -20,7 +20,13 @@ import type {
   ComputerDirectory,
   ComputerSnapshot,
 } from "../../../packages/openmuse-domain/src/computer";
-import { computerCommandStatus, computerWorkspaceNotice, surfaceError } from "./chat-stream-rules";
+import {
+  computerCommandStatus,
+  computerDesktopHint,
+  computerTerminalHint,
+  computerWorkspaceNotice,
+  surfaceError,
+} from "./chat-stream-rules";
 import { useComputerDraft } from "./computer-drafts";
 import { DesktopStream } from "./desktop-stream";
 import { Button, Card, colors, Empty, ErrorNotice, Field, LinkRow, s, timeLabel } from "./ui";
@@ -264,9 +270,7 @@ export function LinuxWorkspace({
                   运行命令
                 </Button>
                 <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
-                  {snapshot.network === "enabled"
-                    ? "在你的电脑上运行，可访问网络。用 >/dev/null 2>&1 & 启动图形应用，可在「桌面」页打开。"
-                    : "在你的电脑上运行，网络已关闭。上网请用「浏览器」。"}
+                  {computerTerminalHint(snapshot.network === "enabled")}
                 </Text>
               </View>
             ) : (
@@ -327,7 +331,7 @@ function ComputerDesktop({ running }: { running: boolean }) {
   return (
     <View style={{ gap: 12 }}>
       <DesktopStream running />
-      <Text style={s.small}>你与智能体共享此桌面。停止电脑会关闭其上的应用；/workspace 中的文件会保留。打开桌面可使电脑保持唤醒 30 分钟；保持此标签页打开或回到应用可延长。链接可控制桌面，请勿分享。</Text>
+      <Text style={s.small}>{computerDesktopHint()}</Text>
     </View>
   );
 }

@@ -48,8 +48,14 @@ import {
   desktopStepLabel,
   activityEventTitle,
   avatarLabel,
+  computerDesktopHint,
+  computerTerminalHint,
   computerWorkspaceNotice,
   datePartLabel,
+  documentFieldJsonError,
+  documentFieldPlaceholder,
+  financeCsvPlaceholder,
+  financeCsvSample,
   memorySourceLabel,
   returnKeyCaption,
   shellDateLabel,
@@ -574,9 +580,10 @@ test("threads sheet and access gate use the same short Chinese status", () => {
   assert.equal(statusServerNote("  连接超时  "), "连接超时");
   assert.equal(statusServerNote("   "), undefined);
   assert.equal(statusServerNote(undefined), undefined);
-  const longNote = statusServerNote("x".repeat(80));
+  const longNote = statusServerNote("连接超时".repeat(30));
   assert.equal(longNote?.length, 72);
   assert.equal(longNote?.endsWith("…"), true);
+  assert.match(longNote ?? "", /^连接超时/);
   assert.equal(composerShortcutHint(), "回车发送，Shift+回车换行");
   assert.doesNotMatch(composerShortcutHint(), /\bEnter\b/);
   const failureKinds = ["save", "stop", "choice", "choice-unreadable"] as const;
@@ -733,7 +740,7 @@ test("calendar fields, the thread sheet, and computer notices stay in Chinese", 
   assert.equal(shellProfileSubtitle("小洋", false), "小洋");
   assert.equal(computerWorkspaceNotice("Computer control is not configured."), "电脑还没有配置。");
   assert.equal(computerWorkspaceNotice("电脑已停止。"), "电脑已停止。");
-  assert.match(computerWorkspaceNotice("docker socket missing") ?? "", /^电脑说明/);
+  assert.equal(computerWorkspaceNotice("docker socket missing"), "电脑说明\n具体原因没有显示。");
   assert.doesNotMatch(
     [
       datePartLabel("开始", "date"),
@@ -764,8 +771,41 @@ test("known chat, gate, and tool failures replace the English sentence", () => {
   }
   assert.equal(statusServerNote("  Execution cancelled.  "), "这次回复已取消。");
   assert.equal(statusServerNote("连接超时"), "连接超时");
-  assert.match(taskFailureLine("socket hang up"), /^这次没有完成。/);
-  assert.match(statusServerNote("socket hang up") ?? "", /socket hang up/);
+  assert.equal(taskFailureLine("socket hang up"), "这次没有完成。\n具体原因没有显示。");
+  assert.equal(statusServerNote("socket hang up"), "具体原因没有显示。");
+  assert.equal(
+    statusServerNote("Authentication required for some other reason"),
+    "具体原因没有显示。",
+  );
+  assert.equal(
+    surfaceError("浏览器没有打开。", "net::ERR_CONNECTION_RESET"),
+    "浏览器没有打开。\n具体原因没有显示。",
+  );
+  assert.equal(financeCsvPlaceholder(), "日期,说明,金额,分类\n2026-09-01,买菜,54.20,餐饮");
+  assert.match(financeCsvSample(), /^日期,说明,金额,分类\n/);
+  assert.equal(
+    computerTerminalHint(true),
+    "在你的电脑上运行，可访问网络。图形程序请放到后台启动，再到「桌面」页打开。",
+  );
+  assert.match(computerTerminalHint(false), /网络已关闭/);
+  assert.match(computerDesktopHint(), /工作区里的文件会保留/);
+  assert.equal(documentFieldPlaceholder(), '{"姓名":"你的姓名","同意":true}');
+  assert.match(documentFieldJsonError(), /一段文字/);
+  const shellCopy = [
+    statusServerNote("socket hang up"),
+    surfaceError("浏览器没有打开。", "net::ERR_CONNECTION_RESET"),
+    taskFailureLine("socket hang up"),
+    computerWorkspaceNotice("docker socket missing"),
+    financeCsvPlaceholder(),
+    financeCsvSample(),
+    computerTerminalHint(true),
+    computerDesktopHint(),
+    documentFieldPlaceholder(),
+  ].join("\n");
+  assert.doesNotMatch(
+    shellCopy,
+    /socket hang up|ERR_CONNECTION|docker socket|Groceries|Salary|Subscription|full_name|consent|dev\/null|\/workspace|>/i,
+  );
   const shown = samples.map(([, chinese]) => chinese).join("\n");
   assert.doesNotMatch(shown, /\b(authentication|execution|cancelled|fetch|required|timezone)\b/i);
 });
@@ -789,7 +829,7 @@ test("activity titles, memory sources, avatars, and task failures drop leftover 
   );
   assert.equal(taskFailureLine("Active memory not found"), "没有找到这条记忆。");
   assert.equal(taskFailureLine("审阅尚未就绪。请刷新后再试。"), "审阅尚未就绪。请刷新后再试。");
-  assert.match(taskFailureLine("socket hang up"), /^这次没有完成。/);
+  assert.equal(taskFailureLine("socket hang up"), "这次没有完成。\n具体原因没有显示。");
   const copy = [
     activityEventTitle("Task created"),
     memorySourceLabel("Conversation"),
