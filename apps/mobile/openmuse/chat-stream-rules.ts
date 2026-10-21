@@ -296,6 +296,116 @@ export function threadStatusCopy(kind: ThreadStatusKind): ThreadStatusCopy {
   return { ...THREAD_STATUS[kind] };
 }
 
+export type SheetListKind =
+  | "loading"
+  | "failed"
+  | "empty"
+  | "empty-archived"
+  | "more-failed"
+  | "action-failed";
+
+/** Conversation list inside the Kleio sheet. Same shape as an in-thread status. */
+const SHEET_LIST_STATUS: Record<SheetListKind, ThreadStatusCopy> = {
+  loading: {
+    title: "正在载入对话",
+    detail: "旁路对话会列在这里。",
+    busy: true,
+    tone: "neutral",
+  },
+  failed: {
+    title: "对话列表没有载入",
+    detail: "主对话仍然可用。",
+    actionLabel: "重试",
+    busy: false,
+    tone: "error",
+  },
+  empty: {
+    title: "还没有旁路对话",
+    detail: "另开一个话题。主对话始终可用。",
+    busy: false,
+    tone: "neutral",
+  },
+  "empty-archived": {
+    title: "没有已归档的对话",
+    detail: "归档后会出现在这里。",
+    busy: false,
+    tone: "neutral",
+  },
+  "more-failed": {
+    title: "后面的对话没有载入",
+    detail: "已列出的对话还在。",
+    actionLabel: "重试",
+    busy: false,
+    tone: "error",
+  },
+  "action-failed": {
+    title: "这次没有完成",
+    detail: "可以再试一次。",
+    busy: false,
+    tone: "error",
+  },
+};
+
+/** Short Chinese for the threads-sheet list. Callers add the server note separately. */
+export function sheetListStatus(kind: SheetListKind): ThreadStatusCopy {
+  return { ...SHEET_LIST_STATUS[kind] };
+}
+
+export type AccessGateCopy = {
+  welcomeTitle: string;
+  welcomeDetail: string;
+  connecting: ThreadStatusCopy;
+  tokenLabel: string;
+  tokenPlaceholder: string;
+  helper: string;
+  submitLabel: string;
+  failedTitle: string;
+  failedDetail: string;
+  workspaceOpening: ThreadStatusCopy;
+  workspaceFailed: ThreadStatusCopy;
+};
+
+/** Access gate before the shell. Kleio stays the brand; the token line stays Chinese. */
+export function accessGateCopy(): AccessGateCopy {
+  return {
+    welcomeTitle: "欢迎使用 Kleio",
+    welcomeDetail: "你的个人智能体工作台。",
+    connecting: {
+      title: "正在打开 Kleio",
+      detail: "连上之后，工作台会从这里继续。",
+      busy: true,
+      tone: "neutral",
+    },
+    tokenLabel: "访问令牌",
+    tokenPlaceholder: "粘贴一次即可",
+    helper: "粘贴一次，即可在此工作台建立安全会话。",
+    submitLabel: "打开工作台",
+    failedTitle: "没能打开 Kleio",
+    failedDetail: "确认访问令牌后再试一次。",
+    workspaceOpening: {
+      title: "正在打开工作台",
+      detail: "对话会从这里继续。",
+      busy: true,
+      tone: "neutral",
+    },
+    workspaceFailed: {
+      title: "工作台没有打开",
+      detail: "已保存的内容未被改动。",
+      actionLabel: "再试一次",
+      busy: false,
+      tone: "error",
+    },
+  };
+}
+
+/** Server text sits under the stable Chinese line. A long payload does not become the screen. */
+export function statusServerNote(message?: string, max = 72): string | undefined {
+  const text = message?.replace(/\s+/g, " ").trim();
+  if (!text) return undefined;
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1)}…`;
+}
+
 export type ThreadPlace =
   | { place: "screen"; kind: ThreadStatusKind }
   | { place: "banner"; kind: ThreadStatusKind }

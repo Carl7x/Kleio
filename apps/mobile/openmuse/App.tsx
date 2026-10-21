@@ -14,7 +14,6 @@ import {
 } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   AppState,
   Pressable,
   ScrollView,
@@ -33,10 +32,17 @@ import {
   IdeasScreen,
 } from "./agent-ui";
 import { AgentWorkspaceProvider, useAgentWorkspace } from "./agent-workspace";
-import { API_URL, createSession, MuseApi } from "./api";
+import { createSession, MuseApi } from "./api";
 import { ChatScreen, WorkspaceTools } from "./chat";
-import { ChatStatusScreen, ThreadTitleBar } from "./chat-stream";
-import { chatShellStatus, sideThreadTitle, threadStatusCopy } from "./chat-stream-rules";
+import { ChatStatusScreen, ThreadNotice, ThreadTitleBar } from "./chat-stream";
+import {
+  accessGateCopy,
+  chatShellStatus,
+  sideThreadTitle,
+  statusServerNote,
+  threadChrome,
+  threadStatusCopy,
+} from "./chat-stream-rules";
 import { ComputerEntry } from "./computer";
 import { ComputerDraftProvider } from "./computer-drafts";
 import { Details } from "./details";
@@ -89,6 +95,7 @@ export default function App() {
   useEffect(() => {
     void connect();
   }, [connect]);
+  const gate = accessGateCopy();
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
@@ -97,44 +104,64 @@ export default function App() {
           <WorkspaceApp token={token} />
         </KleioHeadlessProvider>
       ) : (
-        <SafeAreaView
-          style={{
-            flex: 1,
-            backgroundColor: colors.canvas,
-            justifyContent: "center",
-            alignItems: "center",
-            padding: 24,
-          }}
-        >
-          <View style={{ width: "100%", maxWidth: 420, gap: 22, alignItems: "center" }}>
-            <Mascot size={72} />
-            <Text
-              style={{ fontSize: 32, color: colors.text, letterSpacing: -1, fontWeight: "500" }}
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.canvas }}>
+          {busy ? (
+            <ChatStatusScreen
+              hero
+              busy={gate.connecting.busy}
+              tone={gate.connecting.tone}
+              title={gate.connecting.title}
+              detail={gate.connecting.detail}
+            />
+          ) : (
+            <View
+              style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}
             >
-              欢迎使用 Kleio。
-            </Text>
-            <Text style={[s.muted, { textAlign: "center" }]}>你的个人智能体工作台。</Text>
-            {busy ? (
-              <ActivityIndicator color={colors.blueDark} />
-            ) : (
-              <Card style={{ width: "100%" }}>
-                <ErrorNotice error={error} />
-                <Field
-                  label="Kleio 访问令牌"
-                  value={accessKey}
-                  onChangeText={setAccessKey}
-                  secureTextEntry
-                  placeholder="服务器 KLEIO_TOKEN"
+              <View style={{ width: "100%", maxWidth: 420, gap: 4 }}>
+                <ChatStatusScreen
+                  compact
+                  hero
+                  title={gate.welcomeTitle}
+                  detail={gate.welcomeDetail}
                 />
-                <Button primary onPress={() => void connect(accessKey || undefined)}>
-                  打开工作台
-                </Button>
-                <Text style={[s.small, { marginTop: 15 }]}>
-                  本机可用 pnpm web 直接打开。在此公网工作台，粘贴一次 Kleio 访问令牌即可建立安全浏览器会话：{API_URL}。
-                </Text>
-              </Card>
-            )}
-          </View>
+                <Card style={{ width: "100%" }}>
+                  {error ? (
+                    <View style={{ marginBottom: 14 }}>
+                      <ThreadNotice
+                        title={gate.failedTitle}
+                        detail={gate.failedDetail}
+                        note={statusServerNote(error)}
+                        tone="error"
+                      />
+                    </View>
+                  ) : null}
+                  <Field
+                    label={gate.tokenLabel}
+                    value={accessKey}
+                    onChangeText={setAccessKey}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    placeholder={gate.tokenPlaceholder}
+                  />
+                  <Text
+                    style={{
+                      color: colors.muted,
+                      fontSize: threadChrome.detailSize,
+                      lineHeight: threadChrome.detailLine,
+                      marginTop: -8,
+                      marginBottom: 14,
+                    }}
+                  >
+                    {gate.helper}
+                  </Text>
+                  <Button primary onPress={() => void connect(accessKey || undefined)}>
+                    {gate.submitLabel}
+                  </Button>
+                </Card>
+              </View>
+            </View>
+          )}
         </SafeAreaView>
       )}
     </SafeAreaProvider>
@@ -178,34 +205,26 @@ function WorkspaceApp({ token }: { token: string }) {
     setPrompt({ id: Date.now(), text });
     setSection("chat");
   }, []);
-  if (!workspace)
+  if (!workspace) {
+    const gate = accessGateCopy();
+    const opening = error ? gate.workspaceFailed : gate.workspaceOpening;
     return (
-      <SafeAreaView
-        style={{
-          flex: 1,
-          backgroundColor: colors.canvas,
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 24,
-          gap: 18,
-        }}
-      >
-        <Mascot size={56} />
-        {error ? (
-          <>
-            <ErrorNotice error={error} />
-            <Button onPress={() => void refresh().catch((e) => setError(String(e)))}>
-              再试一次
-            </Button>
-          </>
-        ) : (
-          <>
-            <ActivityIndicator color={colors.blueDark} />
-            <Text style={s.muted}>正在打开工作台…</Text>
-          </>
-        )}
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.canvas }}>
+        <ChatStatusScreen
+          hero
+          busy={opening.busy}
+          tone={opening.tone}
+          title={opening.title}
+          detail={opening.detail}
+          note={error ? statusServerNote(error) : undefined}
+          actionLabel={error ? opening.actionLabel : undefined}
+          onAction={
+            error ? () => void refresh().catch((e) => setError(String(e))) : undefined
+          }
+        />
       </SafeAreaView>
     );
+  }
   return (
     <WorkspaceContext.Provider
       value={{ workspace, api, section, navigate, refresh, open, close, notify: setToast, ask }}
@@ -425,7 +444,7 @@ function WorkspaceShell({
                   tone={openingCopy.tone}
                   title={openingCopy.title}
                   detail={openingCopy.detail}
-                  note={threadsError || undefined}
+                  note={statusServerNote(threadsError)}
                   actionLabel={threadsError ? openingCopy.actionLabel : undefined}
                   onAction={threadsError ? retryThreads : undefined}
                 />

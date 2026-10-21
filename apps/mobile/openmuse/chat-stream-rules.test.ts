@@ -46,7 +46,10 @@ import {
   chatShellStatus,
   desktopStepLabel,
   emptyThreadSuggestions,
+  accessGateCopy,
+  sheetListStatus,
   sideThreadTitle,
+  statusServerNote,
   threadChrome,
   threadStatusCopy,
   threadSurface,
@@ -412,6 +415,65 @@ test("thread status copy stays short, Chinese, and has one action when a person 
   assert.doesNotMatch(lines.join("\n"), /\b(retry|offline|loading|error|connect|failed|thread|message)\b/i);
   assert.equal(threadChrome.statusTitle < threadChrome.statusHero, true);
   assert.equal(threadChrome.titleSize, 15);
+});
+
+test("threads sheet and access gate use the same short Chinese status", () => {
+  const sheetKinds = ["loading", "failed", "empty", "empty-archived", "more-failed", "action-failed"] as const;
+  const sheetLines = sheetKinds.map((kind) => {
+    const copy = sheetListStatus(kind);
+    assert.ok(copy.title.length > 0 && copy.title.length <= 16, copy.title);
+    assert.ok(copy.detail.length > 0 && copy.detail.length <= 28, copy.detail);
+    return `${copy.title} ${copy.detail} ${copy.actionLabel ?? ""}`;
+  });
+  assert.equal(sheetListStatus("loading").busy, true);
+  assert.equal(sheetListStatus("failed").actionLabel, "重试");
+  assert.equal(sheetListStatus("failed").tone, "error");
+  assert.equal(sheetListStatus("empty").actionLabel, undefined);
+  assert.equal(sheetListStatus("empty-archived").actionLabel, undefined);
+  assert.equal(sheetListStatus("more-failed").actionLabel, "重试");
+  assert.equal(sheetListStatus("action-failed").actionLabel, undefined);
+  const gate = accessGateCopy();
+  for (const copy of [gate.connecting, gate.workspaceOpening, gate.workspaceFailed]) {
+    assert.ok(copy.title.length > 0 && copy.title.length <= 16, copy.title);
+    assert.ok(copy.detail.length > 0 && copy.detail.length <= 28, copy.detail);
+  }
+  assert.ok(gate.welcomeTitle.length <= 16);
+  assert.ok(gate.welcomeDetail.length <= 28);
+  assert.ok(gate.failedTitle.length <= 16);
+  assert.ok(gate.failedDetail.length <= 28);
+  assert.equal(gate.connecting.busy, true);
+  assert.equal(gate.workspaceOpening.busy, true);
+  assert.equal(gate.workspaceFailed.actionLabel, "再试一次");
+  assert.equal(gate.tokenLabel, "访问令牌");
+  assert.equal(gate.submitLabel, "打开工作台");
+  assert.match(gate.welcomeTitle, /Kleio/);
+  assert.match(gate.connecting.title, /Kleio/);
+  const chrome = [
+    ...sheetLines,
+    gate.welcomeTitle,
+    gate.welcomeDetail,
+    gate.connecting.title,
+    gate.connecting.detail,
+    gate.tokenLabel,
+    gate.tokenPlaceholder,
+    gate.helper,
+    gate.submitLabel,
+    gate.failedTitle,
+    gate.failedDetail,
+    gate.workspaceOpening.title,
+    gate.workspaceOpening.detail,
+    gate.workspaceFailed.title,
+    gate.workspaceFailed.detail,
+    gate.workspaceFailed.actionLabel ?? "",
+  ].join("\n");
+  assert.doesNotMatch(chrome, /\b(retry|loading|error|failed|thread|token|spinner|pnpm|offline)\b/i);
+  assert.doesNotMatch(chrome, /KLEIO_TOKEN/);
+  assert.equal(statusServerNote("  连接超时  "), "连接超时");
+  assert.equal(statusServerNote("   "), undefined);
+  assert.equal(statusServerNote(undefined), undefined);
+  const longNote = statusServerNote("x".repeat(80));
+  assert.equal(longNote?.length, 72);
+  assert.equal(longNote?.endsWith("…"), true);
 });
 
 test("an empty thread picks one status, and messages keep a single banner", () => {
