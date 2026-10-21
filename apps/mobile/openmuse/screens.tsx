@@ -40,6 +40,7 @@ import type {
 } from "../../../packages/openmuse-domain/src";
 import { API_URL } from "./api";
 import {
+  activityEventTitle,
   approvalStatusLabel,
   attachmentCountLabel,
   attendeeCountLine,
@@ -52,6 +53,7 @@ import {
   mailDraftDetail,
   mailListTabLabel,
   operationStatusLabel,
+  kleioComputerLinkCopy,
   returnKeyCaption,
   reviewGateLabel,
   richThreadValue,
@@ -1201,7 +1203,7 @@ export function ActivityScreen() {
                   <Clock3 size={16} color={colors.muted} />
                 </View>
                 <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={s.text}>{a.title}</Text>
+                  <Text style={s.text}>{activityEventTitle(a.title)}</Text>
                   <Text style={s.muted}>{resultSummary(a.detail)}</Text>
                   <Text style={s.small}>
                     {dateLabel(a.date)} · {timeLabel(a.date)}
@@ -1273,6 +1275,7 @@ export function ConnectionsScreen({ query = "" }: { query?: string }) {
       setBusy(false);
     }
   }
+  const kleioLink = kleioComputerLinkCopy();
   const google = w.connections.find((c) => c.id === "google");
   const connected = google?.status === "connected" || google?.status === "sample";
   const rows = [
@@ -1294,12 +1297,12 @@ export function ConnectionsScreen({ query = "" }: { query?: string }) {
       group: "browser",
     },
     {
-      id: "openbot",
-      name: "OpenBot",
+      id: "kleio",
+      name: kleioLink.name,
       icon: Sparkles,
       color: "#6866A6",
       connected: false,
-      group: "openbot",
+      group: "kleio",
     },
   ].filter((row) => `${row.name} ${row.group}`.toLowerCase().includes(query.toLowerCase()));
   return (
@@ -1372,7 +1375,7 @@ export function ConnectionsScreen({ query = "" }: { query?: string }) {
       {!rows.length && <Text style={s.muted}>没有匹配的连接器。</Text>}
       {selected && (
         <Sheet
-          title={selected === "google" ? "Google 连接" : "OpenBot"}
+          title={selected === "google" ? "Google 连接" : kleioLink.title}
           subtitle={selected === "google" ? google?.account : "给智能体用的电脑"}
           onClose={() => setSelected(undefined)}
         >
@@ -1430,7 +1433,7 @@ export function ConnectionsScreen({ query = "" }: { query?: string }) {
           ) : (
             <View style={{ gap: 14 }}>
               <Text style={s.small}>此工作台未启用。</Text>
-              <Text style={s.text}>OpenBot 还没接上。这台电脑现在用 Kleio 自己的浏览器工作进程。</Text>
+              <Text style={s.text}>{kleioLink.body}</Text>
               <Text style={s.muted}>接上之后，执行方式会换，这个界面还留着。</Text>
             </View>
           )}

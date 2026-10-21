@@ -142,10 +142,10 @@ export function composerPlaceholder(input: {
 
 /**
  * Web composer hint. Enter still sends and Shift+Enter still inserts a newline.
- * The words name those keys in Chinese.
+ * 回车 is the Enter key. 上档 is the Shift key. Neither name stays in English.
  */
 export function composerShortcutHint(): string {
-  return "回车发送，Shift+回车换行";
+  return "回车发送，上档+回车换行";
 }
 
 /**
@@ -1033,7 +1033,10 @@ export function shellTimeLabel(value: string, timeZone?: string): string {
   }
 }
 
-/** Android return-key caption. iOS still uses returnKeyType, which the system localizes. */
+/**
+ * Android return-key caption. iOS uses returnKeyType, which the system localizes.
+ * The composer does not set enterKeyHint on native, so this caption is not replaced by "Enter".
+ */
 export function returnKeyCaption(kind: "go" | "search" | "done" | "next" | "newline"): string {
   if (kind === "go") return "前往";
   if (kind === "search") return "搜索";
@@ -1387,12 +1390,12 @@ export function datePartLabel(label: string, part: "date" | "time"): string {
 }
 
 /**
- * Threads-sheet subtitle. Sample mode and the OpenMuse placeholder "You"
- * are not a person's name.
+ * Threads-sheet subtitle. Sample mode and placeholder names are not a person.
+ * OpenMuse and OpenBot are old product labels, not a display name.
  */
 export function shellProfileSubtitle(name: string | undefined, sample: boolean): string {
   const trimmed = name?.trim() ?? "";
-  if (sample || !trimmed || /^you$/i.test(trimmed)) return "你的工作台";
+  if (sample || !trimmed || /^(you|openmuse|openbot)$/i.test(trimmed)) return "你的工作台";
   return trimmed;
 }
 
@@ -1476,6 +1479,18 @@ export function financeCsvPlaceholder(): string {
 
 export function financeCsvSample(): string {
   return "日期,说明,金额,分类\n2026-09-01,工资,-4200,收入\n2026-09-02,买菜,84.50,餐饮\n2026-09-03,会员,19.99,订阅\n2026-09-04,咖啡,6.50,餐饮";
+}
+
+/**
+ * Disconnected computer link in 应用. The product name is Kleio.
+ * The old OpenBot title does not appear on the row or in the sheet.
+ */
+export function kleioComputerLinkCopy(): { name: string; title: string; body: string } {
+  return {
+    name: "Kleio",
+    title: "Kleio",
+    body: "外部执行还没接上。这台电脑现在用 Kleio 自己的浏览器工作进程。",
+  };
 }
 
 /** Example object for a document task. The sample field names are Chinese. */

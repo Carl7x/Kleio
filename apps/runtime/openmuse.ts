@@ -105,7 +105,7 @@ export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
     const workspace: Workspace = { mode: 'live', profile: { name: '', email: '' }, mail: [], events: [], files: [], browsers: [], actions: [],
       activity: host.work.notifications().map(displayedNotification).map(item => ({ id: item.id, title: item.title, detail: item.text, date: item.createdAt, status: item.readAt ? 'read' : 'unread' })),
       connections: [{ id: 'google', name: 'Google', status: 'unconfigured', capabilities: [] },
-        { id: 'browser', name: 'Browser', status: 'unconfigured', capabilities: [] }, { id: 'computer', name: 'Computer', status: 'unconfigured', capabilities: [] }],
+        { id: 'browser', name: '浏览器', status: 'unconfigured', capabilities: [] }, { id: 'computer', name: '电脑', status: 'unconfigured', capabilities: [] }],
       runtime: { provider: 'model', configured: Boolean(host.config.model.apiKey), openbotConfigured: false, richThreads: true, capabilities } };
     return c.json(workspace);
   });
