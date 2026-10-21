@@ -445,10 +445,147 @@ export function attendeeCountLine(count: number): string {
   return count > 0 ? `${count} 位参与者` : "属于你的时间";
 }
 
-/** Server text sits under the stable Chinese line. A long payload does not become the screen. */
+function noticeKey(value: string): string {
+  return value.replace(/\s+/g, " ").trim().toLowerCase().replace(/[.。]+$/g, "");
+}
+
+/**
+ * Known failure sentences that still arrive in English from the runtime,
+ * the access gate, or a tool. The whole sentence is replaced. Unknown text
+ * is not guessed from a substring.
+ */
+const SHELL_NOTICE_ZH: Record<string, string> = {
+  "local origin required": "请从本机打开 Kleio。",
+  "run pnpm mobile to enable device connections": "手机连接还没打开。",
+  "json required": "请求格式无法识别。",
+  "pairing code expired or incorrect. generate another code on your computer":
+    "配对码已失效。请在电脑上再生成一个。",
+  "launch link expired. reopen with pnpm web": "打开链接已失效。请重新打开网页。",
+  "authentication required": "需要先登录。",
+  "manage devices from your computer": "请在电脑上管理设备。",
+  "invalid request": "这个请求无法识别。",
+  "request failed; inspect persisted status before retrying":
+    "请求没有完成。请先看已保存的状态再重试。",
+  "request cancelled": "请求已取消。",
+  "the user aborted a request": "请求已取消。",
+  "failed to fetch": "没有连上 Kleio。",
+  "network request failed": "没有连上 Kleio。",
+  "load failed": "没有连上 Kleio。",
+  "networkerror when attempting to fetch resource": "没有连上 Kleio。",
+  "failed to load document": "无法显示此 PDF。",
+  "runtime is stopping": "Kleio 正在停止。",
+  "execution cancelled": "这次回复已取消。",
+  "execution already settled": "这次回复已经结束。",
+  "execution failed": "这次回复没有完成。",
+  "conversation not found": "没有找到这场对话。",
+  "execution not found": "没有找到这次回复。",
+  "request id already belongs to different content": "这条请求已经对应另一段内容。",
+  "command id already belongs to different content": "这条指令已经对应另一段内容。",
+  "delivery text is empty": "没有可写回的内容。",
+  "delivery request id is invalid": "写回请求无法识别。",
+  "background owner will decide recovery": "后台会决定是否恢复。",
+  "memory is disabled": "记忆已关闭。",
+  "memory recall is disabled": "记忆召回已关闭。",
+  "memory extraction is disabled": "记忆提取已关闭。",
+  "the native memory service could not save this statement": "记忆服务没有保存这句话。",
+  "active memory not found": "没有找到这条记忆。",
+  "tool is not available for this execution": "这次回复用不了这个工具。",
+  "tool unavailable for this execution": "这次回复用不了这个工具。",
+  "invalid tool policy": "工具权限无法核对。",
+  "invalid tool snapshot": "工具清单无法核对。",
+  "tool policy must use tool-name arrays": "工具权限格式无法识别。",
+  "execution is settling": "这次回复正在收尾。",
+  "execution is no longer active": "这次回复已经结束。",
+  "work list requires a conversation": "查看事务需要先有一场对话。",
+  "current user authorization is required": "需要你现在的明确同意。",
+  "quoted, hypothetical or negated text cannot authorize changes": "引用、假设或否定的话不能当作同意。",
+  "please provide an explicit task request": "请直接说要办的事。",
+  "the remembered text must be an exact current user statement": "要记住的话须与你刚才说的完全一致。",
+  "the corrected text must be an exact current user statement": "要更正的话须与你刚才说的完全一致。",
+  "explicit pause instruction required": "需要你明确说暂停。",
+  "explicit resume instruction required": "需要你明确说继续。",
+  "explicit stop instruction required": "需要你明确说停止。",
+  "explicit condition change required": "需要你明确说要改的条件。",
+  "explicit forgetting instruction required": "需要你明确说遗忘。",
+  "explicit correction instruction required": "需要你明确说更正。",
+  "revised research needs a new prompt, title, time, or schedule":
+    "修改研究时请给出新的内容、标题、时间或周期。",
+  "only a conversation turn can be retried": "只有对话里的这一轮可以重试。",
+  "only a stopped turn can be retried": "只有已停下的这一轮可以重试。",
+  "the message to retry was not found": "没有找到要重试的那条消息。",
+  "this turn already has a later attempt": "这一轮已经有更新的尝试。",
+  "this execution stopped under context control or started a write. inspect confirmed effects and send a new request instead of replaying it":
+    "这一轮已停下，或已经开始写入。请查看已确认的结果，再发一条新消息。",
+  "the execution context is no longer valid. start a new request with current information":
+    "这一轮的上下文已失效。请用当前信息重新发送。",
+  "skill policy cannot be verified. repair the policy file before starting a new request":
+    "技能策略无法核对。修好策略文件后再发新消息。",
+  "a started tool outcome remains unknown. inspect actual effects before making a new request":
+    "有个工具的结果还不确定。请先查看实际效果，再发新消息。",
+  "required context does not fit this execution budget. reduce required input or configure sufficient capacity":
+    "所需上下文超出了这一轮的容量。请缩短内容，或提高可用容量。",
+  "the configured model capacity cannot support this execution": "当前模型容量不够完成这一轮。",
+  "configure explicit positive model contextwindow and maxtokens before executing a model request":
+    "请先配置模型的上下文长度和输出上限。",
+  "the engine must support context bundle v1, request admission v1 and retained resource receipts v1":
+    "当前引擎还不支持这一轮所需的上下文能力。",
+  "this capability is not available in the kleio runtime": "Kleio 还没有这项能力。",
+  "the runtime stopped before the research outcome was confirmed": "研究在确认结果前中断了。",
+  "work task not found": "没有找到这项事务。",
+  "work run not found": "没有找到这次运行。",
+  "notification not found": "没有找到这条通知。",
+  "the task has changed": "这项事务已经变了。请刷新后再试。",
+  "the work host is stopping": "事务服务正在停止。",
+  "a direct user delegation is required": "需要你直接交代这项事务。",
+  "invalid work kind": "这种事务还不能办。",
+  "invalid task status": "这个事务状态无法识别。",
+  "only an active research matter can be paused": "只有进行中的研究可以暂停。",
+  "only a paused research matter can be resumed": "只有已暂停的研究可以继续。",
+  "stopped research cannot take new conditions": "已停止的研究不能再改条件。",
+  "pause, resume, and new conditions apply only to one research matter": "暂停、继续和改条件只用于一项研究。",
+  "research is not delivered until it is written to the original conversation": "研究还没写回原来的对话。",
+  "one-shot research requires at least one source url from web search": "这次研究需要至少一个网页来源。",
+  "review requires a persisted research result": "还没有可审阅的研究结果。",
+  "invalid review decision": "审阅结果无法识别。",
+  "one-shot research has no conversation writer": "这次研究还写不回对话。",
+  "periodic follow-up has no conversation writer": "这次跟进还写不回对话。",
+  "research evidence must use an http(s) source url": "来源须是 http 或 https 网址。",
+  "invalid research evidence": "研究来源无法识别。",
+  "invalid evidence kind": "来源类型无法识别。",
+  "invalid schedule": "这个周期无法识别。",
+  "at must be an iso timestamp with an explicit time zone": "请填写带时区的时间。",
+  "at must contain a valid calendar date": "请填写有效日期。",
+  "a reminder cannot use a follow-up schedule": "提醒不能使用跟进周期。",
+  "a periodic follow-up uses a cron schedule, not intervalms": "定期跟进请用周期，而不是固定间隔。",
+  "intervalms must be between one second and one year": "间隔须在一秒到一年之间。",
+  "the request identity belongs to different work": "这条请求已经对应另一项事务。",
+  "recovery cannot run while local work is active": "还有事务在进行，暂时不能恢复。",
+  "enter a condition value": "请填写条件。",
+  "enter a positive price": "请填写大于零的价格。",
+  "subject must be a single line": "主题请写在一行里。",
+  "end must be after a valid start": "结束时间要晚于开始。",
+  "all-day events need valid date-only values": "全天日程请填写日期。",
+  "timed events need valid date-times with an explicit offset": "请填写带时区的开始和结束时间。",
+  "invalid time zone": "这个时区无法识别。",
+  "calendar range must end after it starts and span at most 366 days":
+    "日历范围须晚于开始，且不超过 366 天。",
+  "computer control is not configured": "电脑还没有配置。",
+};
+
+/** Exact English failure sentence, or undefined when this text is not one of them. */
+export function knownShellNotice(message: string): string | undefined {
+  return SHELL_NOTICE_ZH[noticeKey(message)];
+}
+
+/**
+ * Server text under a Chinese status line.
+ * A known English sentence is replaced. Anything else is shortened, not rewritten.
+ */
 export function statusServerNote(message?: string, max = 72): string | undefined {
   const text = message?.replace(/\s+/g, " ").trim();
   if (!text) return undefined;
+  const known = knownShellNotice(text);
+  if (known) return known;
   if (text.length <= max) return text;
   return `${text.slice(0, max - 1)}…`;
 }
@@ -1070,8 +1207,9 @@ export function calendarDraftError(issues: readonly FormIssue[], allDay: boolean
 }
 
 /**
- * Chinese title first. A Chinese message stands alone.
- * Latin server text stays on the next line, shortened.
+ * Chinese title first. A Chinese message, including a known English sentence
+ * that statusServerNote has replaced, stands alone.
+ * Other Latin server text stays on the next line, shortened.
  */
 export function surfaceError(title: string, server?: string): string {
   const note = statusServerNote(server);
@@ -1256,7 +1394,7 @@ const COMPUTER_NOTICE_ZH: Record<string, string> = {
 export function computerWorkspaceNotice(message?: string): string | undefined {
   const text = message?.replace(/\s+/g, " ").trim();
   if (!text) return undefined;
-  const known = COMPUTER_NOTICE_ZH[text.toLowerCase()];
+  const known = COMPUTER_NOTICE_ZH[text.toLowerCase()] ?? knownShellNotice(text);
   if (known) return known;
   if (/[\u3400-\u9fff]/.test(text)) return text;
   const note = statusServerNote(text);
@@ -1305,17 +1443,6 @@ export function avatarLabel(id: string): string {
   return AVATAR_ZH[id.trim().toLowerCase()] ?? "头像";
 }
 
-const TASK_FAILURE_ZH: Record<string, string> = {
-  "the runtime stopped before the research outcome was confirmed.": "研究在确认结果前中断了。",
-  "the runtime stopped before the research outcome was confirmed": "研究在确认结果前中断了。",
-  "this capability is not available in the kleio runtime.": "Kleio 还没有这项能力。",
-  "this capability is not available in the kleio runtime": "Kleio 还没有这项能力。",
-  "the native memory service could not save this statement.": "记忆服务没有保存这句话。",
-  "the native memory service could not save this statement": "记忆服务没有保存这句话。",
-  "active memory not found": "没有找到这条记忆。",
-  "active memory not found.": "没有找到这条记忆。",
-};
-
 /**
  * A task or memory failure shown as its own line.
  * Chinese stays. A known English sentence is replaced. Other Latin keeps a Chinese lead.
@@ -1323,7 +1450,7 @@ const TASK_FAILURE_ZH: Record<string, string> = {
 export function taskFailureLine(error: string): string {
   const text = error.replace(/\s+/g, " ").trim();
   if (!text) return "";
-  const known = TASK_FAILURE_ZH[text.toLowerCase()];
+  const known = knownShellNotice(text);
   if (known) return known;
   const operation = knownOperationStatus(text);
   if (operation) return operation;

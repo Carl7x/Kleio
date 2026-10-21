@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { Linking, Text, type TextStyle } from "react-native";
 import Markdown, { type MarkdownStyles, type RenderRules } from "react-native-markdown-renderer";
 import { assistantMarkdown, isSafeAssistantUrl } from "./assistant-markdown";
+import { surfaceError } from "./chat-stream-rules";
 import { colors, ErrorNotice } from "./ui";
 
 const textStyle = { color: colors.text, fontSize: 16, lineHeight: 24 };
@@ -43,7 +44,7 @@ export function AssistantResponse({ content }: { content: string }) {
     if (!isSafeAssistantUrl(url)) return false;
     setLinkError("");
     void Linking.openURL(url).catch((error) =>
-      setLinkError(error instanceof Error ? error.message : String(error)),
+      setLinkError(surfaceError("链接没有打开。", error instanceof Error ? error.message : String(error))),
     );
     return false;
   }, []);

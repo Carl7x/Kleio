@@ -467,10 +467,8 @@ test("mail, file, and computer leftovers stay in short Chinese", () => {
     surfaceError("无法导入此 PDF。", "无法读取所选文件。请重新选择。"),
     "无法读取所选文件。请重新选择。",
   );
-  assert.equal(
-    surfaceError("无法显示此 PDF。", "Failed to load document"),
-    "无法显示此 PDF。\nFailed to load document",
-  );
+  assert.equal(surfaceError("无法显示此 PDF。", "Failed to load document"), "无法显示此 PDF。");
+  assert.equal(surfaceError("这封邮件没有保存。", "Authentication required"), "需要先登录。");
   assert.equal(
     googleCapabilityLabel("https://www.googleapis.com/auth/gmail.readonly"),
     "读取 Gmail",
@@ -744,6 +742,32 @@ test("calendar fields, the thread sheet, and computer notices stay in Chinese", 
     ].join("\n"),
     /\b(date|time|you|computer control)\b/i,
   );
+});
+
+test("known chat, gate, and tool failures replace the English sentence", () => {
+  const samples = [
+    ["Authentication required", "需要先登录。"],
+    ["Pairing code expired or incorrect. Generate another code on your computer.", "配对码已失效。请在电脑上再生成一个。"],
+    ["Execution cancelled", "这次回复已取消。"],
+    ["Only a stopped turn can be retried", "只有已停下的这一轮可以重试。"],
+    ["Memory recall is disabled", "记忆召回已关闭。"],
+    ["The runtime stopped before the research outcome was confirmed.", "研究在确认结果前中断了。"],
+    ["Work task not found.", "没有找到这项事务。"],
+    ["Enter a positive price", "请填写大于零的价格。"],
+    ["Invalid time zone", "这个时区无法识别。"],
+    ["Failed to fetch", "没有连上 Kleio。"],
+    ["Request cancelled", "请求已取消。"],
+  ] as const;
+  for (const [english, chinese] of samples) {
+    assert.equal(statusServerNote(english), chinese);
+    assert.equal(taskFailureLine(english), chinese);
+  }
+  assert.equal(statusServerNote("  Execution cancelled.  "), "这次回复已取消。");
+  assert.equal(statusServerNote("连接超时"), "连接超时");
+  assert.match(taskFailureLine("socket hang up"), /^这次没有完成。/);
+  assert.match(statusServerNote("socket hang up") ?? "", /socket hang up/);
+  const shown = samples.map(([, chinese]) => chinese).join("\n");
+  assert.doesNotMatch(shown, /\b(authentication|execution|cancelled|fetch|required|timezone)\b/i);
 });
 
 test("activity titles, memory sources, avatars, and task failures drop leftover English", () => {
