@@ -97,7 +97,7 @@ test('one-shot research writes searched URLs into the original conversation once
   assert.equal(pausedBody.progressLabel, '已停止');
   assert.equal(pausedBody.hold, 'paused');
   assert.equal(pausedBody.delivered, false);
-  const revised = await app.request(`http://127.0.0.1/api/openmuse/research/${later.id}/control`, { method: 'POST', headers, body: JSON.stringify({ action: 'revise', prompt: '只看新的公开条件' }) });
+  const revised = await app.request(`http://127.0.0.1/api/kleio/research/${later.id}/control`, { method: 'POST', headers, body: JSON.stringify({ action: 'revise', prompt: '只看新的公开条件' }) });
   assert.equal(revised.status, 200);
   const revisedBody = await revised.json() as { progress: string; hold: string; task: { prompt: string; constraintVersion: number; constraints: Array<{ source: { messageId: string } }> } };
   assert.equal(revisedBody.task.prompt, '只看新的公开条件');
@@ -119,6 +119,6 @@ test('one-shot research writes searched URLs into the original conversation once
   assert.equal(stoppedBody.delivered, false);
   const refused = await app.request(`http://127.0.0.1/api/kleio/research/${later.id}/control`, { method: 'POST', headers, body: JSON.stringify({ action: 'resume' }) });
   assert.equal(refused.status, 409);
-  const unread = await app.request(`http://127.0.0.1/api/openmuse/research/openmuse:${later.id}/read`, { method: 'POST', headers });
+  const unread = await app.request(`http://127.0.0.1/api/kleio/research/kleio:${later.id}/read`, { method: 'POST', headers });
   assert.equal(unread.status, 409);
 });

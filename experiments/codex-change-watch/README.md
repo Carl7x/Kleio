@@ -30,7 +30,7 @@ CLI 也接受一个 JSON 文件：`node experiments/codex-change-watch/cli.mjs i
 未发现独立的观察差异模块。
 
 本探索只新增 `experiments/codex-change-watch/`。不修改 `host.ts`、任务运行时、
-OpenMuse API、客户端页面、锁文件或根 workspace；不接管 I03 调度或 I04 UI。
+Kleio API、客户端页面、锁文件或根 workspace；不接管 I03 调度或 I04 UI。
 未来即使两者另有负责人，也可独立评估是否采用这个无依赖模块。
 双方未就该接入作出约定；没有联系其他机器人。
 
@@ -85,8 +85,8 @@ I03 触发器 → 公开来源读取器 → 完整性/区域提取校验
 
 ## 参考采用与差异
 
-`page-diff.mjs` 从本地 OpenMuse `1ac68f3909f2` 的
-`apps/server/src/engine/page-diff.ts` 适配行配对算法，保留 MIT 许可于 `LICENSE.openmuse`。
+`page-diff.mjs` 从上游提交 `1ac68f3909f2` 的
+`apps/server/src/engine/page-diff.ts` 适配行配对算法，保留 MIT 许可于 `LICENSE.upstream`。
 与上游的差异：
 
 - 比较数据不裁剪，超界返回不确定，避免行尾改动被吃掉。

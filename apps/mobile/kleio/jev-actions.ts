@@ -118,7 +118,7 @@ function actionFromText(text: string): JevAction | null {
   }
 }
 
-/** A saved choice matches whether it was stored with the current or legacy marker. */
+/** A saved choice matches the encoded Kleio marker, including equivalent action JSON. */
 function sameStoredChoice(stored: string | null, encoded: string): boolean {
   if (!stored) return false;
   if (stored === encoded) return true;

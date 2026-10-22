@@ -1,6 +1,5 @@
-Kleio's Expo client adapts presentation code from OpenMuse.
+Kleio's Expo client adapts MIT-licensed presentation code.
 
-Upstream: https://github.com/CopilotKit/OpenMuse
 Revision: 1ac68f3909f2478ab6280883f1ab5ea65eb5719d
 Source: apps/mobile (client components and capybara asset), packages/domain/src (UI contracts)
 Copyright (c) 2026 OpenMuse contributors

@@ -1,5 +1,5 @@
-// Adapted from OpenMuse 1ac68f3909f2, apps/server/src/engine/page-diff.ts.
-// MIT, Copyright (c) 2026 OpenMuse contributors. See LICENSE.openmuse.
+// Adapted from upstream commit 1ac68f3909f2, apps/server/src/engine/page-diff.ts.
+// MIT. See LICENSE.upstream.
 // Changes: retain before/after pairs; never clip compared data; relative-time
 // suppression is opt-in and limited to whole, labelled metadata lines.
 

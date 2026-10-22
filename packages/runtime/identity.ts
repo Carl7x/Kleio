@@ -12,10 +12,8 @@ export interface PresentationIdentity {
 const AVATARS = ['sky', 'sand', 'lilac'] as const;
 type Avatar = typeof AVATARS[number];
 
-/** Presentation mirror. New writes use this key. */
+/** Presentation mirror for avatar, showChatUpdates, and a copy of the effective name and tone. */
 export const identitySettingKey = 'kleio.identity';
-/** Read-only fallback for installs that stored the mirror before the Kleio key. */
-export const legacyIdentitySettingKey = 'openmuse.identity';
 
 interface StoredIdentity {
   name: string;
@@ -29,14 +27,11 @@ interface StoredIdentity {
  * 1. A valid standing/IDENTITY.md field, read on every request.
  * 2. Product default Kleio / warm when the file is missing, blank, or invalid.
  * 3. kleio.identity is only the presentation mirror (avatar, showChatUpdates, and a copy of the effective name and tone).
- *    openmuse.identity is read when the Kleio key is absent, and is not written.
  * The mirror is seeded into a newly created IDENTITY.md once. After that, file edits win and the mirror is updated to match.
  * Startup never overwrites an existing standing file.
  */
 function readIdentityRaw(store: RuntimeStore): unknown {
-  const current = store.getSetting<unknown>(identitySettingKey, null);
-  if (current != null) return current;
-  return store.getSetting<unknown>(legacyIdentitySettingKey, null);
+  return store.getSetting<unknown>(identitySettingKey, null);
 }
 
 function writeIdentityMirror(store: RuntimeStore, identity: PresentationIdentity): void {

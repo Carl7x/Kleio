@@ -16,10 +16,10 @@
 身份优先级：
 
 1. 已有且合法的 `standing/IDENTITY.md` Name / Tone 是提示词权威。
-2. 仅当本次启动新建了 `IDENTITY.md`，且 `openmuse.identity` 里已有合法 name / tone 时，用该设置播种一次。
+2. 仅当本次启动新建了 `IDENTITY.md`，且 `kleio.identity` 里已有合法 name / tone 时，用该设置播种一次。
 3. 文件存在之后，直接改文件在下一轮生效；读取身份接口时同步 SQLite 展示镜像。prompt 始终读取文件，镜像不是另一份配置权威。
 4. 缺失、空白或非法的 name / tone 使用产品默认 Kleio / warm，并在上下文里说明原因。
-5. avatar 与 `showChatUpdates` 仍只在 `openmuse.identity`。`POST /api/agent/identity` 写 name / tone 到文件并更新镜像。
+5. avatar 与 `showChatUpdates` 仍只在 `kleio.identity`。`POST /api/agent/identity` 写 name / tone 到文件并更新镜像。
 
 对话轮按当前意图装载 0–2 个技能：`forget`、`self-awareness`、`wide-research`。研究与 review 轮不装载技能。进入上下文的用户可编辑内容，包括技能 description 等元数据，都经过遗忘脱敏。能力快照区分已实现、配置模式（`web_search` 为 `api-key` 或 `keyless`）和本轮是否可调用；没有密钥不等于宣称无法搜索。
 
@@ -29,7 +29,7 @@
 - `packages/runtime/identity.ts`：身份 API 与文件权威
 - `packages/runtime/host.ts`：执行开始时汇编产品上下文
 - `packages/runtime/l1-standing.test.ts`
-- `apps/runtime/openmuse.ts`：身份读写走 standing
+- `apps/runtime/kleio.ts`：身份读写走 standing
 - `scripts/verify-l1-live-model.ts`：显式 opt-in 脚本，本代理未对真实供应商执行
 - `package.json`：增加 `verify:l1-live`
 - `tsconfig.runtime.json`、`README.md`

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   encodeJevAction,
-  legacyJevActionPrefix,
   parseJevAction,
 } from "../../../packages/kleio-domain/src/jev.ts";
 import { displayJevUserMessage, retryChoiceAvailable } from "./jev-actions.ts";
@@ -213,7 +212,7 @@ test("calendar, monitor, and connection lines drop the leftover English", () => 
   assert.equal(localChatAgentId("thread-1"), "kleio-thread-1");
   assert.doesNotMatch(
     [richThreadLabel(), pairedDeviceName(), localChatAgentId("thread-1")].join("\n"),
-    /openmuse|openbot|iphone|rich thread/i,
+    /openbot|iphone|rich thread/i,
   );
   assert.equal(monitorCadenceLine(15, 3), "每 15 分钟 · 已查 3 次");
   assert.equal(monitorCheckLine("尚未检查"), "上次 尚未检查");
@@ -775,7 +774,6 @@ test("calendar fields, the thread sheet, and computer notices stay in Chinese", 
   assert.doesNotMatch(datePartLabel("开始", "date"), /\bdate\b/i);
   assert.doesNotMatch(datePartLabel("开始", "time"), /\btime\b/i);
   assert.equal(shellProfileSubtitle("You", false), "你的工作台");
-  assert.equal(shellProfileSubtitle("OpenMuse", false), "你的工作台");
   assert.equal(shellProfileSubtitle("OpenBot", false), "你的工作台");
   assert.equal(shellProfileSubtitle("  ", true), "你的工作台");
   assert.equal(shellProfileSubtitle("小洋", false), "小洋");
@@ -783,7 +781,7 @@ test("calendar fields, the thread sheet, and computer notices stay in Chinese", 
   assert.equal(kleioLink.name, "Kleio");
   assert.equal(kleioLink.title, "Kleio");
   assert.equal(kleioLink.body, "外部执行还没接上。这台电脑现在用 Kleio 自己的浏览器工作进程。");
-  assert.doesNotMatch(`${kleioLink.name}\n${kleioLink.title}\n${kleioLink.body}`, /OpenBot|OpenMuse|openbot|openmuse/);
+  assert.doesNotMatch(`${kleioLink.name}\n${kleioLink.title}\n${kleioLink.body}`, /OpenBot|openbot/);
   assert.equal(computerWorkspaceNotice("Computer control is not configured."), "电脑还没有配置。");
   assert.equal(computerWorkspaceNotice("电脑已停止。"), "电脑已停止。");
   assert.equal(computerWorkspaceNotice("docker socket missing"), "电脑说明\n具体原因没有显示。");
@@ -931,7 +929,7 @@ test("activity titles, memory sources, avatars, and task failures drop leftover 
     choiceUnavailableLine(),
     taskFailureLine("The native memory service could not save this statement."),
   ].join("\n");
-  assert.doesNotMatch(copy, /task created|conversation|authenticated|lilac|native memory|OpenMuse|CONTEXT_|SOME_OTHER/i);
+  assert.doesNotMatch(copy, /task created|conversation|authenticated|lilac|native memory|CONTEXT_|SOME_OTHER/i);
 });
 
 test("engine, document, network, and keyboard leftovers stay in Chinese", () => {
@@ -1003,7 +1001,7 @@ test("engine, document, network, and keyboard leftovers stay in Chinese", () => 
   );
 });
 
-test("stored choices drop the OpenMuse marker and still read the old prefix", () => {
+test("stored choices use the Kleio marker", () => {
   const action = {
     panelId: "panel-1",
     threadId: "thread-1",
@@ -1025,19 +1023,16 @@ test("stored choices drop the OpenMuse marker and still read the old prefix", ()
     { role: "tool", toolCallId: "call-1", content: JSON.stringify({ panel }) },
   ];
   const stored = encodeJevAction(action);
-  const legacy = legacyJevActionPrefix + JSON.stringify(action);
   assert.equal(stored.startsWith("[Kleio 选择] "), true);
-  assert.equal(legacy.startsWith("[OpenMuse choice] "), true);
   assert.deepEqual(parseJevAction(stored), action);
-  assert.deepEqual(parseJevAction(legacy), action);
+  assert.equal(parseJevAction("plain text"), null);
   assert.equal(displayJevUserMessage(stored, messages), "已选：左边");
-  assert.equal(displayJevUserMessage(legacy, messages), "已选：左边");
-  assert.equal(displayJevUserMessage(`${legacyJevActionPrefix}{`, messages), "选项不可用");
+  assert.equal(displayJevUserMessage("[Kleio 选择] {", messages), "选项不可用");
   assert.equal(displayJevUserMessage("我想选左边", messages), "我想选左边");
   assert.equal(
-    retryChoiceAvailable(panel, "thread-1", "panel-1", "left", legacy, false, false),
+    retryChoiceAvailable(panel, "thread-1", "panel-1", "left", stored, false, false),
     true,
   );
-  const shown = [stored, displayJevUserMessage(stored, messages), displayJevUserMessage(legacy, [])].join("\n");
-  assert.doesNotMatch(shown, /OpenMuse|OpenBot|openmuse/);
+  const shown = [stored, displayJevUserMessage(stored, messages)].join("\n");
+  assert.doesNotMatch(shown, /OpenBot|openbot/);
 });

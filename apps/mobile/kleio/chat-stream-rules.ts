@@ -1625,11 +1625,11 @@ export function datePartLabel(label: string, part: "date" | "time"): string {
 
 /**
  * Threads-sheet subtitle. Sample mode and placeholder names are not a person.
- * OpenMuse and OpenBot are old product labels, not a display name.
+ * OpenBot is an old product label, not a display name.
  */
 export function shellProfileSubtitle(name: string | undefined, sample: boolean): string {
   const trimmed = name?.trim() ?? "";
-  if (sample || !trimmed || /^(you|openmuse|openbot)$/i.test(trimmed)) return "你的工作台";
+  if (sample || !trimmed || /^(you|openbot)$/i.test(trimmed)) return "你的工作台";
   return trimmed;
 }
 

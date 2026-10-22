@@ -77,20 +77,15 @@ export const jevActionSchema = z
     optionId: id,
   })
   .strict();
-/**
- * New choices are stored with this marker. The legacy OpenMuse marker is only
- * accepted when reading older rows, so a saved request keeps its original bytes.
- */
+/** Choices are stored with this marker. */
 export const jevActionPrefix = "[Kleio 选择] ";
-export const legacyJevActionPrefix = "[OpenMuse choice] ";
-const jevActionPrefixes = [jevActionPrefix, legacyJevActionPrefix] as const;
 export type JevSource = z.infer<typeof jevSourceSchema>;
 export type JevOption = z.infer<typeof jevOptionSchema>;
 export type JevPanel = z.infer<typeof jevPanelSchema>;
 export type JevToolResult = z.infer<typeof jevToolResultSchema>;
 export type JevAction = z.infer<typeof jevActionSchema>;
 export function jevActionPrefixOf(text: string): string | null {
-  return jevActionPrefixes.find((prefix) => text.startsWith(prefix)) ?? null;
+  return text.startsWith(jevActionPrefix) ? jevActionPrefix : null;
 }
 export function encodeJevAction(action: JevAction): string {
   return jevActionPrefix + JSON.stringify(jevActionSchema.parse(action));

@@ -80,4 +80,4 @@ Keep credentials, runtime data, personal examples, internal research notes and v
 
 ## License
 
-Apache-2.0. The Expo client incorporates MIT-licensed OpenMuse presentation code; its attribution and license are preserved in [third_party/openmuse](third_party/openmuse/NOTICE). Dependencies retain their respective licenses.
+Apache-2.0. The Expo client incorporates MIT-licensed upstream presentation code; its attribution and license are preserved in [third_party/upstream-notice](third_party/upstream-notice/NOTICE). Dependencies retain their respective licenses.
