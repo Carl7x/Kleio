@@ -11,7 +11,7 @@ import { ensureSkills, ensureStanding, SKILL_LIMIT } from '../product-context/in
 import type { Engine, ExecutionInput } from './contracts.ts';
 import type { RuntimeConfig } from './config.ts';
 import { RuntimeHost } from './host.ts';
-import { identitySettingKey, legacyIdentitySettingKey } from './identity.ts';
+import { identitySettingKey } from './identity.ts';
 import { RuntimeStore } from './store.ts';
 
 function fixture(engine: Engine) {
@@ -58,7 +58,7 @@ test('identity API, file edits, and restart share one standing name', async t =>
     port: 4317, token: 'test-token-0123456789abcd', dataDirectory: directory,
     model: { ...TEST_MODEL_CAPACITY, baseURL: 'https://api.deepseek.com', id: 'test', apiKey: '' }, memoryIdleMs: 120_000,
   };
-  store.setSetting(legacyIdentitySettingKey, { name: '旧名', tone: 'thoughtful', avatar: 'lilac', showChatUpdates: false });
+  store.setSetting(identitySettingKey, { name: '旧名', tone: 'thoughtful', avatar: 'lilac', showChatUpdates: false });
   const live: ExecutionInput[] = [];
   const current = new RuntimeHost(store, engine(live), config);
   let restarted: RuntimeHost | undefined;
@@ -80,7 +80,6 @@ test('identity API, file edits, and restart share one standing name', async t =>
   assert.equal(saved.avatar, 'lilac');
   assert.equal(saved.showChatUpdates, false);
   assert.deepEqual(store.getSetting(identitySettingKey, null), { name: '河洛', tone: 'concise', avatar: 'lilac', showChatUpdates: false });
-  assert.deepEqual(store.getSetting(legacyIdentitySettingKey, null), { name: '旧名', tone: 'thoughtful', avatar: 'lilac', showChatUpdates: false });
   assert.match(readFileSync(join(directory, 'standing/IDENTITY.md'), 'utf8'), /- Name: 河洛\n- Tone: concise/);
   const conversation = store.createConversation('身份');
   const first = await settle(current, current.submit(conversation.id, '你好', 'hello').id);

@@ -2,7 +2,7 @@
 
 Expo 57, React Native 0.86 and React Native Web share the application screens.
 The Expo client lives in `kleio/`. MIT attribution for the incorporated upstream
-presentation code is in `../../third_party/openmuse`. Local adapters connect
+presentation code is in `../../third_party/upstream-notice`. Local adapters connect
 those presentation contracts to Kleio.
 
 From the repository root:

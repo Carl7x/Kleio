@@ -286,7 +286,7 @@ flowchart TD
 
 ## 9. 迁移与兼容约定
 
-1. **Standing 不覆盖。** 现有五文件原样保留，Name/Tone 的现有 API 与默认规则保留；文件仍为权威，旧 `openmuse.identity` 只做原有一次播种和展示镜像。新产品行为规则独立发布，不向用户文件强灌长文。
+1. **Standing 不覆盖。** 现有五文件原样保留，Name/Tone 的现有 API 与默认规则保留；文件仍为权威，`kleio.identity` 只做新建文件时的一次播种和展示镜像。新产品行为规则独立发布，不向用户文件强灌长文。
 2. **技能格式兼容读。** v1 index 的 enabled/requiresTools/toolBindings 读取并归一；旧 `id` frontmatter 保持有效。初次不强制改写用户文件。内置包更新仅对“与已知旧模板 hash 完全相同”的副本进行版本化迁移且先备份；有自定义内容则保留并提示适配诊断，不假装升级成功。
 3. **唯一运行路径。** 新旧格式在输入层归一后都走同一个 catalog/reader/compiler，不能保留关键词 selector 作为悄悄兜底。功能切换回滚按明确配置和备份进行；诊断清楚显示旧模式，没有双份状态真相。
 4. **记忆不迁库。** claims/provenance/纠正链/遗忘屏障、历史消息和工作数据保留；记忆关闭漏检修复纳入本轮。新版 sourceRef/manifest 必须可通过领域服务复查，不能用快照绕过屏障。
@@ -883,7 +883,7 @@ G5/G6 分别需要独立源码研究、设计与机制验收；多用户 Postgre
 | **S1 目录与包快照** | 新 `product-context/skill-catalog.ts`、`skill-store.ts`、对应测试；可新增 skills 契约；package.json/lock 仅固定 yaml 依赖。暂不改 Host/compiler/旧 selector | §17.2 Codex/OpenClaw/Hermes。无前置实现依赖；新第四/第五技能无选择器改动可发现、严格 YAML、index非白名单、工具资格、普通编辑版本、禁用拒绝、关联资源稳定快照、路径/UTF8/上限。禁止自写 YAML/运行脚本/装依赖/长期缓存 |
 | **S2 资源 ledger 与实际请求回执** | 新 runtime/resource-ledger.ts 与中立资源契约；runtime/request-admission、context-contracts/request-admission；harness request-admission 插件及 tests；engines/dsh 固定错误映射 | §13.2/17.3；可与 S1 并行（不写其文件）。完整资源原子预留、4096字节页、opaque cursor绑定/并发重复、cancel释放、真实 tool-role pairing/digest/伪造/缺失、每轮 gate。真实 pinned DSH+脚本模型验证结果形状，不能只用假 messages 通过 |
 | **S3 ContextBundle 与预算编排** | 新 context-contracts/bundle.ts、product-context/context-bundle.ts 及测试；独立serialize模块供adapter使用，不改 Host/S1/S2 | G3/4 中立结构与成熟历史机制。纯输入 parts/tools/capacity→bundle+manifest+history projection；必需项不能截断，候选整项选择、目录fallback、动态预留、零调用预算失败、来源哈希/省略原因、相同bundle在recording adapter可消费；不引入数据库/DSH依赖 |
-| **S4 Host 与生产入口接通** | host/config/contracts、app/openmuse/index必要接线、compile/skills/index/tool-catalog、engines/dsh；新增集成 tests；旧tests只更新明确被替换的展示合同 | S1/2/3 独立通过后串行。注册 skills_list/skill_read/context_read（conversation/research/legacy；memory/review仍无工具），真实 registry绑定；所有执行走bundle/admission；目录初始零正文、工具读取资源、历史handle、G3standing快照不回退。保留旧10工具业务合同，新增3工具导致数量变化是预期；旧 Loaded1 Playbook 改为目录+实际读取证据，不能削弱记忆权限/L0断言 |
+| **S4 Host 与生产入口接通** | host/config/contracts、apps/runtime/kleio.ts必要接线、compile/skills/index/tool-catalog、engines/dsh；新增集成 tests；旧tests只更新明确被替换的展示合同 | S1/2/3 独立通过后串行。注册 skills_list/skill_read/context_read（conversation/research/legacy；memory/review仍无工具），真实 registry绑定；所有执行走bundle/admission；目录初始零正文、工具读取资源、历史handle、G3standing快照不回退。保留旧10工具业务合同，新增3工具导致数量变化是预期；旧 Loaded1 Playbook 改为目录+实际读取证据，不能削弱记忆权限/L0断言 |
 | **S5 失效与跨 await 复核** | Host/mutation入口/必要Work回写hook及对应测试，独占S4同模块 | S4通过后；外部memory off、correct/forget、技能禁用、工具收紧撤销旧输出和写回；排队新epoch、工具成功确定性确认、失败不确认、真实副作用保留、无死锁；旧callback/用户伪receipt不扩权。禁止仅发abort不检查输出、自动重跑整个写操作 |
 | **S6 独立整体验收与文档结算** | 新合成API/SQLite/脚本模型/真实模型探针、证据与同一审阅页；修复返交原开发者 | 新技能元信息→正文→引用资源完整回答；未用body不在首请求；超预算/伪造/缺失阻止下一模型调用；真实模型仅合成资料且限制轮次。旧L0/G1/G2/G3/G4回归、tsc、已知history/review失败另列。未验证UI/ECS明确标注 |
 
@@ -928,7 +928,7 @@ S5b 的技能政策 IO 再隔离为 **S5p 小任务**（可与 Host 接线并行
 
 ### 17.9 S5b 就绪补充：终态、API 与验收边界
 
-S4b、S5a、S5p 已经独立通过，现派发 S5b。写入白名单：`runtime/host.ts`、必要的 `context-preparation.ts`/`contracts.ts`/`store.ts`（只增兼容JSON字段，不迁表）、`apps/runtime/app.ts` 和 `openmuse.ts` 的 memory mutation 入口、新的 Host 生命周期测试与必要真实DSH测试；已有测试仅按明确的受控停止合同更新。S1–S3/S4a/Work领域提交守卫不由此任务重写。参考源码仍为 §17.2 OpenClaw generation/assertActive 跨await复核；策略由 Kleio Host 所有，既有领域事务复用。
+S4b、S5a、S5p 已经独立通过，现派发 S5b。写入白名单：`runtime/host.ts`、必要的 `context-preparation.ts`/`contracts.ts`/`store.ts`（只增兼容JSON字段，不迁表）、`apps/runtime/app.ts` 和 `kleio.ts` 的 memory mutation 入口、新的 Host 生命周期测试与必要真实DSH测试；已有测试仅按明确的受控停止合同更新。S1–S3/S4a/Work领域提交守卫不由此任务重写。参考源码仍为 §17.2 OpenClaw generation/assertActive 跨await复核；策略由 Kleio Host 所有，既有领域事务复用。
 
 - **私有执行资格**：每个 Host 使用新安全整数 generation；实际 pump 开始捕获 epoch。guard 保留到 Work 提交之后，不依赖 active.has。执行在途工具按执行归属追踪，结算仅等待本执行工具收敛，不能在 mutation handler 等待自己。关闭 Host、政策失效和显式取消都撤销后台提交资格。
 - **政策来源**：新增禁用技能、外部 correct/forget、memory true→false、工具有效集合收紧同步撤销；同值设置、放宽、普通技能正文和index格式变化不撤销。SkillStore malformed policy fail closed，诊断不能伪称用户禁用了所有技能。下一模型请求/工具dispatch/文本与终态检查政策；250ms级轻量检查只覆盖执行期间，文件政策不承诺跨进程原子一致。排队任务实际开始取新值，memory关闭时排队抽取不能执行。
@@ -1029,9 +1029,9 @@ H1 首次开发38秒、独立审查8秒，3/3通过；H2a开发51秒、独立审
 
 ### 18.5 H1b：通知的前后端投影一致性（补查确认后就绪）
 
-真实 Host/隔离 SQLite 的[探针](../../reference/kleio-design/evidence/context-loading-history-review/notification-display-probe.mts)与[结果](../../reference/kleio-design/evidence/context-loading-history-review/notification-display-probe.log)确认：GET `/api/notifications` 已脱敏，但其 POST `/:id/read`、OpenMuse 的 GET `/api/agent` notifications、GET `/api/agent/notifications`、POST `/api/agent/notifications/:id/read` 及 GET `/api/workspace` activity 都返回原通知正文。这不是 fixture 问题；若只修H1单测，现有前端仍会得到遗忘内容。因此作为本轮通知展示兼容小任务修复，不扩展UI功能。
+真实 Host/隔离 SQLite 的[探针](../../reference/kleio-design/evidence/context-loading-history-review/notification-display-probe.mts)与[结果](../../reference/kleio-design/evidence/context-loading-history-review/notification-display-probe.log)确认：GET `/api/notifications` 已脱敏，但其 POST `/:id/read`、Kleio 的 GET `/api/agent` notifications、GET `/api/agent/notifications`、POST `/api/agent/notifications/:id/read` 及 GET `/api/workspace` activity 都返回原通知正文。这不是 fixture 问题；若只修H1单测，现有前端仍会得到遗忘内容。因此作为本轮通知展示兼容小任务修复，不扩展UI功能。
 
-复用 MemoryRuntime.redactBlocked 的已有事实屏障；新增纯展示 helper `apps/runtime/notification-projection.ts`，输入只读通知和真实redactor，输出保留ID/readAt等字段的副本，title/text统一脱敏，不能更新原始领域记录。`app.ts` 与 `openmuse.ts` 所有上述路径先投影再转换为text/body/detail；POST已读先按原接口落库，再投影返回。无新权限、配置、数据库或外部框架；无需为了单一投影机制另引成熟库。
+复用 MemoryRuntime.redactBlocked 的已有事实屏障；新增纯展示 helper `apps/runtime/notification-projection.ts`，输入只读通知和真实redactor，输出保留ID/readAt等字段的副本，title/text统一脱敏，不能更新原始领域记录。`app.ts` 与 `kleio.ts` 所有上述路径先投影再转换为text/body/detail；POST已读先按原接口落库，再投影返回。无新权限、配置、数据库或外部框架；无需为了单一投影机制另引成熟库。
 
 H1b写入白名单为新helper、上述两个API文件的通知展示接线、`packages/runtime/notification-projection.test.ts`。与H2b Host写入独立。验收真实memory forget、6个路径的正文/标题屏障、响应形状与ID不变、readAt持久且重读一致、原始通知正文保留、scope与默认限制仍通过H1。禁止删除历史、仅客户端遮盖、响应过滤整条通知或伪造已读成功。任务详情/研究归档的全量隐私展示审计不在此小任务中，也不宣称已完成。
 
@@ -1051,7 +1051,7 @@ H1b写入白名单为新helper、上述两个API文件的通知展示接线、`p
 
 **成熟机制**：OpenClaw同一已记录HEAD的 `src/gateway/chat-display-projection.core.ts::projectChatDisplayMessage → projectChatDisplayMessages`逐条消息投影与可见性检查，不以user作为assistant显示前提。适配其“完整消息流投影”机制，不移植其整套过滤/字符截断/框架。本产品沿用已有executionMessages事件映射、持久sequence和delivery幂等ID。
 
-**H4小任务**：仅新增纯 `apps/mobile/openmuse/conversation-history.ts`（名称可按现有命名一致调整）及其test、`kleio-headless.tsx`的投影接线；必要时把既有Message类型和executionMessages纯函数等价迁入新模块并re-export，不能重写状态/网络层。输入 `{conversationId,saved,executions,eventsByExecution}`，输出既有Message[]。遍历完整saved消息：独立completed assistant保留原ID/正文；普通conversation response块按其持久assistant的sequence放置，并继续展开既有text/tool顺序；尚无持久assistant的活动/失败尝试保留user锚点兼容。按消息ID和executionID去重，不能按正文去重。缺execution元数据的completed持久assistant可直接回退展示；跨会话数据排除；不能把非completed孤立消息伪装成成功交付。仅显示已持久交付消息，严禁因为取消kind过滤而渲染内部review JSON、内存抽取、其他后台执行文本。pending用户和重试/错误/停止行为保持现有逻辑。
+**H4小任务**：仅新增纯 `apps/mobile/kleio/conversation-history.ts`（名称可按现有命名一致调整）及其test、`kleio-headless.tsx`的投影接线；必要时把既有Message类型和executionMessages纯函数等价迁入新模块并re-export，不能重写状态/网络层。输入 `{conversationId,saved,executions,eventsByExecution}`，输出既有Message[]。遍历完整saved消息：独立completed assistant保留原ID/正文；普通conversation response块按其持久assistant的sequence放置，并继续展开既有text/tool顺序；尚无持久assistant的活动/失败尝试保留user锚点兼容。按消息ID和executionID去重，不能按正文去重。缺execution元数据的completed持久assistant可直接回退展示；跨会话数据排除；不能把非completed孤立消息伪装成成功交付。仅显示已持久交付消息，严禁因为取消kind过滤而渲染内部review JSON、内存抽取、其他后台执行文本。pending用户和重试/错误/停止行为保持现有逻辑。
 
 验收覆盖：独立交付位于两轮之间/同毫秒按sequence、有相同正文不同ID的两次合法交付、重复hydrate不重复、正常tool顺序、失败与重试、缺execution回退、跨会话排除、活动执行与pending不重复。开发由Codex+6.1Sol、不同agent只读审查；父级跑纯projection与原客户端API/后端回归，再构建Web并复跑原浏览器验收，不修改脚本跳过研究交付。
 
@@ -1098,7 +1098,7 @@ HEAD为 `040f30b3f4976e87f4a26a8d9de2757739083ed3`，使用有既有修改的工
 - `RuntimeHost`构造时WorkRuntime与RuntimeStore共用DatabaseSync；`tick.deliver → RuntimeStore.insertAssistantMessage`嵌套在`WorkRuntime.storeReview`同步savepoint中，消息、kw_deliveries和run终态同事务提交；`research-delivery:${runId}`保证稳定幂等。`kr_messages.sequence`是持久递增序号。不能在deliver回调内提前广播未提交结果。
 - `apps/runtime/app.ts`只有`/api/executions/:id/stream`，从kr_events读指定执行并在终态关闭。独立交付没有这些execution事件；全局kr_events包含内部研究/工具内容，不能直接当用户消息流。
 - `LocalAgent.connect/hydrate/watch`仅关注conversation execution；空闲后没有未来交付的订阅。`hydrate`并发可让旧saved覆盖新值；events请求回来后、generation检查前已经修改缓存。这是源码可达竞态，本轮通过可控时序测试确认修复，不伪称已发生线上故障。
-- `apps/mobile/openmuse/App.tsx`保留访问过的ChatScreen，只隐藏非active页面；不能让每个历史页面永久持有新连接。`chat.tsx`只对existing选择connect；新会话必须在ensureThread成功后启动观察。`transport.ts`原本仅execution stream使用expo/fetch，需要兼容新流。
+- `apps/mobile/kleio/App.tsx`保留访问过的ChatScreen，只隐藏非active页面；不能让每个历史页面永久持有新连接。`chat.tsx`只对existing选择connect；新会话必须在ensureThread成功后启动观察。`transport.ts`原本仅execution stream使用expo/fetch，需要兼容新流。
 - 当前messages接口返回持久聊天记录；forget保护重新使用与通知投影，不删除既有会话历史。新流只发元信息，不复制正文或增加遗忘缓存；不暗中改变“删除历史”的产品合同。原有policy epoch/Work提交守卫继续拦截已失效执行的交付。
 
 ### 19.2 成熟源码依据与选型
@@ -1253,7 +1253,7 @@ Xcode Release 构建通过，首次禁用签名导致 Keychain 缺少 entitlemen
 
 | 对象 | 工作区源码证实 | 体验缺口与设计决定 |
 | --- | --- | --- |
-| 记忆列表与修改 | `apps/mobile/openmuse/agent-ui.tsx` 的设置卡与 `MemoryRow` 已支持查看、更正、遗忘；`apps/runtime/openmuse.ts` 的 `memory()` 只映射 id/text/source/createdAt/version | 记忆藏在设置里，单一来源标签无法回答“为什么记得”。升为主入口；扩展展示契约，而非重复创建记忆服务 |
+| 记忆列表与修改 | `apps/mobile/kleio/agent-ui.tsx` 的设置卡与 `MemoryRow` 已支持查看、更正、遗忘；`apps/runtime/kleio.ts` 的 `memory()` 只映射 id/text/source/createdAt/version | 记忆藏在设置里，单一来源标签无法回答“为什么记得”。升为主入口；扩展展示契约，而非重复创建记忆服务 |
 | 全部记忆与文档 | `packages/personal-memory/runtime.ts::maintain()` 的 `MEMORY.md` 目前使用 `active.slice(0,24)`；结构化存储为事实源 | 当前文件不是全量清单。拟议 MEMORY.md 是全部当前有效记忆的派生阅读/导出视图；不直接把旧24条文件叫“全部”，不把 Markdown 编辑器变成第二事实源 |
 | 来源与演变 | `MemoryClaim` 有 evidence/scope/version/status/validFrom/validUntil；`MemoryRuntime.explain()` 有 sources、chain、usage；`apps/runtime/app.ts` 已有 GET `/api/memory/:id/explain` 与 history | 界面需呈现当前结论、原始用户语句、来源会话、修订链与使用状态。身份/授权与来源可访问性仍由后端判断 |
 | 修改与遗忘 | 当前 mutation 接口带 expectedVersion；失败不能宣称完成 | 提交中、成功、版本冲突、失败需分别显示；停止使用记忆不等同删除原聊天。原型仅模拟成功，不代表接口验收 |
@@ -1292,7 +1292,7 @@ Reference 更新采用先读状态、fetch，再仅对干净且有 upstream 的�
 
 **实际交付**：[手机端可点击原型](../../reference/kleio-design/mobile-prototype/index.html)，本机预览 `http://127.0.0.1:4799/`（仅绑定本机、仅服务原型目录，服务停止后可直接打开HTML）。三入口共享合成状态；MEMORY.md为当前有效示例记忆派生全文，可以下载；来源跳原话、更正版本、遗忘确认、研究核验/完成/失败重试、原会话交付均可操作。刷新或“重置全部示例”恢复初始场景。不联网，不连接真实用户记录。
 
-**调研更新**：[参考源码与版本审计](../../reference/kleio-design/evidence/ui-prototype-2026-10-20/reference-audit.md)。11个reference Git仓库全部fetch成功，9个干净分支快进，2个已最新，更新后均clean。OpenMuse保持 `1ac68f3`，open-claude-ui更新至 `4045ce7`（12个提交）；完整前后SHA见审计表。新增上游机制只作为参考，未移植整套仓库，其他项目的更新不等于其功能已测试。
+**调研更新**：[参考源码与版本审计](../../reference/kleio-design/evidence/ui-prototype-2026-10-20/reference-audit.md)。11个reference Git仓库全部fetch成功，9个干净分支快进，2个已最新，更新后均clean。上游客户端保持 `1ac68f3`，open-claude-ui更新至 `4045ce7`（12个提交）；完整前后SHA见审计表。新增上游机制只作为参考，未移植整套仓库，其他项目的更新不等于其功能已测试。
 
 **分工与返工**：U0 `/root/ui_reference_audit`；U1 `/root/ui_prototype_builder`；U2 `/root/ui_prototype_reviewer`，均显式请求 `gpt-6.1-sol`，实际运行型号/token无独立读取。U1读参考/设计开始约17:37:40，首次完成约17:40，静态检查至17:40:55（北京时间；开始时间为估计）。U2首审17:40:41–17:41:05，发现1个P3：预置事务关联的是偏好语句而非委托；17:41:29开发者补实际委托消息，17:41:46复审约10秒通过，1轮示例数据语义返修。[独立审查](../../reference/kleio-design/evidence/ui-prototype-2026-10-20/independent-review.md)。父级同步做源码分析、方案编写和浏览器验收；没有逐步骤计时，不编造精确调研/验证总耗时，也不把并行时长相加当用户等待。
 

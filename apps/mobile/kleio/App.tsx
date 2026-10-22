@@ -105,7 +105,7 @@ export default function App() {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
     document.documentElement.lang = "zh-CN";
     // Earlier shells left these titles. The product title is Kleio.
-    if (/open\s*bot|openmuse/i.test(document.title)) document.title = "Kleio";
+    if (/open\s*bot/i.test(document.title)) document.title = "Kleio";
   }, []);
   const gate = accessGateCopy();
   return (

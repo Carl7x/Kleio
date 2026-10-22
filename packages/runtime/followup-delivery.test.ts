@@ -9,7 +9,7 @@ import { RuntimeStore } from './store.ts';
 import type { RuntimeConfig } from './config.ts';
 import type { Engine } from './contracts.ts';
 import { createRuntimeApp } from '../../apps/runtime/app.ts';
-import { legacyMainThreadSettingKey, mainThreadSettingKey, researchFallbackSourceId } from '../../apps/runtime/kleio.ts';
+import { mainThreadSettingKey, researchFallbackSourceId } from '../../apps/runtime/kleio.ts';
 
 test('kleio research routes can pause, revise, and resume a periodic follow-up', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'kleio-followup-'));
@@ -52,11 +52,6 @@ test('kleio research routes can pause, revise, and resume a periodic follow-up',
   assert.match(matter.watchNote, /不是实时/);
   assert.equal(matter.nextAt, task.nextAt);
 
-  const listedLegacy = await app.request('http://127.0.0.1/api/openmuse/research', { headers });
-  assert.equal(listedLegacy.status, 200);
-  const legacyList = await listedLegacy.json() as { research: Array<{ task: { id: string } }> };
-  assert.equal(legacyList.research.some(item => item.task.id === task.id), true);
-
   const paused = await app.request(`http://127.0.0.1/api/kleio/research/${task.id}/control`, { method: 'POST', headers, body: JSON.stringify({ action: 'pause' }) });
   assert.equal(paused.status, 200);
   const pausedBody = await paused.json() as { progress: string; hold: string; nextAt: string | null; onlyOnChange: boolean };
@@ -74,10 +69,8 @@ test('kleio research routes can pause, revise, and resume a periodic follow-up',
   assert.equal(revisedBody.task.constraintVersion, 2);
   assert.equal(revisedBody.task.schedule.expression, '0 10 * * MON-FRI');
   assert.equal(revisedBody.task.constraints.at(-1)?.source.messageId, researchFallbackSourceId(task.id));
-  const byLegacyId = await app.request(`http://127.0.0.1/api/kleio/research/openmuse:${task.id}`, { headers });
-  assert.equal(byLegacyId.status, 200);
-  const byKleioId = await app.request(`http://127.0.0.1/api/openmuse/research/kleio:${task.id}`, { headers });
-  assert.equal(byKleioId.status, 200);
+  const bySourceId = await app.request(`http://127.0.0.1/api/kleio/research/kleio:${task.id}`, { headers });
+  assert.equal(bySourceId.status, 200);
 
   const resumed = await app.request(`http://127.0.0.1/api/kleio/research/${task.id}/control`, { method: 'POST', headers, body: JSON.stringify({ action: 'resume' }) });
   assert.equal(resumed.status, 200);
@@ -89,7 +82,7 @@ test('kleio research routes can pause, revise, and resume a periodic follow-up',
   assert.equal(host.store.messages(conversation.id).length, 0);
 });
 
-test('main thread reads the legacy settings key and writes the Kleio key', async t => {
+test('main thread reads and writes only the Kleio settings key', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'kleio-main-thread-'));
   const store = new RuntimeStore(join(directory, 'app.sqlite'));
   const config: RuntimeConfig = {
@@ -109,12 +102,12 @@ test('main thread reads the legacy settings key and writes the Kleio key', async
   });
   const conversation = host.store.createConversation('原来的主对话');
   host.store.updateConversation(conversation.id, { isMain: true });
-  host.store.setSetting(legacyMainThreadSettingKey, conversation.id);
+  host.store.setSetting(mainThreadSettingKey, conversation.id);
   const headers = { authorization: 'Bearer ' + config.token, 'content-type': 'application/json' };
   const listed = await app.request('http://127.0.0.1/api/main-thread', { headers });
   assert.equal(listed.status, 200);
   assert.deepEqual(await listed.json(), { threadId: conversation.id, existing: true });
-  assert.equal(host.store.getSetting(mainThreadSettingKey, null), null);
+  assert.equal(host.store.getSetting(mainThreadSettingKey, null), conversation.id);
   const archived = await app.request(`http://127.0.0.1/api/threads/${conversation.id}/archive`, { method: 'POST', headers, body: '{}' });
   assert.equal(archived.status, 400);
 
@@ -132,5 +125,4 @@ test('main thread reads the legacy settings key and writes the Kleio key', async
   assert.equal(created.status, 200);
   const body = await created.json() as { threadId: string };
   assert.equal(fresh.getSetting(mainThreadSettingKey, null), body.threadId);
-  assert.equal(fresh.getSetting(legacyMainThreadSettingKey, null), null);
 });
