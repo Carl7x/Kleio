@@ -12,6 +12,11 @@ export interface PresentationIdentity {
 const AVATARS = ['sky', 'sand', 'lilac'] as const;
 type Avatar = typeof AVATARS[number];
 
+/** Presentation mirror. New writes use this key. */
+export const identitySettingKey = 'kleio.identity';
+/** Read-only fallback for installs that stored the mirror before the Kleio key. */
+export const legacyIdentitySettingKey = 'openmuse.identity';
+
 interface StoredIdentity {
   name: string;
   tone: string;
@@ -23,10 +28,23 @@ interface StoredIdentity {
  * Name and tone authority, highest first:
  * 1. A valid standing/IDENTITY.md field, read on every request.
  * 2. Product default Kleio / warm when the file is missing, blank, or invalid.
- * 3. openmuse.identity is only the presentation mirror (avatar, showChatUpdates, and a copy of the effective name and tone).
+ * 3. kleio.identity is only the presentation mirror (avatar, showChatUpdates, and a copy of the effective name and tone).
+ *    openmuse.identity is read when the Kleio key is absent, and is not written.
  * The mirror is seeded into a newly created IDENTITY.md once. After that, file edits win and the mirror is updated to match.
  * Startup never overwrites an existing standing file.
  */
+function readIdentityRaw(store: RuntimeStore): unknown {
+  const current = store.getSetting<unknown>(identitySettingKey, null);
+  if (current != null) return current;
+  return store.getSetting<unknown>(legacyIdentitySettingKey, null);
+}
+
+function writeIdentityMirror(store: RuntimeStore, identity: PresentationIdentity): void {
+  const raw = readIdentityRaw(store);
+  const base = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+  store.setSetting(identitySettingKey, { ...base, ...identity });
+}
+
 export function migrateStandingIdentity(store: RuntimeStore, dataDirectory: string): void {
   const ensured = ensureStanding(dataDirectory);
   if (!ensured.created.includes('IDENTITY.md')) return;
@@ -48,8 +66,7 @@ export function currentAgentIdentity(store: RuntimeStore, dataDirectory: string)
     showChatUpdates: stored?.showChatUpdates ?? true,
   };
   if (stored && (stored.name !== identity.name || stored.tone !== identity.tone || stored.avatar !== identity.avatar || stored.showChatUpdates !== identity.showChatUpdates)) {
-    const raw = store.getSetting<Record<string, unknown> | null>('openmuse.identity', null);
-    store.setSetting('openmuse.identity', { ...(raw ?? {}), ...identity });
+    writeIdentityMirror(store, identity);
   }
   return identity;
 }
@@ -64,13 +81,12 @@ export function saveAgentIdentity(store: RuntimeStore, dataDirectory: string, in
     avatar: input.avatar ?? current.avatar,
     showChatUpdates: input.showChatUpdates ?? current.showChatUpdates,
   };
-  const raw = store.getSetting<Record<string, unknown> | null>('openmuse.identity', null);
-  store.setSetting('openmuse.identity', { ...(raw ?? {}), ...identity });
+  writeIdentityMirror(store, identity);
   return identity;
 }
 
 function readStored(store: RuntimeStore): StoredIdentity | null {
-  const raw = store.getSetting<unknown>('openmuse.identity', null);
+  const raw = readIdentityRaw(store);
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const value = raw as Record<string, unknown>;
   const avatar = AVATARS.find(item => item === value.avatar) ?? 'sky';

@@ -1,8 +1,9 @@
 # Kleio client
 
 Expo 57, React Native 0.86 and React Native Web share the application screens.
-The original OpenMuse client lives in `openmuse/`; see `../../third_party/openmuse`
-for its license. Local adapters connect its presentation contracts to Kleio.
+The Expo client lives in `kleio/`. MIT attribution for the incorporated upstream
+presentation code is in `../../third_party/openmuse`. Local adapters connect
+those presentation contracts to Kleio.
 
 From the repository root:
 

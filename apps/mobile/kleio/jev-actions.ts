@@ -6,7 +6,7 @@ import {
   jevActionPrefixOf,
   jevToolResultSchema,
   parseJevAction,
-} from "../../../packages/openmuse-domain/src/jev";
+} from "../../../packages/kleio-domain/src/jev";
 import { choiceSelectionLine, choiceUnavailableLine } from "./chat-stream-rules";
 
 export function parseJevResult(value: unknown): JevToolResult | null {

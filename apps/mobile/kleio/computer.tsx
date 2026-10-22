@@ -9,8 +9,8 @@ import {
 } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import { AppState, Image, Pressable, Text, View } from "react-native";
-import type { BrowserSession } from "../../../packages/openmuse-domain/src";
-import type { ComputerSnapshot } from "../../../packages/openmuse-domain/src/computer";
+import type { BrowserSession } from "../../../packages/kleio-domain/src";
+import type { ComputerSnapshot } from "../../../packages/kleio-domain/src/computer";
 import { browserAddress } from "./browser-address";
 import { fileDetailLine, returnKeyCaption, surfaceError } from "./chat-stream-rules";
 import { useComputerDraft } from "./computer-drafts";

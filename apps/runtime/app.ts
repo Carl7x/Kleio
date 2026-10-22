@@ -8,7 +8,7 @@ import { RuntimeError } from '../../packages/runtime/contracts.ts';
 import type { RuntimeHost } from '../../packages/runtime/host.ts';
 import { BrowserSessions, mountWeb } from './web.ts';
 import { DeviceSessions, localAddresses } from './devices.ts';
-import { mountOpenMuse } from './openmuse.ts';
+import { mountKleio } from './kleio.ts';
 import { projectNotification } from './notification-projection.ts';
 import { streamConversationChanges } from './conversation-stream.ts';
 
@@ -162,7 +162,7 @@ export function createRuntimeApp(host: RuntimeHost, shutdown: () => void): Hono 
     return c.json({ ok: true });
   });
   app.post('/api/shutdown', c => { setTimeout(shutdown, 20); return c.json({ ok: true }); });
-  mountOpenMuse(app, host);
+  mountKleio(app, host);
   mountWeb(app);
   return app;
 }

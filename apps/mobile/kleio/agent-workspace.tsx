@@ -12,7 +12,7 @@ import type {
   AgentTask,
   AgentWorkspace,
   CreateTaskInput,
-} from "../../../packages/openmuse-domain/src/agent";
+} from "../../../packages/kleio-domain/src/agent";
 import { useWorkspace } from "./workspace";
 
 interface AgentContextValue {

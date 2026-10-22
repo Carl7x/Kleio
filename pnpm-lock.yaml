@@ -133,6 +133,8 @@ importers:
 
   packages/harness-dsh: {}
 
+  packages/kleio-domain: {}
+
   packages/personal-agent-ui:
     devDependencies:
       '@types/react':

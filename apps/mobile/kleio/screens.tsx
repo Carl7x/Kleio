@@ -37,7 +37,7 @@ import type {
   BrowserSession,
   CalendarEvent,
   EmailDraft,
-} from "../../../packages/openmuse-domain/src";
+} from "../../../packages/kleio-domain/src";
 import { API_URL } from "./api";
 import {
   activityEventTitle,

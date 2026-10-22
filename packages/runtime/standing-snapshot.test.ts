@@ -10,6 +10,7 @@ import { StandingStore, StandingStoreError } from '../product-context/index.ts';
 import type { Engine, ExecutionContext, ExecutionInput, ToolDefinition } from './contracts.ts';
 import type { RuntimeConfig } from './config.ts';
 import { RuntimeHost } from './host.ts';
+import { identitySettingKey, legacyIdentitySettingKey } from './identity.ts';
 import { RuntimeStore, type Execution } from './store.ts';
 
 const FILES = ['IDENTITY.md', 'SOUL.md', 'USER.md', 'TOOLS.md', 'AGENTS.md'] as const;
@@ -158,7 +159,7 @@ describe('G3.4 host standing snapshot', { concurrency: false, timeout: 20_000 },
       async close() { releaseA(); },
     };
     const { directory, store, config, host } = openHost(engine, {
-      beforeHost(next) { next.setSetting('openmuse.identity', { name: '旧显示名', tone: 'concise', avatar: 'sand', showChatUpdates: false }); },
+      beforeHost(next) { next.setSetting(legacyIdentitySettingKey, { name: '旧显示名', tone: 'concise', avatar: 'sand', showChatUpdates: false }); },
     });
     const { records, reads } = spyStanding(t);
     t.after(async () => {
@@ -206,8 +207,10 @@ describe('G3.4 host standing snapshot', { concurrency: false, timeout: 20_000 },
     const body = await agent.json() as { identity: { name: string; tone: string; avatar: string; showChatUpdates: boolean } };
     assert.deepEqual(body.identity, { name: '新显示名', tone: 'thoughtful', avatar: 'sand', showChatUpdates: false });
     assert.deepEqual(Object.keys(body.identity).sort(), ['avatar', 'name', 'showChatUpdates', 'tone']);
-    const mirror = store.db.prepare('SELECT value FROM kr_settings WHERE key=?').get('openmuse.identity') as { value: string };
+    const mirror = store.db.prepare('SELECT value FROM kr_settings WHERE key=?').get(identitySettingKey) as { value: string };
     assert.deepEqual(JSON.parse(mirror.value), body.identity);
+    const legacyMirror = store.db.prepare('SELECT value FROM kr_settings WHERE key=?').get(legacyIdentitySettingKey) as { value: string };
+    assert.equal(JSON.parse(legacyMirror.value).name, '旧显示名');
     assert.equal(reads.count, 2);
     assert.equal(records.length, 1);
     assert.equal(records[0]!.part.content.name, '旧显示名');
@@ -597,7 +600,7 @@ describe('G3.4 host standing snapshot', { concurrency: false, timeout: 20_000 },
     const engine: Engine = { id: 'g34-identity', contextCapabilities: TEST_CONTEXT_CAPABILITIES, async execute() { return { text: 'ok' }; }, async close() {} };
     const directory = mkdtempSync(join(tmpdir(), 'kleio-g34-identity-'));
     const store = new RuntimeStore(join(directory, 'test.sqlite'));
-    store.setSetting('openmuse.identity', { name: '旧名', tone: 'thoughtful', avatar: 'lilac', showChatUpdates: false });
+    store.setSetting(legacyIdentitySettingKey, { name: '旧名', tone: 'thoughtful', avatar: 'lilac', showChatUpdates: false });
     const config: RuntimeConfig = {
       port: 4317, token: 'test-token-0123456789abcd', dataDirectory: directory,
       model: { ...TEST_MODEL_CAPACITY, baseURL: 'https://example.com', id: 'synthetic', apiKey: '' }, memoryIdleMs: 120_000,
@@ -613,8 +616,10 @@ describe('G3.4 host standing snapshot', { concurrency: false, timeout: 20_000 },
     const saved = await posted.json() as { name: string; tone: string; avatar: string; showChatUpdates: boolean };
     assert.deepEqual(saved, { name: '河洛', tone: 'concise', avatar: 'lilac', showChatUpdates: false });
     assert.deepEqual(Object.keys(saved).sort(), ['avatar', 'name', 'showChatUpdates', 'tone']);
-    const row = store.db.prepare('SELECT value FROM kr_settings WHERE key=?').get('openmuse.identity') as { value: string };
+    const row = store.db.prepare('SELECT value FROM kr_settings WHERE key=?').get(identitySettingKey) as { value: string };
     assert.deepEqual(JSON.parse(row.value), saved);
+    const legacyRow = store.db.prepare('SELECT value FROM kr_settings WHERE key=?').get(legacyIdentitySettingKey) as { value: string };
+    assert.deepEqual(JSON.parse(legacyRow.value), { name: '旧名', tone: 'thoughtful', avatar: 'lilac', showChatUpdates: false });
     const identityFile = readFileSync(join(directory, 'standing/IDENTITY.md'), 'utf8');
     assert.match(identityFile, /- Name: 河洛\n- Tone: concise/);
     assert.equal(identityFile.includes('showChatUpdates'), false);
@@ -629,8 +634,10 @@ describe('G3.4 host standing snapshot', { concurrency: false, timeout: 20_000 },
     const next = await updated.json() as typeof saved;
     assert.deepEqual(next, { name: '河洛', tone: 'concise', avatar: 'sand', showChatUpdates: true });
     assert.deepEqual(Object.keys(next).sort(), ['avatar', 'name', 'showChatUpdates', 'tone']);
-    const rowAfter = store.db.prepare('SELECT value FROM kr_settings WHERE key=?').get('openmuse.identity') as { value: string };
+    const rowAfter = store.db.prepare('SELECT value FROM kr_settings WHERE key=?').get(identitySettingKey) as { value: string };
     assert.deepEqual(JSON.parse(rowAfter.value), next);
+    const legacyAfter = store.db.prepare('SELECT value FROM kr_settings WHERE key=?').get(legacyIdentitySettingKey) as { value: string };
+    assert.deepEqual(JSON.parse(legacyAfter.value), { name: '旧名', tone: 'thoughtful', avatar: 'lilac', showChatUpdates: false });
     const shown = await app.request('http://127.0.0.1/api/agent', { headers });
     const shownBody = await shown.json() as { identity: typeof saved };
     assert.deepEqual(shownBody.identity, next);

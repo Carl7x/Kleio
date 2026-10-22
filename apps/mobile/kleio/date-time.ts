@@ -1,4 +1,4 @@
-import { localDateTime } from "../../../packages/openmuse-domain/src/date-time.ts";
+import { localDateTime } from "../../../packages/kleio-domain/src/date-time.ts";
 
 export { localDateTime };
 

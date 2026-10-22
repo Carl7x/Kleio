@@ -22,7 +22,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, Linking, Pressable, Text, View } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
-import type { Artifact, BrowserSession } from "../../../packages/openmuse-domain/src";
+import type { Artifact, BrowserSession } from "../../../packages/kleio-domain/src";
 import type {
   AgentArtifact,
   AgentMemory,
@@ -32,7 +32,7 @@ import type {
   Idea,
   Monitor,
   RunEvent,
-} from "../../../packages/openmuse-domain/src/agent";
+} from "../../../packages/kleio-domain/src/agent";
 import { useAgentWorkspace } from "./agent-workspace";
 import { QuietDots, ReceiptAction, StreamCard } from "./chat-stream";
 import {

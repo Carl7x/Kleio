@@ -9,7 +9,7 @@ import type {
   Mail,
   Section,
   Workspace,
-} from "../../../packages/openmuse-domain/src";
+} from "../../../packages/kleio-domain/src";
 import type { MuseApi } from "./api";
 export type Detail =
   | { type: "mail"; mail: Mail }
