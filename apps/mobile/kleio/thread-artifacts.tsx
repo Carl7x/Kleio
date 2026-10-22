@@ -1,8 +1,8 @@
 import { ChevronRight, FileText } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import type { Artifact, BrowserSession } from "../../../packages/openmuse-domain/src";
-import type { AgentArtifact, AgentTask } from "../../../packages/openmuse-domain/src/agent";
+import type { Artifact, BrowserSession } from "../../../packages/kleio-domain/src";
+import type { AgentArtifact, AgentTask } from "../../../packages/kleio-domain/src/agent";
 import { ArtifactCard, TaskCard } from "./agent-ui";
 import { ThreadNotice } from "./chat-stream";
 import { formFieldLabel, statusServerNote } from "./chat-stream-rules";

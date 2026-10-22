@@ -2,7 +2,7 @@ import { Globe2, RotateCw } from "lucide-react-native";
 import { createContext, useContext, useEffect, useState } from "react";
 import { AppState, Image, Text, View } from "react-native";
 import { z } from "zod";
-import type { BrowserSession } from "../../../packages/openmuse-domain/src";
+import type { BrowserSession } from "../../../packages/kleio-domain/src";
 import { ReceiptAction, SkeletonLine, StatusNote, StreamCard } from "./chat-stream";
 import { browserReceiptAction } from "./chat-stream-rules";
 import { Button, colors, s } from "./ui";

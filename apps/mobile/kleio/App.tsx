@@ -24,7 +24,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import type { Section, Workspace } from "../../../packages/openmuse-domain/src";
+import type { Section, Workspace } from "../../../packages/kleio-domain/src";
 import {
   AgentActivityScreen,
   AppsScreen,
@@ -104,6 +104,7 @@ export default function App() {
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
     document.documentElement.lang = "zh-CN";
+    // Earlier shells left these titles. The product title is Kleio.
     if (/open\s*bot|openmuse/i.test(document.title)) document.title = "Kleio";
   }, []);
   const gate = accessGateCopy();

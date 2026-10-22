@@ -1,1 +1,1 @@
-export { default } from "./openmuse/App";
+export { default } from "./kleio/App";

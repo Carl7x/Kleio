@@ -24,6 +24,7 @@ import { RuntimeStore } from '../packages/runtime/store.ts';
 import { RuntimeHost } from '../packages/runtime/host.ts';
 import { createDshEngine } from '../packages/engines/dsh.ts';
 import { createRuntimeApp } from '../apps/runtime/app.ts';
+import { identitySettingKey } from '../packages/runtime/identity.ts';
 import type { RuntimeConfig } from '../packages/runtime/config.ts';
 
 const NAME_A = 'L1North7741';
@@ -137,7 +138,7 @@ async function main(): Promise<void> {
 
     const posted = await api('/api/agent/identity', { method: 'POST', body: JSON.stringify({ name: NAME_A, tone: 'concise', avatar: 'sand', showChatUpdates: false }) });
     const identityFile = readFileSync(join(dataDirectory, 'standing/IDENTITY.md'), 'utf8');
-    const mirror = store.getSetting<{ name?: string; avatar?: string }>('openmuse.identity', {});
+    const mirror = store.getSetting<{ name?: string; avatar?: string }>(identitySettingKey, {});
     const postOk = posted.status === 200 && identityFile.includes(`Name: ${NAME_A}`) && mirror.name === NAME_A && mirror.avatar === 'sand';
     report.steps.push({ name: 'identity-post', ok: postOk, detail: postOk ? `${NAME_A} is in the API, standing file, and database mirror` : `status ${posted.status}` });
 

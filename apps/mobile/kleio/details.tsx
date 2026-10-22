@@ -31,7 +31,7 @@ import {
   eventDraftSchema,
   type Mail,
   type ProposalInput,
-} from "../../../packages/openmuse-domain/src";
+} from "../../../packages/kleio-domain/src";
 import { DelegateSheet, NotificationsSheet, TaskDetail } from "./agent-ui";
 import {
   approvalAttachmentLine,

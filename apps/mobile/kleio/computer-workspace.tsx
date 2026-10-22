@@ -14,12 +14,12 @@ import {
 } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Platform, Text, View } from "react-native";
-import type { Artifact } from "../../../packages/openmuse-domain/src";
+import type { Artifact } from "../../../packages/kleio-domain/src";
 import type {
   ComputerCommand,
   ComputerDirectory,
   ComputerSnapshot,
-} from "../../../packages/openmuse-domain/src/computer";
+} from "../../../packages/kleio-domain/src/computer";
 import {
   computerCommandKeyboardHint,
   computerCommandStatus,

@@ -1,0 +1,14 @@
+{
+  "name": "@kleio/domain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Presentation contracts shared by the Kleio Expo client and runtime",
+  "exports": {
+    ".": "./src/index.ts",
+    "./agent": "./src/agent.ts",
+    "./computer": "./src/computer.ts",
+    "./date-time": "./src/date-time.ts",
+    "./jev": "./src/jev.ts"
+  }
+}

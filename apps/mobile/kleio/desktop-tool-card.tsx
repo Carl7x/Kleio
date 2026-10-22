@@ -2,7 +2,7 @@ import { Monitor } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { AppState, Image, Platform, Text, View } from "react-native";
 import { z } from "zod";
-import type { ComputerSnapshot } from "../../../packages/openmuse-domain/src/computer";
+import type { ComputerSnapshot } from "../../../packages/kleio-domain/src/computer";
 import { useComputerDraft } from "./computer-drafts";
 import { DesktopStream } from "./desktop-stream";
 import { ReceiptAction, StatusNote, StreamCard } from "./chat-stream";

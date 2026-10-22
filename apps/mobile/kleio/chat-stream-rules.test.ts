@@ -4,7 +4,7 @@ import {
   encodeJevAction,
   legacyJevActionPrefix,
   parseJevAction,
-} from "../../../packages/openmuse-domain/src/jev.ts";
+} from "../../../packages/kleio-domain/src/jev.ts";
 import { displayJevUserMessage, retryChoiceAvailable } from "./jev-actions.ts";
 import {
   approvalAttachmentLine,

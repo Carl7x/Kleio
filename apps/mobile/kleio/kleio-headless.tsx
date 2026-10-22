@@ -1,4 +1,4 @@
-// OpenMuse's headless view contract backed by Kleio's local, persisted runtime.
+// Headless view contract backed by Kleio's local, persisted runtime.
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { api } from "../src/api";
 import { LocalAgent } from "./local-agent";

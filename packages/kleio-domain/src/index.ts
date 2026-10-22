@@ -193,6 +193,7 @@ export interface Workspace {
   runtime: {
     provider: "sample" | "model" | "openbot";
     configured: boolean;
+    /** Wire field kept for existing clients. Display copy already says Kleio. */
     openbotConfigured: boolean;
     richThreads?: boolean;
     capabilities?: Partial<Record<
@@ -203,7 +204,7 @@ export interface Workspace {
   };
 }
 
-/** Provider-independent boundary: OpenBot/AG-UI runs never dictate presentation. */
+/** Provider-independent boundary. `openbot` remains the stored kind for existing clients. */
 export interface ExecutionBackend {
   readonly kind: "standalone" | "openbot";
   readonly capabilities: readonly string[];

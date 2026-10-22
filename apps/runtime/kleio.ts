@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { Hono } from 'hono';
 import { z } from 'zod';
-import type { Workspace } from '../../packages/openmuse-domain/src/index.ts';
-import { createTaskSchema, type AgentArtifact, type AgentIdentity, type AgentMemory, type AgentNotification, type AgentTask, type AgentWorkspace, type RunEvent } from '../../packages/openmuse-domain/src/agent.ts';
-import type { ComputerSnapshot } from '../../packages/openmuse-domain/src/computer.ts';
+import type { Workspace } from '../../packages/kleio-domain/src/index.ts';
+import { createTaskSchema, type AgentArtifact, type AgentIdentity, type AgentMemory, type AgentNotification, type AgentTask, type AgentWorkspace, type RunEvent } from '../../packages/kleio-domain/src/agent.ts';
+import type { ComputerSnapshot } from '../../packages/kleio-domain/src/computer.ts';
 import type { MemoryClaim } from '../../packages/personal-memory/runtime.ts';
 import { WorkRuntimeError, type WorkNotification, type WorkTask } from '../../packages/personal-tasks/runtime.ts';
 import { RuntimeError } from '../../packages/runtime/contracts.ts';
@@ -19,11 +19,49 @@ const unsupported = (): never => { throw new RuntimeError('unsupported', 'This c
 
 /**
  * Research and periodic follow-up control.
- * OpenMuse EngineService.control and publishOutcome stay coupled to Intelligence,
- * goals, monitors, and unread notifications, so they are not imported.
+ * The upstream control surface stays coupled to Intelligence, goals, monitors,
+ * and unread notifications, so it is not imported.
  * Writing into the original conversation is delivery. Read is separate.
  * A follow-up with no verifiable change writes nothing. It is a periodic search, not a live watch.
  */
+
+/** New writes use this settings key. Existing installs may still have the legacy key. */
+export const mainThreadSettingKey = 'kleio.mainThread';
+/** Read-only fallback. Not written after the Kleio rename. */
+export const legacyMainThreadSettingKey = 'openmuse.mainThread';
+
+const researchSourcePrefix = 'kleio:';
+/** Stored on research revisions created before the Kleio source-id rename. */
+const legacyResearchSourcePrefix = 'openmuse:';
+
+/** Fallback provenance id for a research revision that did not send its own request id. */
+export function researchFallbackSourceId(taskId: string): string {
+  return researchSourcePrefix + taskId;
+}
+
+/**
+ * Research routes address a task id. A stored fallback source id
+ * (`kleio:${taskId}`, and the legacy `openmuse:${taskId}`) resolves to that task.
+ * A bare task id is unchanged.
+ */
+export function resolveResearchTaskId(id: string): string {
+  if (id.startsWith(researchSourcePrefix)) return id.slice(researchSourcePrefix.length);
+  if (id.startsWith(legacyResearchSourcePrefix)) return id.slice(legacyResearchSourcePrefix.length);
+  return id;
+}
+
+function requireResearchId(id: string | undefined): string {
+  if (!id) throw new RuntimeError('invalid_input', 'Research id is required', 400);
+  return resolveResearchTaskId(id);
+}
+
+function readMainThreadId(host: RuntimeHost): string | null {
+  const current = host.store.getSetting<string | null>(mainThreadSettingKey, null);
+  if (typeof current === 'string' && current) return current;
+  const legacy = host.store.getSetting<string | null>(legacyMainThreadSettingKey, null);
+  if (typeof legacy === 'string' && legacy) return legacy;
+  return null;
+}
 function asHttp(error: unknown): never {
   if (error instanceof WorkRuntimeError) {
     const status = error.code === 'NOT_FOUND' ? 404 : error.code === 'INVALID_INPUT' ? 400 : 409;
@@ -87,19 +125,19 @@ function taskDetail(host: RuntimeHost, work: WorkTask) {
 }
 
 function mainThread(host: RuntimeHost): string {
-  const stored = host.store.getSetting<string | null>('openmuse.mainThread', null);
+  const stored = readMainThreadId(host);
   if (stored) { host.store.conversation(stored); return stored; }
   return host.store.transaction(() => {
     const conversations = host.store.conversations();
     const main = conversations.find(item => item.isMain) ?? conversations.at(-1) ?? host.store.createConversation();
     host.store.updateConversation(main.id, { isMain: true, archived: false });
-    host.store.setSetting('openmuse.mainThread', main.id);
+    host.store.setSetting(mainThreadSettingKey, main.id);
     return main.id;
   });
 }
 
-/** OpenMuse presentation contracts plus L0 research / periodic follow-up control. */
-export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
+/** Kleio presentation contracts plus research / periodic follow-up control. */
+export function mountKleio(app: Hono, host: RuntimeHost): void {
   const displayedNotification = (value: WorkNotification) => projectNotification(value, text => host.memory.redactBlocked(text));
   app.get('/api/workspace', c => {
     const workspace: Workspace = { mode: 'live', profile: { name: '', email: '' }, mail: [], events: [], files: [], browsers: [], actions: [],
@@ -124,7 +162,7 @@ export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
   });
   for (const action of ['archive', 'restore'] as const) app.post('/api/threads/:id/' + action, c => {
     const id = z.string().uuid().parse(c.req.param('id'));
-    if (id === host.store.getSetting('openmuse.mainThread', '') && action === 'archive') throw new RuntimeError('invalid_input', '主对话不能归档', 400);
+    if (id === (readMainThreadId(host) ?? '') && action === 'archive') throw new RuntimeError('invalid_input', '主对话不能归档', 400);
     return c.json(threadView(host.store.updateConversation(id, { archived: action === 'archive' })));
   });
   app.get('/api/agent', c => {
@@ -194,49 +232,53 @@ export function mountOpenMuse(app: Hono, host: RuntimeHost): void {
     app.all(path, () => unsupported());
   }
 
-  // L0 research / periodic follow-up control surface (kept alongside OpenMuse presentation routes).
-  app.get('/api/openmuse/research', c => {
-    try { return c.json({ research: host.work.list().filter(task => task.kind === 'research' && task.intervalMs === null).map(task => host.work.snapshot(task.id)) }); }
-    catch (error) { asHttp(error); }
-  });
-  app.get('/api/openmuse/research/:id', c => {
-    try { return c.json(host.work.snapshot(c.req.param('id'))); }
-    catch (error) { asHttp(error); }
-  });
-  app.post('/api/openmuse/research/:id/control', async c => {
-    const id = c.req.param('id');
-    const body = z.object({
-      action: z.enum(['pause', 'resume', 'stop', 'revise']),
-      prompt: z.string().trim().min(1).max(12000).optional(),
-      title: z.string().trim().min(1).max(120).optional(),
-      at: z.string().optional(),
-      schedule: z.object({ expression: z.string().trim().min(1).max(256), timeZone: z.string().trim().min(1).max(128).optional() }).optional(),
-      expectedVersion: z.number().int().positive().optional(),
-      requestId: z.string().min(1).max(200).optional(),
-    }).parse(await c.req.json());
-    try {
-      const current = host.work.get(id);
-      const version = body.expectedVersion;
-      if (body.action === 'pause') version === undefined ? host.work.pause(id) : host.work.pause(id, version);
-      else if (body.action === 'resume') version === undefined ? host.work.resume(id) : host.work.resume(id, version);
-      else if (body.action === 'stop') version === undefined ? host.work.cancel(id) : host.work.cancel(id, version);
-      else {
-        if (body.prompt === undefined && body.title === undefined && body.at === undefined && body.schedule === undefined) throw new RuntimeError('invalid_input', 'Revised research needs a new prompt, title, time, or schedule', 400);
-        const schedule = body.schedule ? { expression: body.schedule.expression, timeZone: body.schedule.timeZone || host.store.getSetting('timezone', Intl.DateTimeFormat().resolvedOptions().timeZone) } : undefined;
-        host.work.revise(id, {
-          ...(body.prompt !== undefined ? { prompt: body.prompt } : {}),
-          ...(body.title !== undefined ? { title: body.title } : {}),
-          ...(body.at !== undefined ? { at: body.at } : {}),
-          ...(schedule ? { schedule } : {}),
-        }, { kind: 'user', conversationId: current.conversationId, messageId: body.requestId ?? `openmuse:${id}` }, version);
-      }
-      return c.json(host.work.snapshot(id));
-    } catch (error) { asHttp(error); }
-  });
-  app.post('/api/openmuse/research/:id/read', c => {
-    try {
-      host.work.markRead(c.req.param('id'));
-      return c.json(host.work.snapshot(c.req.param('id')));
-    } catch (error) { asHttp(error); }
-  });
+  // Research / periodic follow-up. `/api/kleio` is canonical.
+  // `/api/openmuse` stays as a temporary alias for clients already calling the old paths.
+  for (const prefix of ['/api/kleio', '/api/openmuse'] as const) {
+    app.get(prefix + '/research', c => {
+      try { return c.json({ research: host.work.list().filter(task => task.kind === 'research' && task.intervalMs === null).map(task => host.work.snapshot(task.id)) }); }
+      catch (error) { asHttp(error); }
+    });
+    app.get(prefix + '/research/:id', c => {
+      try { return c.json(host.work.snapshot(requireResearchId(c.req.param('id')))); }
+      catch (error) { asHttp(error); }
+    });
+    app.post(prefix + '/research/:id/control', async c => {
+      const id = requireResearchId(c.req.param('id'));
+      const body = z.object({
+        action: z.enum(['pause', 'resume', 'stop', 'revise']),
+        prompt: z.string().trim().min(1).max(12000).optional(),
+        title: z.string().trim().min(1).max(120).optional(),
+        at: z.string().optional(),
+        schedule: z.object({ expression: z.string().trim().min(1).max(256), timeZone: z.string().trim().min(1).max(128).optional() }).optional(),
+        expectedVersion: z.number().int().positive().optional(),
+        requestId: z.string().min(1).max(200).optional(),
+      }).parse(await c.req.json());
+      try {
+        const current = host.work.get(id);
+        const version = body.expectedVersion;
+        if (body.action === 'pause') version === undefined ? host.work.pause(id) : host.work.pause(id, version);
+        else if (body.action === 'resume') version === undefined ? host.work.resume(id) : host.work.resume(id, version);
+        else if (body.action === 'stop') version === undefined ? host.work.cancel(id) : host.work.cancel(id, version);
+        else {
+          if (body.prompt === undefined && body.title === undefined && body.at === undefined && body.schedule === undefined) throw new RuntimeError('invalid_input', 'Revised research needs a new prompt, title, time, or schedule', 400);
+          const schedule = body.schedule ? { expression: body.schedule.expression, timeZone: body.schedule.timeZone || host.store.getSetting('timezone', Intl.DateTimeFormat().resolvedOptions().timeZone) } : undefined;
+          host.work.revise(id, {
+            ...(body.prompt !== undefined ? { prompt: body.prompt } : {}),
+            ...(body.title !== undefined ? { title: body.title } : {}),
+            ...(body.at !== undefined ? { at: body.at } : {}),
+            ...(schedule ? { schedule } : {}),
+          }, { kind: 'user', conversationId: current.conversationId, messageId: body.requestId ?? researchFallbackSourceId(id) }, version);
+        }
+        return c.json(host.work.snapshot(id));
+      } catch (error) { asHttp(error); }
+    });
+    app.post(prefix + '/research/:id/read', c => {
+      try {
+        const id = requireResearchId(c.req.param('id'));
+        host.work.markRead(id);
+        return c.json(host.work.snapshot(id));
+      } catch (error) { asHttp(error); }
+    });
+  }
 }
